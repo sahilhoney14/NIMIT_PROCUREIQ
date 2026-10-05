@@ -200,6 +200,21 @@ body {
     font-weight: 600;
 }
 
+.required-star {
+    color: #e53e3e;
+    font-weight: 700;
+    margin-left: 2px;
+}
+
+.form-group:has(input:required) > label:not(:has(.required-star))::after,
+.form-group:has(select:required) > label:not(:has(.required-star))::after,
+.form-group:has(textarea:required) > label:not(:has(.required-star))::after,
+label.required:not(:has(.required-star))::after {
+    content: " *";
+    color: #e53e3e;
+    font-weight: 700;
+}
+
 .form-group input,
 .form-group textarea,
 .form-group select {

@@ -109,43 +109,43 @@
                     <form id="manualForm">
                         <div class="form-grid">
                             <div class="form-group">
-                                <label>PR Date</label>
+                                <label>PR Date <span class="required-star">*</span></label>
                                 <input type="date" id="pr_date" required>
                             </div>
                             <div class="form-group">
-                                <label>Party Name</label>
+                                <label>Party Name <span class="required-star">*</span></label>
                                 <input type="text" id="party_name" required>
                             </div>
                             <div class="form-group">
-                                <label>Location</label>
+                                <label>Location <span class="required-star">*</span></label>
                                 <input type="text" id="location" required>
                             </div>
                             <div class="form-group">
-                                <label>Territory</label>
+                                <label>Territory <span class="required-star">*</span></label>
                                 <input type="text" id="territory" required>
                             </div>
                             <div class="form-group">
-                                <label>Product Category</label>
+                                <label>Product Category <span class="required-star">*</span></label>
                                 <input type="text" id="product_category" required>
                             </div>
                             <div class="form-group">
-                                <label>Item Name</label>
+                                <label>Item Name <span class="required-star">*</span></label>
                                 <input type="text" id="item_name" required>
                             </div>
                             <div class="form-group">
-                                <label>Make</label>
+                                <label>Make <span class="required-star">*</span></label>
                                 <input type="text" id="make" required>
                             </div>
                             <div class="form-group">
-                                <label>Model</label>
+                                <label>Model <span class="required-star">*</span></label>
                                 <input type="text" id="model" required>
                             </div>
                             <div class="form-group">
-                                <label>Quantity</label>
+                                <label>Quantity <span class="required-star">*</span></label>
                                 <input type="number" id="qty" min="1" step="0.01" value="0" required>
                             </div>
                             <div class="form-group">
-                                <label>Unit</label>
+                                <label>Unit <span class="required-star">*</span></label>
                                 <select id="unit" required>
                                     <option value="number" selected>Number</option>
                                     <option value="set">Set</option>
@@ -154,7 +154,7 @@
                                 </select>
                             </div>
                             <div class="form-group">
-                                <label>Sales Rate</label>
+                                <label>Sales Rate <span class="required-star">*</span></label>
                                 <input type="number" id="sales_rate" min="1" step="0.01" value="0" required>
                             </div>
                             <div class="form-group">
@@ -921,15 +921,15 @@
             </div>
             <form id="addUserForm">
                 <div class="form-group">
-                    <label for="username">Username</label>
+                    <label for="username">Username <span class="required-star">*</span></label>
                     <input type="text" id="username" required>
                 </div>
                 <div class="form-group">
-                    <label for="password">Password</label>
+                    <label for="password">Password <span class="required-star">*</span></label>
                     <input type="password" id="password" required>
                 </div>
                 <div class="form-group">
-                    <label for="role">Role</label>
+                    <label for="role">Role <span class="required-star">*</span></label>
                     <select id="role" required>
                         <option value="">Select Role</option>
                         <option value="ADMIN">ADMIN</option>
@@ -952,7 +952,7 @@
             </div>
             <form id="passwordForm">
                 <div class="form-group">
-                    <label for="newPassword">New Password</label>
+                    <label for="newPassword">New Password <span class="required-star">*</span></label>
                     <input type="password" id="newPassword" required>
                 </div>
                 <p id="passwordMessage" class="message"></p>
