@@ -1,16 +1,19 @@
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
+require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const mysql = require("mysql2/promise");
-const bcrypt=require("bcrypt");
-const path = require("path");
+const bcrypt = require("bcrypt");
 const fs = require("fs");
 const multer = require("multer");
 const { readSheet } = require("read-excel-file/node");
 const PDFDocument = require("pdfkit");
+const env = require("./config/env");
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = env.PORT || 3000;
 
 /* ==========================================================================
    TECHNICAL LOGGER (console only - separate from business Report Logs)
@@ -25,10 +28,10 @@ function log(message) {
    ========================================================================== */
 
 const dbConfig = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
+    host: env.DB_HOST,
+    user: env.DB_USER,
+    password: env.DB_PASSWORD,
+    database: env.DB_NAME
 };
 
 // Main procurement database pool
@@ -41,10 +44,10 @@ const db = mysql.createPool({
 
 // Logging database pool (same server and credentials, database = DB2_NAME) - holds report_logs
 const logDb = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB2_NAME,
+    host: env.DB_HOST,
+    user: env.DB_USER,
+    password: env.DB_PASSWORD,
+    database: env.DB2_NAME,
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0
