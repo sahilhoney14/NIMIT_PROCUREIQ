@@ -1,0 +1,19 @@
+{
+  "name": "procureiq",
+  "version": "1.0.0",
+  "description": "ProcureIQ Enterprise Procurement & Material Management System",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix backend start",
+    "dev": "npm --prefix backend run dev",
+    "install:all": "npm --prefix backend install"
+  },
+  "keywords": [
+    "procurement",
+    "enterprise",
+    "express",
+    "mysql"
+  ],
+  "author": "NIMIT Engineering",
+  "license": "UNLICENSED"
+}

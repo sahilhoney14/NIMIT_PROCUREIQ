@@ -1,0 +1,12 @@
+require("dotenv").config();
+
+module.exports = {
+    PORT: process.env.PORT || 3000,
+    DB_HOST: process.env.DB_HOST || "localhost",
+    DB_USER: process.env.DB_USER || "root",
+    DB_PASSWORD: process.env.DB_PASSWORD || "Password@123",
+    DB_NAME: process.env.DB_NAME || "ProcureIQ",
+    DB2_NAME: process.env.DB2_NAME || "ProcureIQ_Logs",
+    SESSION_SECRET: process.env.SESSION_SECRET || "procureiq_secure_session_secret_key_2026",
+    NODE_ENV: process.env.NODE_ENV || "development"
+};
