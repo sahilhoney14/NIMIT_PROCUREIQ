@@ -59,6 +59,10 @@ const logoutButton = document.getElementById("logoutButton");
 let importedRows = [];
 let orderTrackingPage = 1;
 let orderTrackingTotalPages = 1;
+let orderTrackingStatus = "ALL";
+let orderTrackingSearchQuery = "";
+let orderTrackingDebounceTimer = null;
+let orderTrackingFiltersInitialized = false;
 
 // ─── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -1788,34 +1792,137 @@ function renderQuotationComparisons(inquiries) {
 
 // ─── Order Tracking: Load a Page ───────────────────────────────────────────────
 
+function initOrderTrackingFilters() {
+    if (orderTrackingFiltersInitialized) return;
+    const statusSelect = document.getElementById("orderTrackingStatusSelect");
+    const searchInput  = document.getElementById("orderTrackingSearch");
+    const clearBtn     = document.getElementById("orderTrackingSearchClear");
+    const resetBtn     = document.getElementById("orderTrackingReset");
+    const pillsWrap    = document.getElementById("otStatusPills");
+
+    if (!statusSelect && !searchInput) return;
+    orderTrackingFiltersInitialized = true;
+
+    function updatePillsUI(currentStatus) {
+        if (!pillsWrap) return;
+        const pills = pillsWrap.querySelectorAll(".ot-pill");
+        pills.forEach(p => {
+            if (p.dataset.status === currentStatus) {
+                p.classList.add("active");
+            } else {
+                p.classList.remove("active");
+            }
+        });
+    }
+
+    // Status select change
+    statusSelect?.addEventListener("change", (e) => {
+        orderTrackingStatus = e.target.value;
+        orderTrackingPage = 1;
+        updatePillsUI(orderTrackingStatus);
+        loadOrderTracking();
+    });
+
+    // Pill buttons click
+    pillsWrap?.addEventListener("click", (e) => {
+        const pill = e.target.closest(".ot-pill");
+        if (!pill) return;
+        const status = pill.dataset.status;
+        orderTrackingStatus = status;
+        orderTrackingPage = 1;
+        if (statusSelect) statusSelect.value = status;
+        updatePillsUI(status);
+        loadOrderTracking();
+    });
+
+    // Search input with debounce
+    searchInput?.addEventListener("input", (e) => {
+        const val = e.target.value;
+        if (clearBtn) {
+            clearBtn.style.display = val ? "inline-flex" : "none";
+        }
+        clearTimeout(orderTrackingDebounceTimer);
+        orderTrackingDebounceTimer = setTimeout(() => {
+            orderTrackingSearchQuery = val;
+            orderTrackingPage = 1;
+            loadOrderTracking();
+        }, 300);
+    });
+
+    // Search clear button
+    clearBtn?.addEventListener("click", () => {
+        if (searchInput) searchInput.value = "";
+        clearBtn.style.display = "none";
+        orderTrackingSearchQuery = "";
+        orderTrackingPage = 1;
+        loadOrderTracking();
+    });
+
+    // Reset button
+    resetBtn?.addEventListener("click", () => {
+        if (searchInput) searchInput.value = "";
+        if (clearBtn) clearBtn.style.display = "none";
+        if (statusSelect) statusSelect.value = "ALL";
+        orderTrackingSearchQuery = "";
+        orderTrackingStatus = "ALL";
+        orderTrackingPage = 1;
+        updatePillsUI("ALL");
+        loadOrderTracking();
+    });
+}
+
 async function loadOrderTracking() {
-    orderTrackingList.innerHTML = "Loading...";
-    orderTrackingPrev.disabled = true;
-    orderTrackingNext.disabled = true;
+    initOrderTrackingFilters();
+
+    orderTrackingList.innerHTML = `<div class="message">Loading orders...</div>`;
+    if (orderTrackingPrev) orderTrackingPrev.disabled = true;
+    if (orderTrackingNext) orderTrackingNext.disabled = true;
 
     try {
-        const response = await apiFetch(`/order-tracking?page=${orderTrackingPage}`);
+        const params = new URLSearchParams();
+        params.set("page", orderTrackingPage);
+        if (orderTrackingStatus && orderTrackingStatus !== "ALL") {
+            params.set("status", orderTrackingStatus);
+        }
+        if (orderTrackingSearchQuery && orderTrackingSearchQuery.trim()) {
+            params.set("search", orderTrackingSearchQuery.trim());
+        }
+
+        const response = await apiFetch(`/order-tracking?${params.toString()}`);
         if (!response) return;
 
         const result = await response.json();
 
         if (!response.ok || !result.success) {
-            orderTrackingList.textContent = result.message || "Failed to load order tracking data";
+            orderTrackingList.innerHTML = `<div class="message">${escapeHtml(result.message || "Failed to load order tracking data")}</div>`;
             return;
         }
 
         renderOrderTracking(result.rows || []);
 
-        const { page, total_pages, has_prev, has_next } = result.pagination;
+        const { page, total, total_pages, has_prev, has_next } = result.pagination;
         orderTrackingPage       = page;
         orderTrackingTotalPages = total_pages;
 
-        orderTrackingPageLabel.textContent = `Page ${page} of ${total_pages}`;
-        orderTrackingPrev.disabled = !has_prev;
-        orderTrackingNext.disabled = !has_next;
+        if (orderTrackingPageLabel) {
+            orderTrackingPageLabel.textContent = `Page ${page} of ${total_pages}`;
+        }
+        if (orderTrackingPrev) orderTrackingPrev.disabled = !has_prev;
+        if (orderTrackingNext) orderTrackingNext.disabled = !has_next;
+
+        const countBadge = document.getElementById("orderTrackingCountLabel");
+        if (countBadge) {
+            if (total === 0) {
+                countBadge.textContent = "0 orders found";
+            } else {
+                const start = (page - 1) * 10 + 1;
+                const end = Math.min(page * 10, total);
+                countBadge.textContent = `Showing ${start}–${end} of ${total} orders`;
+            }
+        }
 
     } catch {
-        orderTrackingList.textContent = "Failed to connect to procurement manager service";
+        orderTrackingList.innerHTML = `<div class="message">Failed to connect to procurement manager service</div>`;
     }
 }
 
@@ -1840,12 +1947,10 @@ function renderOrderTracking(rows) {
         const card = document.createElement("div");
         card.className = "po-row";
 
-        const poNumberDisplay = row.po_number
-            ? `<div class="po-row-field">
+        const poNumberDisplay = `<div class="po-row-field">
                    <span class="inquiry-card-label">PO Number</span>
-                   <span class="inquiry-card-value">${escapeHtml(row.po_number)}</span>
-               </div>`
-            : "";
+                   <span class="inquiry-card-value">${escapeHtml(row.po_number || "—")}</span>
+               </div>`;
 
         card.innerHTML = `
             <div class="po-row-summary">
@@ -2339,9 +2444,9 @@ function renderGoodsReceived(rows) {
         const progress  = Number(po.progress)           || 0;
 
         // FIX: "Mark Complete" should compare net received (after returns)
-        // against ordered quantity.  The backend already does this calculation
+        // against ordered quantity. The backend already does this calculation
         // and returns received_quantity as the net figure.
-        const canComplete = received >= ordered && ordered > 0;
+        const canComplete = ordered > 0 && (received >= ordered || remaining <= 0 || progress >= 100);
 
         return `
             <div class="goods-received-card">

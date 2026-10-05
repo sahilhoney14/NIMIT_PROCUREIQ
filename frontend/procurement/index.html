@@ -566,6 +566,42 @@
                 <h1>Order Tracking</h1>
 
                 <section class="entry-section">
+                    <div class="ot-filter-bar">
+                        <div class="ot-filter-pills" id="otStatusPills">
+                            <button type="button" class="ot-pill active" data-status="ALL">All</button>
+                            <button type="button" class="ot-pill" data-status="OPEN">
+                                <span class="ot-pill-dot dot-open"></span>Open
+                            </button>
+                            <button type="button" class="ot-pill" data-status="CLOSED">
+                                <span class="ot-pill-dot dot-closed"></span>Closed
+                            </button>
+                            <button type="button" class="ot-pill" data-status="CANCELLED">
+                                <span class="ot-pill-dot dot-cancelled"></span>Cancelled
+                            </button>
+                        </div>
+                        <div class="ot-filter-controls">
+                            <div class="ot-search-wrap">
+                                <svg class="ot-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="orderTrackingSearch" class="ot-search-input" placeholder="Search PR #, PO #, party, item..." autocomplete="off">
+                                <button type="button" id="orderTrackingSearchClear" class="ot-clear-btn" title="Clear search" style="display:none;">&times;</button>
+                            </div>
+                            <select id="orderTrackingStatusSelect" class="ot-status-select" title="Filter by status">
+                                <option value="ALL">All Statuses</option>
+                                <option value="OPEN">Open</option>
+                                <option value="CLOSED">Closed</option>
+                                <option value="CANCELLED">Cancelled</option>
+                                <option value="NO_INQUIRY">No Inquiry</option>
+                            </select>
+                            <button type="button" id="orderTrackingReset" class="secondary-button ot-reset-btn" title="Reset all filters">Reset</button>
+                        </div>
+                        <div class="ot-filter-meta">
+                            <span id="orderTrackingCountLabel" class="ot-count-badge">Loading...</span>
+                        </div>
+                    </div>
+
                     <div id="orderTrackingList" class="inquiry-list">
                         Loading...
                     </div>

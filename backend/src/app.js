@@ -1544,43 +1544,76 @@ app.get("/order-tracking", async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = 10;
     const offset = (page - 1) * limit;
+    const statusParam = (req.query.status || "").trim().toUpperCase();
+    const searchParam = (req.query.search || "").trim();
+
     try {
-        const [[{ total }]] = await db.execute(
-            `SELECT COUNT(*) AS total FROM purchase_requests`
+        const whereClauses = [];
+        const params = [];
+
+        if (statusParam && statusParam !== "ALL") {
+            if (statusParam === "NO_INQUIRY" || statusParam === "NONE") {
+                whereClauses.push("status IS NULL");
+            } else {
+                whereClauses.push("status = ?");
+                params.push(statusParam);
+            }
+        }
+
+        if (searchParam) {
+            whereClauses.push("(pr_number LIKE ? OR po_number LIKE ? OR party_name LIKE ? OR item_name LIKE ?)");
+            const wild = `%${searchParam}%`;
+            params.push(wild, wild, wild, wild);
+        }
+
+        const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+        const baseFromSql = `
+            FROM (
+                SELECT
+                    pr.id AS pr_id,
+                    pr.pr_number,
+                    pr.pr_date,
+                    pr.party_name,
+                    pr.location,
+                    pr.territory,
+                    pr.product_category,
+                    pr.item_name,
+                    pr.make,
+                    pr.model,
+                    pr.qty,
+                    pr.unit,
+                    pr.sales_rate,
+                    pr.taxable_value,
+                    pr.product_remarks,
+                    vi.inquiry_id,
+                    po.po_number,
+                    CASE
+                        WHEN po.status = 'COMPLETED' THEN 'CLOSED'
+                        WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
+                        ELSE vi.status
+                    END AS status
+                FROM purchase_requests pr
+                LEFT JOIN vendor_inquiries vi
+                    ON vi.pr_id = pr.id
+                LEFT JOIN purchase_orders po
+                    ON po.pr_id = pr.id
+            ) t
+            ${whereSql}
+        `;
+
+        const [countRows] = await db.query(
+            `SELECT COUNT(*) AS total ${baseFromSql}`,
+            params
         );
+        const total = countRows[0]?.total || 0;
         const totalPages = Math.max(1, Math.ceil(total / limit));
-        const [rows] = await db.query(`
-            SELECT
-                pr.id AS pr_id,
-                pr.pr_number,
-                pr.pr_date,
-                pr.party_name,
-                pr.location,
-                pr.territory,
-                pr.product_category,
-                pr.item_name,
-                pr.make,
-                pr.model,
-                pr.qty,
-                pr.unit,
-                pr.sales_rate,
-                pr.taxable_value,
-                pr.product_remarks,
-                vi.inquiry_id,
-                po.po_number,
-                CASE
-                    WHEN po.status = 'COMPLETED' THEN 'CLOSED'
-                    WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
-                    ELSE vi.status
-                END AS status
-            FROM purchase_requests pr
-            LEFT JOIN vendor_inquiries vi
-                ON vi.pr_id = pr.id
-            LEFT JOIN purchase_orders po
-                ON po.pr_id = pr.id
-            ORDER BY pr.id DESC
-            LIMIT ${limit} OFFSET ${offset}
-        `);
+
+        const [rows] = await db.query(
+            `SELECT * ${baseFromSql} ORDER BY pr_id DESC LIMIT ${limit} OFFSET ${offset}`,
+            params
+        );
+
         return res.json({
             success: true,
             rows,
@@ -3440,7 +3473,7 @@ app.get("/goods-received", async (req, res) => {
                 ), 0) AS returned_quantity
             FROM purchase_orders po
             LEFT JOIN goods_received gr ON gr.po_id = po.po_id
-            WHERE po.status = 'ISSUED'
+            WHERE po.status IN ('ISSUED', 'COMPLETED')
             GROUP BY
                 po.po_id, po.po_number, po.po_date, po.pr_number, po.pr_date,
                 po.party_name, po.location, po.territory, po.product_category,
