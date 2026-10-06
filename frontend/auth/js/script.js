@@ -31,6 +31,13 @@ loginForm.addEventListener("submit", async event => {
             return;
         }
 
+        if (data.token) {
+            localStorage.setItem("auth_token", data.token);
+            if (data.user) {
+                localStorage.setItem("auth_user", JSON.stringify(data.user));
+            }
+        }
+
         message.textContent = "Login successful. Redirecting...";
         message.className = "message success";
 

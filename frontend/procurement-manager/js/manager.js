@@ -74,6 +74,9 @@ let orderTrackingPage = 1;
 let orderTrackingTotalPages = 1;
 let orderTrackingStatus = "ALL";
 let orderTrackingSearchQuery = "";
+let orderTrackingFromDate = "";
+let orderTrackingToDate = "";
+let orderTrackingDatePreset = "ALL";
 let orderTrackingDebounceTimer = null;
 let orderTrackingFiltersInitialized = false;
 let goodsReceivedOrders = [];
@@ -87,9 +90,16 @@ let logsTotalPages   = 1;
 const AUTH_URL = "http://localhost:5000"; // same value as authServiceUrl on the backend
 
 async function apiFetch(url, options = {}) {
-    const response = await fetch(url, { credentials: "include", ...options });
+    const token = localStorage.getItem("auth_token");
+    const headers = { ...options.headers };
+    if (token && !headers["Authorization"]) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+    const response = await fetch(url, { credentials: "include", ...options, headers });
     if (response.status === 401) {
-        window.location.href = AUTH_URL;
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+        window.location.href = "/";
         return null; // redirect already started
     }
     return response;
@@ -1576,6 +1586,8 @@ function renderInquiryVendorTable(container, vendors) {
 logoutButton.addEventListener("click", async () => {
     try {
         logoutButton.disabled = true;
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
 
         const response = await apiFetch("/logout", { method: "POST" });
         if (!response) return;
@@ -1756,14 +1768,122 @@ document.getElementById("quotationList").addEventListener("click", async event =
 
 function initOrderTrackingFilters() {
     if (orderTrackingFiltersInitialized) return;
-    const statusSelect = document.getElementById("orderTrackingStatusSelect");
-    const searchInput  = document.getElementById("orderTrackingSearch");
-    const clearBtn     = document.getElementById("orderTrackingSearchClear");
-    const resetBtn     = document.getElementById("orderTrackingReset");
-    const pillsWrap    = document.getElementById("otStatusPills");
+    const searchInput   = document.getElementById("orderTrackingSearch");
+    const clearBtn      = document.getElementById("orderTrackingSearchClear");
+    const pillsWrap     = document.getElementById("otStatusPills");
+    const datePreset    = document.getElementById("orderTrackingDatePreset");
+    const fromDateInput = document.getElementById("orderTrackingFromDate");
+    const toDateInput   = document.getElementById("orderTrackingToDate");
+    const dateClearBtn  = document.getElementById("orderTrackingDateClear");
 
-    if (!statusSelect && !searchInput) return;
+    if (!pillsWrap && !searchInput && !datePreset) return;
     orderTrackingFiltersInitialized = true;
+
+    function formatLocalDate(d) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    function updateDateFilterUI() {
+        const hasDate = Boolean(orderTrackingFromDate || orderTrackingToDate || (orderTrackingDatePreset && orderTrackingDatePreset !== "ALL"));
+        if (dateClearBtn) {
+            dateClearBtn.style.display = hasDate ? "inline-flex" : "none";
+        }
+    }
+
+    function applyDatePreset(preset) {
+        orderTrackingDatePreset = preset;
+        const now = new Date();
+
+        if (preset === "ALL") {
+            orderTrackingFromDate = "";
+            orderTrackingToDate = "";
+            if (fromDateInput) fromDateInput.value = "";
+            if (toDateInput) toDateInput.value = "";
+        } else if (preset === "TODAY") {
+            const todayStr = formatLocalDate(now);
+            orderTrackingFromDate = todayStr;
+            orderTrackingToDate = todayStr;
+            if (fromDateInput) fromDateInput.value = todayStr;
+            if (toDateInput) toDateInput.value = todayStr;
+        } else if (preset === "YESTERDAY") {
+            const y = new Date(now);
+            y.setDate(y.getDate() - 1);
+            const yStr = formatLocalDate(y);
+            orderTrackingFromDate = yStr;
+            orderTrackingToDate = yStr;
+            if (fromDateInput) fromDateInput.value = yStr;
+            if (toDateInput) toDateInput.value = yStr;
+        } else if (preset === "THIS_WEEK") {
+            const day = now.getDay();
+            const diffToMonday = (day === 0 ? -6 : 1) - day;
+            const monday = new Date(now);
+            monday.setDate(now.getDate() + diffToMonday);
+            orderTrackingFromDate = formatLocalDate(monday);
+            orderTrackingToDate = formatLocalDate(now);
+            if (fromDateInput) fromDateInput.value = orderTrackingFromDate;
+            if (toDateInput) toDateInput.value = orderTrackingToDate;
+        } else if (preset === "THIS_MONTH") {
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+            orderTrackingFromDate = formatLocalDate(firstDay);
+            orderTrackingToDate = formatLocalDate(now);
+            if (fromDateInput) fromDateInput.value = orderTrackingFromDate;
+            if (toDateInput) toDateInput.value = orderTrackingToDate;
+        } else if (preset === "LAST_30_DAYS") {
+            const past30 = new Date(now);
+            past30.setDate(now.getDate() - 29);
+            orderTrackingFromDate = formatLocalDate(past30);
+            orderTrackingToDate = formatLocalDate(now);
+            if (fromDateInput) fromDateInput.value = orderTrackingFromDate;
+            if (toDateInput) toDateInput.value = orderTrackingToDate;
+        } else if (preset === "CUSTOM") {
+            orderTrackingFromDate = fromDateInput ? fromDateInput.value : "";
+            orderTrackingToDate = toDateInput ? toDateInput.value : "";
+        }
+
+        updateDateFilterUI();
+        orderTrackingPage = 1;
+        loadOrderTracking();
+    }
+
+    // Date preset select
+    datePreset?.addEventListener("change", (e) => {
+        applyDatePreset(e.target.value);
+    });
+
+    // Custom date pickers
+    fromDateInput?.addEventListener("change", (e) => {
+        orderTrackingFromDate = e.target.value;
+        orderTrackingDatePreset = "CUSTOM";
+        if (datePreset) datePreset.value = "CUSTOM";
+        updateDateFilterUI();
+        orderTrackingPage = 1;
+        loadOrderTracking();
+    });
+
+    toDateInput?.addEventListener("change", (e) => {
+        orderTrackingToDate = e.target.value;
+        orderTrackingDatePreset = "CUSTOM";
+        if (datePreset) datePreset.value = "CUSTOM";
+        updateDateFilterUI();
+        orderTrackingPage = 1;
+        loadOrderTracking();
+    });
+
+    // Date clear button
+    dateClearBtn?.addEventListener("click", () => {
+        orderTrackingDatePreset = "ALL";
+        orderTrackingFromDate = "";
+        orderTrackingToDate = "";
+        if (datePreset) datePreset.value = "ALL";
+        if (fromDateInput) fromDateInput.value = "";
+        if (toDateInput) toDateInput.value = "";
+        updateDateFilterUI();
+        orderTrackingPage = 1;
+        loadOrderTracking();
+    });
 
     function updatePillsUI(currentStatus) {
         if (!pillsWrap) return;
@@ -1777,14 +1897,6 @@ function initOrderTrackingFilters() {
         });
     }
 
-    // Status select change
-    statusSelect?.addEventListener("change", (e) => {
-        orderTrackingStatus = e.target.value;
-        orderTrackingPage = 1;
-        updatePillsUI(orderTrackingStatus);
-        loadOrderTracking();
-    });
-
     // Pill buttons click
     pillsWrap?.addEventListener("click", (e) => {
         const pill = e.target.closest(".ot-pill");
@@ -1792,7 +1904,6 @@ function initOrderTrackingFilters() {
         const status = pill.dataset.status;
         orderTrackingStatus = status;
         orderTrackingPage = 1;
-        if (statusSelect) statusSelect.value = status;
         updatePillsUI(status);
         loadOrderTracking();
     });
@@ -1819,18 +1930,6 @@ function initOrderTrackingFilters() {
         orderTrackingPage = 1;
         loadOrderTracking();
     });
-
-    // Reset button
-    resetBtn?.addEventListener("click", () => {
-        if (searchInput) searchInput.value = "";
-        if (clearBtn) clearBtn.style.display = "none";
-        if (statusSelect) statusSelect.value = "ALL";
-        orderTrackingSearchQuery = "";
-        orderTrackingStatus = "ALL";
-        orderTrackingPage = 1;
-        updatePillsUI("ALL");
-        loadOrderTracking();
-    });
 }
 
 async function loadOrderTracking() {
@@ -1848,6 +1947,12 @@ async function loadOrderTracking() {
         }
         if (orderTrackingSearchQuery && orderTrackingSearchQuery.trim()) {
             params.set("search", orderTrackingSearchQuery.trim());
+        }
+        if (orderTrackingFromDate) {
+            params.set("from_date", orderTrackingFromDate);
+        }
+        if (orderTrackingToDate) {
+            params.set("to_date", orderTrackingToDate);
         }
 
         const response = await apiFetch(`/order-tracking?${params.toString()}`);
@@ -1872,16 +1977,6 @@ async function loadOrderTracking() {
         if (orderTrackingPrev) orderTrackingPrev.disabled = !has_prev;
         if (orderTrackingNext) orderTrackingNext.disabled = !has_next;
 
-        const countBadge = document.getElementById("orderTrackingCountLabel");
-        if (countBadge) {
-            if (total === 0) {
-                countBadge.textContent = "0 orders found";
-            } else {
-                const start = (page - 1) * 10 + 1;
-                const end = Math.min(page * 10, total);
-                countBadge.textContent = `Showing ${start}–${end} of ${total} orders`;
-            }
-        }
 
     } catch {
         orderTrackingList.innerHTML = `<div class="message">Failed to connect to procurement manager service</div>`;
@@ -1921,11 +2016,16 @@ function renderOrderTracking(rows) {
                </div>`
             : "";
 
+        const dateBadge = (row.pr_date || row.created_at)
+            ? `<span class="ot-row-date">${formatDate(row.pr_date || row.created_at)}</span>`
+            : "";
+
         card.innerHTML = `
             <div class="po-row-summary">
                 <div class="po-row-field">
                     <span class="inquiry-card-label">PR Number</span>
                     <span class="inquiry-card-value">${escapeHtml(row.pr_number || "-")}</span>
+                    ${dateBadge}
                 </div>
                 ${poNumberDisplay}
                 <div class="po-row-field">
@@ -2047,6 +2147,9 @@ function renderPurchaseOrders(orders) {
                     <span class="inquiry-card-label">Total Price</span>
                     <span class="inquiry-card-value">${formatCurrency(po.total_price)}</span>
                 </div>
+                <span class="inquiry-status status-${(po.status || "").toLowerCase()}">
+                    ${escapeHtml(po.status || "-")}
+                </span>
                 <button type="button" class="expand-po-btn" data-po-id="${po.po_id}">
                     Expand ▾
                 </button>
@@ -2072,7 +2175,6 @@ function renderPurchaseOrders(orders) {
                         </button>
                     ` : ""}
                     <div class="pi-actions" id="piActions-${po.po_id}"></div>
-                    <span class="inquiry-status status-${(po.status || "").toLowerCase()}">${escapeHtml(po.status || "-")}</span>
                 </div>
 
                 <div class="vendor-details-panel" id="vendorDetailsPanel-${po.po_id}">
@@ -3326,7 +3428,7 @@ function setChartEmpty(canvas, isEmpty) {
         if (!note) {
             note = document.createElement("div");
             note.className = "chart-empty-note";
-            note.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#888;font-size:14px;pointer-events:none;";
+            note.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#64748b;font-size:13.5px;font-weight:600;pointer-events:none;background:rgba(255,255,255,0.75);backdrop-filter:blur(3px);border-radius:12px;";
             note.textContent = "No data for this period";
             if (getComputedStyle(holder).position === "static") holder.style.position = "relative";
             holder.appendChild(note);
@@ -3432,10 +3534,10 @@ function renderProcurementTrend(rows) {
         data: rows.map(r => Number(r[key] || 0)),
         borderColor: color,
         backgroundColor: color + "22",
-        borderWidth: 1.5,
+        borderWidth: 2,
         pointRadius: 0,
-        pointHoverRadius: 4,
-        tension: 0.25,
+        pointHoverRadius: 5,
+        tension: 0.28,
         fill
     });
 
@@ -3445,8 +3547,8 @@ function renderProcurementTrend(rows) {
             labels,
             datasets: [
                 line("Sales Value",       "sales_value",       "#2563eb", true),
-                line("Procurement Value", "procurement_value", "#f59e0b", false),
-                line("Gross Profit",      "gross_profit",      "#16a34a", false)
+                line("Procurement Value", "procurement_value", "#8b5cf6", false),
+                line("Gross Profit",      "gross_profit",      "#10b981", false)
             ]
         },
         options: {
@@ -3457,7 +3559,7 @@ function renderProcurementTrend(rows) {
                 legend: {
                     position: "top",
                     align: "start",
-                    labels: { usePointStyle: true, boxWidth: 8, font: { size: 11 } }
+                    labels: { usePointStyle: true, boxWidth: 8, font: { size: 12, weight: "600" } }
                 },
                 tooltip: {
                     callbacks: {
@@ -3473,13 +3575,13 @@ function renderProcurementTrend(rows) {
                         autoSkip: true,
                         maxTicksLimit: 8,
                         maxRotation: 0,
-                        font: { size: 11 },
+                        font: { size: 11, weight: "600" },
                         callback: function (value) { return dayLabel(this.getLabelForValue(value)); }
                     }
                 },
                 y: {
                     position: "right",
-                    grid: { color: "rgba(128,128,128,0.15)" },
+                    grid: { color: "rgba(128,128,128,0.12)" },
                     ticks: {
                         maxTicksLimit: 5,
                         font: { size: 11 },
@@ -3509,15 +3611,45 @@ function renderPRPOTrend(rows) {
         data: {
             labels: rows.map(r => r.month),
             datasets: [
-                { label: "Purchase Requests", data: rows.map(r => Number(r.pr_count || 0)) },
-                { label: "Purchase Orders",   data: rows.map(r => Number(r.po_count || 0)) }
+                {
+                    label: "Purchase Requests",
+                    data: rows.map(r => Number(r.pr_count || 0)),
+                    backgroundColor: "#3b82f6",
+                    borderRadius: 6,
+                    borderSkipped: false
+                },
+                {
+                    label: "Purchase Orders",
+                    data: rows.map(r => Number(r.po_count || 0)),
+                    backgroundColor: "#8b5cf6",
+                    borderRadius: 6,
+                    borderSkipped: false
+                }
             ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: "top",
+                    labels: {
+                        boxWidth: 10,
+                        usePointStyle: true,
+                        font: { size: 12, weight: "600" }
+                    }
+                }
+            },
             scales: {
-                y: { beginAtZero: true, ticks: { precision: 0 } }
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11, weight: "600" } }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0, font: { size: 11 } },
+                    grid: { color: "rgba(128,128,128,0.12)" }
+                }
             }
         }
     });
@@ -3535,16 +3667,42 @@ function renderPOStatus(rows) {
 
     setChartEmpty(canvas, !rows.length);
 
+    const statusColors = {
+        "DRAFT": "#f59e0b",
+        "ISSUED": "#0284c7",
+        "COMPLETED": "#10b981",
+        "CANCELLED": "#f43f5e"
+    };
+
+    const labels = rows.map(r => String(r.status || "").replace(/_/g, " ").toUpperCase());
+    const colors = rows.map(r => statusColors[String(r.status || "").toUpperCase()] || "#64748b");
+
     poStatusChart = new Chart(canvas, {
         type: "doughnut",
         data: {
-            labels: rows.map(r => String(r.status || "").replace(/_/g, " ")),
-            datasets: [{ data: rows.map(r => Number(r.po_count || 0)) }]
+            labels: labels,
+            datasets: [{
+                data: rows.map(r => Number(r.po_count || 0)),
+                backgroundColor: colors,
+                borderWidth: 3,
+                borderColor: "#ffffff"
+            }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: "bottom" } }
+            cutout: "70%",
+            plugins: {
+                legend: {
+                    position: "bottom",
+                    labels: {
+                        boxWidth: 10,
+                        usePointStyle: true,
+                        padding: 16,
+                        font: { size: 12, weight: "600" }
+                    }
+                }
+            }
         }
     });
 }
@@ -3558,7 +3716,7 @@ function renderInsightRows(bodyId, rows, colspan, emptyText, rowHtml) {
     if (!body) return;
 
     if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="${colspan}">${emptyText}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="${colspan}" class="table-empty-row">${emptyText}</td></tr>`;
         return;
     }
 
@@ -3586,11 +3744,22 @@ function renderTopPerformers(top) {
 }
 
 function renderPaymentInsights(rows) {
+    const getBadgeClass = (type) => {
+        const t = String(type || "").toUpperCase();
+        if (t.includes("CREDIT")) return "payment-badge-credit";
+        if (t.includes("ADVANCE")) return "payment-badge-advance";
+        return "payment-badge-custom";
+    };
+
     renderInsightRows("insightPaymentBody", rows, 3, "No payment data available", row => `
         <tr>
-            <td>${escapeHtml(row.payment_type || "-")}</td>
-            <td>${formatCount(row.po_count)}</td>
-            <td>${formatRupee(row.procurement_value || 0)}</td>
+            <td>
+                <span class="payment-pill ${getBadgeClass(row.payment_type)}">
+                    ${escapeHtml(row.payment_type || "Standard")}
+                </span>
+            </td>
+            <td style="font-weight: 700; color: #0f172a;">${formatCount(row.po_count)}</td>
+            <td style="font-weight: 700; color: #0f172a;">${formatRupee(row.procurement_value || 0)}</td>
         </tr>
     `);
 }

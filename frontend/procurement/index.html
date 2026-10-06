@@ -572,6 +572,9 @@
                             <button type="button" class="ot-pill" data-status="OPEN">
                                 <span class="ot-pill-dot dot-open"></span>Open
                             </button>
+                            <button type="button" class="ot-pill" data-status="VENDOR_SELECTED">
+                                <span class="ot-pill-dot dot-vendor-selected"></span>Vendor Selected
+                            </button>
                             <button type="button" class="ot-pill" data-status="CLOSED">
                                 <span class="ot-pill-dot dot-closed"></span>Closed
                             </button>
@@ -580,6 +583,40 @@
                             </button>
                         </div>
                         <div class="ot-filter-controls">
+                            <div class="ot-date-filter-wrap">
+                                <div class="ot-date-preset-wrap">
+                                    <svg class="ot-date-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                    <select id="orderTrackingDatePreset" class="ot-date-preset-select" title="Filter by date preset">
+                                        <option value="ALL">All Dates</option>
+                                        <option value="TODAY">Today</option>
+                                        <option value="YESTERDAY">Yesterday</option>
+                                        <option value="THIS_WEEK">This Week</option>
+                                        <option value="THIS_MONTH">This Month</option>
+                                        <option value="LAST_30_DAYS">Last 30 Days</option>
+                                        <option value="CUSTOM">Custom Range</option>
+                                    </select>
+                                    <svg class="ot-select-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                                <div id="otCustomDateRange" class="ot-custom-date-wrap">
+                                    <div class="ot-date-input-group">
+                                        <label for="orderTrackingFromDate" class="ot-date-label">From</label>
+                                        <input type="date" id="orderTrackingFromDate" class="ot-date-input" title="From Date">
+                                    </div>
+                                    <span class="ot-date-separator">&ndash;</span>
+                                    <div class="ot-date-input-group">
+                                        <label for="orderTrackingToDate" class="ot-date-label">To</label>
+                                        <input type="date" id="orderTrackingToDate" class="ot-date-input" title="To Date">
+                                    </div>
+                                    <button type="button" id="orderTrackingDateClear" class="ot-date-clear-btn" title="Reset date filter" style="display:none;">&times;</button>
+                                </div>
+                            </div>
                             <div class="ot-search-wrap">
                                 <svg class="ot-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="11" cy="11" r="8"></circle>
@@ -588,17 +625,6 @@
                                 <input type="text" id="orderTrackingSearch" class="ot-search-input" placeholder="Search PR #, PO #, party, item..." autocomplete="off">
                                 <button type="button" id="orderTrackingSearchClear" class="ot-clear-btn" title="Clear search" style="display:none;">&times;</button>
                             </div>
-                            <select id="orderTrackingStatusSelect" class="ot-status-select" title="Filter by status">
-                                <option value="ALL">All Statuses</option>
-                                <option value="OPEN">Open</option>
-                                <option value="CLOSED">Closed</option>
-                                <option value="CANCELLED">Cancelled</option>
-                                <option value="NO_INQUIRY">No Inquiry</option>
-                            </select>
-                            <button type="button" id="orderTrackingReset" class="secondary-button ot-reset-btn" title="Reset all filters">Reset</button>
-                        </div>
-                        <div class="ot-filter-meta">
-                            <span id="orderTrackingCountLabel" class="ot-count-badge">Loading...</span>
                         </div>
                     </div>
 

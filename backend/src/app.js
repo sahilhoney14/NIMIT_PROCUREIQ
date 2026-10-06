@@ -4,6 +4,7 @@ require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
 require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
+const cookieParser = require("cookie-parser");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 const fs = require("fs");
@@ -11,6 +12,7 @@ const multer = require("multer");
 const { readSheet } = require("read-excel-file/node");
 const PDFDocument = require("pdfkit");
 const env = require("./config/env");
+const { generateToken, verifyToken, extractToken, resolveAuthUser } = require("./services/jwt.service");
 
 const app = express();
 const PORT = env.PORT || 3000;
@@ -69,6 +71,7 @@ const headerImgPath = path.resolve(__dirname, "../PO header.png");
 
 app.use(express.json());
 app.use(express.urlencoded({extended:false}));
+app.use(cookieParser());
 
 app.use(session({
     name: "login_session",
@@ -89,55 +92,57 @@ const apiRouter = require("./routes");
 app.use("/api", apiRouter);
 
 /* ==========================================================================
-   AUTHENTICATION
+   AUTHENTICATION (JWT & Session verification middleware)
    ========================================================================== */
 
-// In-memory session verification middleware
 function verifyAdmin(req, res, next) {
-    if (!req.session?.user) {
+    const authUser = resolveAuthUser(req);
+    if (!authUser) {
         if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
             return res.status(401).json({ success: false, message: "Unauthenticated" });
         }
         return res.redirect("/");
     }
-    if (req.session.user.role !== "ADMIN") {
+    if (authUser.role !== "ADMIN") {
         if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
             return res.status(403).json({ success: false, message: "Forbidden: ADMIN access required" });
         }
-        if (req.session.user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
-        if (req.session.user.role === "PROCUREMENT") return res.redirect("/procurement");
+        if (authUser.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
+        if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
         return res.redirect("/");
     }
-    req.user = req.session.user;
+    req.user = authUser;
     next();
 }
 
 function verifyManager(req, res, next) {
-    if (!req.session?.user) {
+    const authUser = resolveAuthUser(req);
+    if (!authUser) {
         if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
             return res.status(401).json({ success: false, message: "Unauthenticated" });
         }
         return res.redirect("/");
     }
-    if (!["ADMIN", "PROCUREMENT_MANAGER"].includes(req.session.user.role)) {
+    if (!["ADMIN", "PROCUREMENT_MANAGER"].includes(authUser.role)) {
         if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
             return res.status(403).json({ success: false, message: "Forbidden: Manager access required" });
         }
-        if (req.session.user.role === "PROCUREMENT") return res.redirect("/procurement");
+        if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
         return res.redirect("/");
     }
-    req.user = req.session.user;
+    req.user = authUser;
     next();
 }
 
 function verifyProcurement(req, res, next) {
-    if (!req.session?.user) {
+    const authUser = resolveAuthUser(req);
+    if (!authUser) {
         if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
             return res.status(401).json({ success: false, message: "Unauthenticated" });
         }
         return res.redirect("/");
     }
-    req.user = req.session.user;
+    req.user = authUser;
     next();
 }
 
@@ -148,9 +153,9 @@ function verifyProcurement(req, res, next) {
 const actorCache = new Map();
 const ACTOR_CACHE_TTL_MS = 5 * 60 * 1000;
 
-// Resolves the username performing the current request (from req.user, or from the auth service using the session cookie)
+// Resolves the username performing the current request (from req.user, JWT token, or session)
 async function getActor(req) {
-    return req.user?.username || req.session?.user?.username || "SYSTEM";
+    return req.user?.username || resolveAuthUser(req)?.username || "SYSTEM";
 }
 
 // Writes one business-activity entry to report_logs. Never throws, so a logging failure can never break a business action.
@@ -935,19 +940,19 @@ function resolveInsightsRange(period, from, to) {
     const d = now.getDate();
     switch (period) {
         case "current_month":
-            return { start: ymd(new Date(y, m, 1)), end: ymd(now) };
+            return { start: ymd(new Date(y, m, 1)), end: ymd(new Date(y, m + 1, 0)) };
         case "last_30_days":
             return { start: ymd(new Date(y, m, d - 29)), end: ymd(now) };
         case "last_month":
             return { start: ymd(new Date(y, m - 1, 1)), end: ymd(new Date(y, m, 0)) };
         case "last_3_months":
-            return { start: ymd(new Date(y, m - 2, 1)), end: ymd(now) };
+            return { start: ymd(new Date(y, m - 2, 1)), end: ymd(new Date(y, m + 1, 0)) };
         case "last_6_months":
-            return { start: ymd(new Date(y, m - 5, 1)), end: ymd(now) };
+            return { start: ymd(new Date(y, m - 5, 1)), end: ymd(new Date(y, m + 1, 0)) };
         case "last_1_year":
-            return { start: ymd(new Date(y - 1, m, d)), end: ymd(now) };
+            return { start: ymd(new Date(y - 1, m, 1)), end: ymd(new Date(y, m + 1, 0)) };
         case "last_2_years":
-            return { start: ymd(new Date(y - 2, m, d)), end: ymd(now) };
+            return { start: ymd(new Date(y - 2, m, 1)), end: ymd(new Date(y, m + 1, 0)) };
         case "all_time":
             return { start: null, end: null };
         case "custom":
@@ -1010,18 +1015,20 @@ app.use(express.static(path.resolve(__dirname, "../../frontend/auth-service")));
 
 // Root and Authentication Gateway Routes
 app.get("/", (req, res) => {
-    if (!req.session?.user) {
+    const user = resolveAuthUser(req);
+    if (!user) {
         return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
     }
-    if (req.session.user.role === "ADMIN") return res.redirect("/admin");
-    if (req.session.user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
+    if (user.role === "ADMIN") return res.redirect("/admin");
+    if (user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
     return res.redirect("/procurement");
 });
 
 app.get("/login", (req, res) => {
-    if (req.session?.user) {
-        if (req.session.user.role === "ADMIN") return res.redirect("/admin");
-        if (req.session.user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
+    const user = resolveAuthUser(req);
+    if (user) {
+        if (user.role === "ADMIN") return res.redirect("/admin");
+        if (user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
         return res.redirect("/procurement");
     }
     return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
@@ -1058,18 +1065,35 @@ app.post("/login", async (req, res) => {
 
         await db.execute("INSERT INTO login_logs (user_id, login_status) VALUES (?, 'SUCCESS')", [user.user_id]);
 
-        req.session.user = {
+        const tokenPayload = {
             user_id: user.user_id,
             username: user.username,
             role: user.role
         };
+
+        const token = generateToken(tokenPayload);
+
+        // Set HttpOnly cookie for browser navigation & protection against XSS
+        res.cookie("jwt_token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 8 * 60 * 60 * 1000 // 8 hours
+        });
+
+        // Set in session as fallback
+        if (req.session) {
+            req.session.user = tokenPayload;
+        }
 
         const redirect_url = user.role === "ADMIN" ? "/admin" : (user.role === "PROCUREMENT_MANAGER" ? "/procurement-manager" : "/procurement");
         log(`Login successful - ${username} (${user.role}) redirecting to ${redirect_url}`);
 
         return res.json({
             success: true,
+            token, // Returned for clients that store token and send Authorization: Bearer
             role: user.role,
+            user: tokenPayload,
             redirect_url
         });
     } catch (error) {
@@ -1079,27 +1103,32 @@ app.post("/login", async (req, res) => {
 });
 
 app.get("/verify", (req, res) => {
-    if (!req.session?.user) {
+    const user = resolveAuthUser(req);
+    if (!user) {
         return res.status(401).json({ authenticated: false });
     }
     return res.json({
         authenticated: true,
-        user_id: req.session.user.user_id,
-        username: req.session.user.username,
-        role: req.session.user.role
+        user_id: user.user_id,
+        username: user.username,
+        role: user.role
     });
 });
 
 app.post("/logout", (req, res) => {
-    const user = req.session?.user?.username || "Unknown";
+    const user = resolveAuthUser(req)?.username || req.session?.user?.username || "Unknown";
+    res.clearCookie("jwt_token");
+    res.clearCookie("auth_token");
+    res.clearCookie("login_session");
+
     if (req.session) {
         req.session.destroy(err => {
             if (err) log(`Error destroying session: ${err.message}`);
-            res.clearCookie("login_session");
             log(`Logged out user: ${user}`);
             return res.json({ success: true, redirect_url: "/" });
         });
     } else {
+        log(`Logged out user: ${user}`);
         return res.json({ success: true, redirect_url: "/" });
     }
 });
@@ -1546,6 +1575,9 @@ app.get("/order-tracking", async (req, res) => {
     const offset = (page - 1) * limit;
     const statusParam = (req.query.status || "").trim().toUpperCase();
     const searchParam = (req.query.search || "").trim();
+    const singleDate = (req.query.date || "").trim();
+    const fromDate = (req.query.from_date || req.query.from || singleDate).trim();
+    const toDate = (req.query.to_date || req.query.to || singleDate).trim();
 
     try {
         const whereClauses = [];
@@ -1566,6 +1598,16 @@ app.get("/order-tracking", async (req, res) => {
             params.push(wild, wild, wild, wild);
         }
 
+        if (fromDate) {
+            whereClauses.push("COALESCE(pr_date, DATE(created_at)) >= ?");
+            params.push(fromDate);
+        }
+
+        if (toDate) {
+            whereClauses.push("COALESCE(pr_date, DATE(created_at)) <= ?");
+            params.push(toDate);
+        }
+
         const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
         const baseFromSql = `
@@ -1574,6 +1616,7 @@ app.get("/order-tracking", async (req, res) => {
                     pr.id AS pr_id,
                     pr.pr_number,
                     pr.pr_date,
+                    pr.created_at,
                     pr.party_name,
                     pr.location,
                     pr.territory,
@@ -3395,16 +3438,12 @@ app.post("/purchase-orders/:po_id/cancel", async (req, res) => {
         );
 
         // Close the inquiry permanently
-        await connection.execute(
-            `UPDATE vendor_inquiries SET status = 'CANCELLED' WHERE inquiry_id = ?`,
-            [po.inquiry_id]
-        );
-
-        // Mark the PR itself as cancelled
-        await connection.execute(
-            `UPDATE purchase_requests SET status = 'CANCELLED' WHERE id = ?`,
-            [po.pr_id]
-        );
+        if (po.inquiry_id) {
+            await connection.execute(
+                `UPDATE vendor_inquiries SET status = 'CANCELLED' WHERE inquiry_id = ?`,
+                [po.inquiry_id]
+            );
+        }
 
         await connection.commit();
 
@@ -4361,7 +4400,7 @@ app.get("/management-insights", async (req, res) => {
                     COALESCE(MAX(pr.taxable_value - po.total_price), 0) AS highest_gross_profit
                 FROM purchase_orders po
                 INNER JOIN purchase_requests pr ON pr.id = po.pr_id
-                WHERE ${inRange("po.po_date")} AND ${FIN}
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")} AND ${FIN}
             `),
             run(`
                 SELECT
@@ -4370,11 +4409,11 @@ app.get("/management-insights", async (req, res) => {
                     COALESCE(AVG(pr.taxable_value), 0) AS average_pr_value,
                     COALESCE(MAX(pr.taxable_value), 0) AS highest_pr_value
                 FROM purchase_requests pr
-                WHERE ${inRange("pr.pr_date")}
+                WHERE ${inRange("COALESCE(pr.pr_date, DATE(pr.created_at))")}
             `),
             run(`
                 SELECT
-                    DATE_FORMAT(po.po_date, '%Y-%m') AS month,
+                    DATE_FORMAT(COALESCE(po.po_date, DATE(po.created_at)), '%Y-%m') AS month,
                     COALESCE(SUM(pr.taxable_value), 0) AS sales_value,
                     COALESCE(SUM(po.total_price), 0)   AS procurement_value,
                     COALESCE(SUM(pr.taxable_value - po.total_price), 0) AS gross_profit,
@@ -4382,32 +4421,32 @@ app.get("/management-insights", async (req, res) => {
                              / NULLIF(SUM(pr.taxable_value), 0) * 100, 0) AS gross_margin_percentage
                 FROM purchase_orders po
                 INNER JOIN purchase_requests pr ON pr.id = po.pr_id
-                WHERE ${inRange("po.po_date")} AND ${FIN}
-                GROUP BY DATE_FORMAT(po.po_date, '%Y-%m')
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")} AND ${FIN}
+                GROUP BY DATE_FORMAT(COALESCE(po.po_date, DATE(po.created_at)), '%Y-%m')
             `),
             run(`
-                SELECT DATE_FORMAT(pr.pr_date, '%Y-%m') AS month, COUNT(*) AS pr_count
+                SELECT DATE_FORMAT(COALESCE(pr.pr_date, DATE(pr.created_at)), '%Y-%m') AS month, COUNT(*) AS pr_count
                 FROM purchase_requests pr
-                WHERE pr.pr_date IS NOT NULL AND ${inRange("pr.pr_date")}
-                GROUP BY DATE_FORMAT(pr.pr_date, '%Y-%m')
+                WHERE ${inRange("COALESCE(pr.pr_date, DATE(pr.created_at))")}
+                GROUP BY DATE_FORMAT(COALESCE(pr.pr_date, DATE(pr.created_at)), '%Y-%m')
             `),
             run(`
                 SELECT
-                    DATE_FORMAT(po.po_date, '%Y-%m') AS month,
+                    DATE_FORMAT(COALESCE(po.po_date, DATE(po.created_at)), '%Y-%m') AS month,
                     COUNT(*) AS total_pos,
                     SUM(po.status = 'COMPLETED') AS completed_pos,
                     SUM(po.status = 'ISSUED')    AS issued_pos,
                     SUM(po.status = 'DRAFT')     AS draft_pos,
                     SUM(po.status = 'CANCELLED') AS cancelled_pos
                 FROM purchase_orders po
-                WHERE ${inRange("po.po_date")}
-                GROUP BY DATE_FORMAT(po.po_date, '%Y-%m')
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")}
+                GROUP BY DATE_FORMAT(COALESCE(po.po_date, DATE(po.created_at)), '%Y-%m')
             `),
             run(`
                 SELECT po.status, COUNT(*) AS po_count,
                        COALESCE(SUM(po.total_price), 0) AS procurement_value
                 FROM purchase_orders po
-                WHERE ${inRange("po.po_date")}
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")}
                 GROUP BY po.status
                 ORDER BY po_count DESC
             `),
@@ -4416,7 +4455,7 @@ app.get("/management-insights", async (req, res) => {
                        COUNT(*) AS po_count,
                        COALESCE(SUM(po.total_price), 0) AS procurement_value
                 FROM purchase_orders po
-                WHERE ${inRange("po.po_date")} AND ${FIN}
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")} AND ${FIN}
                   AND po.make IS NOT NULL AND TRIM(po.make) <> ''
                 GROUP BY TRIM(po.make)
                 ORDER BY procurement_value DESC, po_count DESC
@@ -4428,7 +4467,7 @@ app.get("/management-insights", async (req, res) => {
                        COUNT(*) AS po_count,
                        COALESCE(SUM(po.total_price), 0) AS procurement_value
                 FROM purchase_orders po
-                WHERE ${inRange("po.po_date")} AND ${FIN}
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")} AND ${FIN}
                   AND po.model IS NOT NULL AND TRIM(po.model) <> ''
                 GROUP BY TRIM(po.model)
                 ORDER BY procurement_value DESC, po_count DESC
@@ -4441,28 +4480,28 @@ app.get("/management-insights", async (req, res) => {
                        COUNT(*) AS po_count,
                        COALESCE(SUM(po.total_price), 0) AS procurement_value
                 FROM purchase_orders po
-                WHERE ${inRange("po.po_date")} AND ${FIN}
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")} AND ${FIN}
                 GROUP BY po.vendor_id
                 ORDER BY procurement_value DESC, po_count DESC
                 LIMIT 1
             `),
             run(`
                 SELECT
-                    DATE_FORMAT(po.po_date, '%Y-%m-%d') AS day,
+                    DATE_FORMAT(COALESCE(po.po_date, DATE(po.created_at)), '%Y-%m-%d') AS day,
                     COALESCE(SUM(pr.taxable_value), 0) AS sales_value,
                     COALESCE(SUM(po.total_price), 0)   AS procurement_value,
                     COALESCE(SUM(pr.taxable_value - po.total_price), 0) AS gross_profit
                 FROM purchase_orders po
                 INNER JOIN purchase_requests pr ON pr.id = po.pr_id
-                WHERE ${inRange("po.po_date")} AND ${FIN}
-                GROUP BY DATE_FORMAT(po.po_date, '%Y-%m-%d')
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")} AND ${FIN}
+                GROUP BY DATE_FORMAT(COALESCE(po.po_date, DATE(po.created_at)), '%Y-%m-%d')
             `),
             run(`
                 SELECT COALESCE(po.payment_type, 'Not Specified') AS payment_type,
                        COUNT(*) AS po_count,
                        COALESCE(SUM(po.total_price), 0) AS procurement_value
                 FROM purchase_orders po
-                WHERE ${inRange("po.po_date")} AND ${FIN}
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")} AND ${FIN}
                 GROUP BY COALESCE(po.payment_type, 'Not Specified')
                 ORDER BY procurement_value DESC
             `),
@@ -4472,21 +4511,20 @@ app.get("/management-insights", async (req, res) => {
                        COALESCE(SUM(gr.received_quantity), 0) AS received
                 FROM goods_received gr
                 INNER JOIN purchase_orders po ON po.po_id = gr.po_id
-                WHERE ${inRange("gr.received_date")}
+                WHERE ${inRange("COALESCE(gr.received_date, DATE(gr.created_at))")}
                 GROUP BY ${UNIT}
             `),
             run(`
                 SELECT
-                    AVG(DATEDIFF(po.po_date, pr.pr_date)) AS average_pr_to_po_days,
-                    MIN(DATEDIFF(po.po_date, pr.pr_date)) AS fastest_pr_to_po_days,
-                    MAX(DATEDIFF(po.po_date, pr.pr_date)) AS slowest_pr_to_po_days,
+                    AVG(DATEDIFF(COALESCE(po.po_date, DATE(po.created_at)), COALESCE(pr.pr_date, DATE(pr.created_at)))) AS average_pr_to_po_days,
+                    MIN(DATEDIFF(COALESCE(po.po_date, DATE(po.created_at)), COALESCE(pr.pr_date, DATE(pr.created_at)))) AS fastest_pr_to_po_days,
+                    MAX(DATEDIFF(COALESCE(po.po_date, DATE(po.created_at)), COALESCE(pr.pr_date, DATE(pr.created_at)))) AS slowest_pr_to_po_days,
                     COUNT(*) AS sample_size
                 FROM purchase_orders po
                 INNER JOIN purchase_requests pr ON pr.id = po.pr_id
-                WHERE ${inRange("po.po_date")}
+                WHERE ${inRange("COALESCE(po.po_date, DATE(po.created_at))")}
                   AND po.status <> 'CANCELLED'
-                  AND pr.pr_date IS NOT NULL
-                  AND po.po_date >= pr.pr_date
+                  AND COALESCE(po.po_date, DATE(po.created_at)) >= COALESCE(pr.pr_date, DATE(pr.created_at))
             `)
         ]);
         const fin = financialRows[0] || {};
@@ -4523,9 +4561,13 @@ app.get("/management-insights", async (req, res) => {
         });
         const dayMap = new Map(dailyFinRows.map(r => [r.day, r]));
         const dayKeys = [...dayMap.keys()].sort();
+        const todayStr = ymd(new Date());
         const dayFrom = start || dayKeys[0];
-        const dayTo = end || dayKeys[dayKeys.length - 1];
-        const dailyProcurement = (dayFrom && dayTo) ? daysBetween(dayFrom, dayTo).map(day => {
+        let dayTo = end || dayKeys[dayKeys.length - 1] || todayStr;
+        if (dayTo > todayStr && (!dayKeys.length || dayKeys[dayKeys.length - 1] <= todayStr)) {
+            dayTo = todayStr;
+        }
+        const dailyProcurement = (dayFrom && dayTo && dayFrom <= dayTo) ? daysBetween(dayFrom, dayTo).map(day => {
             const r = dayMap.get(day);
             return {
                 day,

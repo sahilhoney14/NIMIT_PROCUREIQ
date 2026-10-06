@@ -1,6 +1,7 @@
 const path = require("path");
 const authService = require("./auth.service");
 const { log } = require("../../utils/logger");
+const { generateToken, resolveAuthUser } = require("../../services/jwt.service");
 
 const roleUrls = {
     ADMIN: "/admin",
@@ -13,8 +14,9 @@ function getRoleUrl(role) {
 }
 
 async function renderLogin(req, res) {
-    if (req.session && req.session.user) {
-        return res.redirect(getRoleUrl(req.session.user.role));
+    const user = resolveAuthUser(req);
+    if (user) {
+        return res.redirect(getRoleUrl(user.role));
     }
     return res.sendFile(path.resolve(__dirname, "../../../../frontend/auth/index.html"));
 }
@@ -45,24 +47,34 @@ async function login(req, res) {
 
         await authService.recordLoginAttempt(user.user_id, "SUCCESS");
 
-        req.session.user = {
+        const tokenPayload = {
             user_id: user.user_id,
             username: user.username,
             role: user.role
         };
 
-        req.session.save(err => {
-            if (err) {
-                log(`Session save error: ${err.message}`);
-                return res.status(500).json({ success: false, message: "Session creation error" });
-            }
-            const redirectUrl = getRoleUrl(user.role);
-            log(`Login successful - ${username} (${user.role}) redirecting to ${redirectUrl}`);
-            return res.json({
-                success: true,
-                role: user.role,
-                redirect_url: redirectUrl
-            });
+        const token = generateToken(tokenPayload);
+
+        res.cookie("jwt_token", token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 8 * 60 * 60 * 1000
+        });
+
+        if (req.session) {
+            req.session.user = tokenPayload;
+            req.session.save();
+        }
+
+        const redirectUrl = getRoleUrl(user.role);
+        log(`Login successful - ${username} (${user.role}) redirecting to ${redirectUrl}`);
+        return res.json({
+            success: true,
+            token,
+            role: user.role,
+            user: tokenPayload,
+            redirect_url: redirectUrl
         });
     } catch (error) {
         log(`Login exception: ${error.message}`);
@@ -71,30 +83,35 @@ async function login(req, res) {
 }
 
 async function verify(req, res) {
-    if (!req.session?.user) {
+    const user = resolveAuthUser(req);
+    if (!user) {
         return res.status(401).json({ authenticated: false });
     }
     return res.json({
         authenticated: true,
-        user_id: req.session.user.user_id,
-        username: req.session.user.username,
-        role: req.session.user.role
+        user_id: user.user_id,
+        username: user.username,
+        role: user.role
     });
 }
 
 async function logout(req, res) {
-    const username = req.session?.user?.username || "Anonymous";
+    const username = resolveAuthUser(req)?.username || req.session?.user?.username || "Anonymous";
+    res.clearCookie("jwt_token");
+    res.clearCookie("auth_token");
+    res.clearCookie("login_session");
+
     if (req.session) {
         req.session.destroy(err => {
             if (err) {
                 log(`Logout error: ${err.message}`);
                 return res.status(500).json({ success: false, message: "Logout failed" });
             }
-            res.clearCookie("login_session");
             log(`Logout successful for: ${username}`);
             return res.json({ success: true, redirect_url: "/" });
         });
     } else {
+        log(`Logout successful for: ${username}`);
         return res.json({ success: true, redirect_url: "/" });
     }
 }

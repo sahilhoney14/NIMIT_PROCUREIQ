@@ -7,11 +7,17 @@ async function apiFetch(endpoint, options = {}) {
         "Accept": "application/json"
     };
 
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+        defaultHeaders["Authorization"] = `Bearer ${token}`;
+    }
+
     if (!(options.body instanceof FormData)) {
         defaultHeaders["Content-Type"] = "application/json";
     }
 
     const config = {
+        credentials: "include",
         ...options,
         headers: {
             ...defaultHeaders,
@@ -22,6 +28,8 @@ async function apiFetch(endpoint, options = {}) {
     const response = await fetch(endpoint, config);
 
     if (response.status === 401 && !window.location.pathname.startsWith("/login") && window.location.pathname !== "/") {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
         window.location.href = "/";
         return null;
     }

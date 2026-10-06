@@ -990,7 +990,7 @@ td input.taxable-input {
 /* ── Tabular Column Alignment for Purchase Orders ── */
 #purchaseOrdersList .po-row-summary {
     display: grid;
-    grid-template-columns: 200px 220px 1fr 150px 110px;
+    grid-template-columns: 200px 220px 1fr 150px 140px 110px;
     align-items: center;
     gap: 20px;
     padding: 18px 24px;
@@ -1008,6 +1008,11 @@ td input.taxable-input {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+#purchaseOrdersList .inquiry-status {
+    justify-self: start;
+    margin-left: 0;
 }
 
 #purchaseOrdersList .expand-po-btn {
@@ -1082,6 +1087,18 @@ td input.taxable-input {
 .ot-pill.active .ot-pill-dot.dot-open {
     background: #60a5fa;
     box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.35);
+}
+
+.ot-pill-dot.dot-vendor-selected,
+.ot-pill-dot.dot-vendor_selected {
+    background: #d97706;
+    box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+
+.ot-pill.active .ot-pill-dot.dot-vendor-selected,
+.ot-pill.active .ot-pill-dot.dot-vendor_selected {
+    background: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
 }
 
 .ot-pill-dot.dot-closed {
@@ -1175,48 +1192,135 @@ td input.taxable-input {
     color: #0f172a;
 }
 
-.ot-status-select {
-    padding: 7px 12px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #1e293b;
-    background: #ffffff;
-    outline: none;
-    cursor: pointer;
-    transition: border-color 0.15s;
-    font-family: inherit;
+/* ── Order Tracking Date Filter Controls ── */
+.ot-date-filter-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-.ot-status-select:focus {
-    border-color: #2563eb;
-}
-
-.ot-reset-btn {
-    padding: 7px 14px;
-    font-size: 12.5px;
-    border-radius: 8px;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.ot-filter-meta {
+.ot-date-preset-wrap {
+    position: relative;
     display: flex;
     align-items: center;
 }
 
-.ot-count-badge {
-    display: inline-block;
-    background: #f1f5f9;
-    color: #475569;
+.ot-date-icon {
+    position: absolute;
+    left: 10px;
+    color: #64748b;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.ot-date-preset-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 7px 26px 7px 30px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1e293b;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    line-height: 1.4;
+}
+
+.ot-date-preset-select:hover,
+.ot-date-preset-select:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.ot-select-arrow {
+    position: absolute;
+    right: 8px;
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+.ot-custom-date-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f8fafc;
     border: 1px solid #e2e8f0;
-    padding: 5px 12px;
-    border-radius: 6px;
-    font-size: 12px;
+    border-radius: 8px;
+    padding: 3px 8px;
+}
+
+.ot-date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.ot-date-label {
+    font-size: 11px;
     font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.ot-date-input {
+    padding: 4px 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #1e293b;
+    background: #ffffff;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-family: inherit;
+}
+
+.ot-date-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.ot-date-separator {
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ot-date-clear-btn {
+    width: 20px;
+    height: 20px;
+    border: none;
+    background: #e2e8f0;
+    color: #475569;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    transition: all 0.15s ease;
+    padding: 0;
+}
+
+.ot-date-clear-btn:hover {
+    background: #cbd5e1;
+    color: #0f172a;
+}
+
+.ot-row-date {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #64748b;
+    margin-top: 3px;
     letter-spacing: -0.01em;
-    white-space: nowrap;
 }
 
 /* ── Tabular Column Alignment for Order Tracking ── */
