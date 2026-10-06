@@ -11,6 +11,7 @@ const fs = require("fs");
 const multer = require("multer");
 const { readSheet } = require("read-excel-file/node");
 const PDFDocument = require("pdfkit");
+const ExcelJS = require("exceljs");
 const env = require("./config/env");
 const { generateToken, verifyToken, extractToken, resolveAuthUser } = require("./services/jwt.service");
 
@@ -756,94 +757,130 @@ function generatePoPdf(po) {
             const doc = new PDFDocument({ size: [612, 792], margin: 0 });
             const stream = fs.createWriteStream(outputPath);
             doc.pipe(stream);
+
             const fontDir = path.resolve(__dirname, "../fonts");
             doc.registerFont("Arial", path.join(fontDir, "ARIAL.TTF"));
             doc.registerFont("Arial-Bold", path.join(fontDir, "ARIALBD.TTF"));
             doc.registerFont("Calibri", path.join(fontDir, "CALIBRI.TTF"));
             doc.registerFont("Calibri-Bold", path.join(fontDir, "CALIBRIB.TTF"));
+
             function fmtDate(val) {
-                if (!val) return "";
+                if (!val) return "-";
+                if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+                    const parts = val.slice(0, 10).split("-");
+                    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+                }
                 const d = new Date(val);
                 if (isNaN(d.getTime())) return String(val);
-                return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+                return d.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" }).replace(/\//g, ".");
             }
+
             function fmtCur(val) {
-                return Number(val || 0).toLocaleString("en-IN", {minimumFractionDigits: 2,maximumFractionDigits: 2});
+                return Number(val || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             }
+
             function line(x1, y1, x2, y2) {
                 doc.moveTo(x1, y1).lineTo(x2, y2).stroke();
             }
+
             function rect(x, y, w, h) {
                 doc.rect(x, y, w, h).stroke();
             }
+
             doc.lineWidth(1);
-            // Company letterhead image
+
+            // 1. Company letterhead image
             if (fs.existsSync(headerImgPath)) {
                 doc.image(headerImgPath, 50.4, 54, {
                     width: 504.8,
                     height: 79
                 });
             }
-            const ML = 85;
+
+            const ML = 85.6;
             const MR = 524;
             const MW = MR - ML;
-            // Title box
+
+            // 2. Title box
             const titleY = 192.2;
             const titleH = 21.9;
             rect(ML, titleY, MW, titleH);
             doc.font("Arial-Bold")
                 .fontSize(15.24)
-                .text("PURCHASE ORDER", ML, titleY + 1.5, {
+                .text("PURCHASE ORDER", ML, titleY + 3.5, {
                     width: MW,
                     align: "center",
                     lineBreak: false
                 });
-            // Vendor block (left) and PO reference block (right)
+
+            // 3. Vendor block (left) and PO reference block (right)
             const vendorY = 214.1;
-            const vendorH = 84.15;
+            const vendorH = 84;
             rect(ML, vendorY, MW, vendorH);
-            const vendorSplit = 316;
-            const labelSplit = 350;
-            line(vendorSplit, vendorY, vendorSplit, vendorY + vendorH);
-            line(labelSplit, vendorY, labelSplit, vendorY + vendorH);
-            line(labelSplit, 225.2, MR, 225.2);
-            line(labelSplit, 237.15, MR, 237.15);
-            line(labelSplit, 249.05, MR, 249.05);
-            line(labelSplit, 260.9, MR, 260.9);
-            line(labelSplit, 272.7, MR, 272.7);
-            doc.font("Arial-Bold").fontSize(9).text("TO,", ML + 1.5, vendorY + 0.3, {lineBreak: false});
+
+            const splitX = 316.3; // Matches lower table column 2 border cleanly
+            const colDivider = 416; // Divider between Label and Value in PO table
+
+            line(splitX, vendorY, splitX, vendorY + vendorH);
+            line(colDivider, vendorY, colDivider, vendorY + vendorH);
+
+            // Left: Vendor details
+            doc.font("Arial-Bold").fontSize(9).text("TO,", ML + 4, vendorY + 4, { lineBreak: false });
             const vendorName = String(po.vendor_name || "").trim();
             const vendorAddress = String(po.vendor_address || "").trim();
-            doc.font("Arial").fontSize(8.5);
-            let vendorTextY = vendorY + 12;
+            const vendorGst = String(po.vendor_gst || po.gst_number || "").trim();
+
+            let vendorTextY = vendorY + 16;
             if (vendorName) {
-                doc.text(vendorName, ML + 1.5, vendorTextY, {width: vendorSplit - ML - 5,lineBreak: false});
-                vendorTextY += 11;
+                doc.font("Arial-Bold").fontSize(8.5).text(vendorName, ML + 4, vendorTextY, { width: splitX - ML - 8, lineBreak: false });
+                vendorTextY += 12;
             }
             if (vendorAddress) {
-                const addressWidth = vendorSplit - ML - 5;
-                const addressHeight = doc.heightOfString(vendorAddress, {width: addressWidth,lineGap: 0});
-                doc.text(vendorAddress, ML + 1.5, vendorTextY, {width: addressWidth,lineGap: 0});
-                vendorTextY += addressHeight + 3;
+                doc.font("Arial").fontSize(8).text(vendorAddress, ML + 4, vendorTextY, { width: splitX - ML - 8, lineGap: 1 });
+                const addrH = doc.heightOfString(vendorAddress, { width: splitX - ML - 8, lineGap: 1 });
+                vendorTextY += addrH + 4;
             }
-            if (po.vendor_gst)doc.font("Arial-Bold").fontSize(8.5).text(`GST: ${po.vendor_gst}`, ML + 1.5, vendorTextY, {width: vendorSplit - ML - 5,lineBreak: false});
-            const labelX = labelSplit + 1.5;
-            const valueX = 430;
-            doc.font("Arial-Bold").fontSize(9);
-            doc.text("REF.P.O.NO.", labelX, vendorY + 0.3, {lineBreak: false});
-            doc.text("DATE", labelX, 226.2, {lineBreak: false});
-            doc.text("GST NO", labelX, 250, {lineBreak: false});
-            doc.font("Arial-Bold").fontSize(7.56).text(po.po_number || "", valueX, vendorY + 1, {width: MR - valueX - 3,lineBreak: false});
-            doc.font("Arial").fontSize(9).text(fmtDate(po.po_date), valueX, 226.2, {lineBreak: false});
-            doc.text(process.env.GST_NUMBER || "", valueX, 250, {lineBreak: false});
-            // Attention line
-            const attnY = 297;
-            const attnH = 21.3;
+            if (vendorGst) {
+                doc.font("Arial-Bold").fontSize(8.5).text(`GST: ${vendorGst}`, ML + 4, vendorTextY, { width: splitX - ML - 8, lineBreak: false });
+            }
+
+            // Right: Order References Table (6 rows x 14pt height = 84pt)
+            const companyGst = process.env.GST_NUMBER || "24AAHPS5083K1ZO";
+            const rowH = 14;
+            const refRows = [
+                { label: "REF. P.O. NO.", val: po.po_number || "-", boldVal: true },
+                { label: "P.O. DATE",      val: fmtDate(po.po_date || po.created_at) },
+                { label: "REF. P.R. NO.", val: po.pr_number || "-" },
+                { label: "P.R. DATE",      val: fmtDate(po.pr_date || po.created_at) },
+                { label: "GST NO.",        val: companyGst },
+                { label: "VENDOR CODE",    val: po.vendor_code || "-" }
+            ];
+
+            refRows.forEach((r, idx) => {
+                const currentY = vendorY + idx * rowH;
+                if (idx > 0) {
+                    line(splitX, currentY, MR, currentY);
+                }
+                const textY = currentY + 3.2;
+                // Label
+                doc.font("Arial-Bold").fontSize(8.2).text(r.label, splitX + 4, textY, { width: colDivider - splitX - 6, lineBreak: false });
+                // Value
+                doc.font(r.boldVal ? "Arial-Bold" : "Arial").fontSize(8.2).text(r.val, colDivider + 4, textY, { width: MR - colDivider - 6, lineBreak: false });
+            });
+
+            // 4. Attention Box
+            const attnY = 298.1;
+            const attnH = 21.5;
             rect(ML, attnY, MW, attnH);
-            doc.font("Arial-Bold").fontSize(9).text(`ATTN. : ${po.vendor_name || ""}`, ML, attnY + 4, {width: MW,align: "center",lineBreak: false});
-            // Item table frame and column headers
+            doc.font("Arial-Bold").fontSize(9).text(`ATTN. : ${po.vendor_name || ""}`, ML, attnY + 5.5, {
+                width: MW,
+                align: "center",
+                lineBreak: false
+            });
+
+            // 5. Item Table
             const tableHeaderY = 319.6;
-            const headerH = 10.8;
+            const headerH = 16;
             const x0 = 85.6;
             const x1 = 147.6;
             const x2 = 316.3;
@@ -851,62 +888,65 @@ function generatePoPdf(po) {
             const x4 = 428.4;
             const x5 = 524;
             const totalY = 509.7;
-            const totalH = 11.5;
+            const totalH = 14;
             const tableBottom = totalY + totalH;
+
             rect(x0, tableHeaderY, x5 - x0, tableBottom - tableHeaderY);
             line(x1, tableHeaderY, x1, tableBottom);
             line(x2, tableHeaderY, x2, tableBottom);
             line(x3, tableHeaderY, x3, tableBottom);
             line(x4, tableHeaderY, x4, tableBottom);
             line(x0, tableHeaderY + headerH, x5, tableHeaderY + headerH);
+
             doc.font("Calibri-Bold").fontSize(7.56);
-            doc.text("SR. NO.", x0, tableHeaderY + 1.3, {width: x1 - x0,align: "center",lineBreak: false});
-            doc.text("Model Number", x1, tableHeaderY + 1.3, {width: x2 - x1,align: "center",lineBreak: false});
-            doc.text("Qty", x2, tableHeaderY + 1.3, {width: x3 - x2,align: "center",lineBreak: false});
-            doc.text("Unit Rate", x3, tableHeaderY + 1.3, {width: x4 - x3,align: "center",lineBreak: false});
-            doc.text("Total", x4, tableHeaderY + 1.3, {width: x5 - x4,align: "center",lineBreak: false});
+            doc.text("SR. NO.", x0, tableHeaderY + 4, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text("Model Number", x1, tableHeaderY + 4, { width: x2 - x1, align: "center", lineBreak: false });
+            doc.text("Qty", x2, tableHeaderY + 4, { width: x3 - x2, align: "center", lineBreak: false });
+            doc.text("Unit Rate", x3, tableHeaderY + 4, { width: x4 - x3, align: "center", lineBreak: false });
+            doc.text("Total", x4, tableHeaderY + 4, { width: x5 - x4, align: "center", lineBreak: false });
+
             // Item row
-            const itemTop = tableHeaderY + headerH + 1;
-            const itemDesc = [
-                po.item_name,
-                po.make,
-                po.model
-            ].filter(Boolean).join(" / ");
+            const itemTop = tableHeaderY + headerH;
+            const itemDesc = [po.item_name, po.make, po.model].filter(Boolean).join(" / ");
             doc.font("Calibri").fontSize(7.56);
-            doc.text("1", x0, itemTop + 2, {width: x1 - x0,align: "center",lineBreak: false});
-            doc.text(itemDesc, x1 + 3, itemTop + 2, {width: x2 - x1 - 6,align: "left",lineBreak: false});
-            doc.text(Number(po.qty || 0).toFixed(2), x2, itemTop + 2, {width: x3 - x2,align: "center",lineBreak: false});
-            doc.text(fmtCur(po.price_per_unit), x3, itemTop + 2, {width: x4 - x3,align: "center",lineBreak: false});
-            doc.text(fmtCur(po.total_price), x4, itemTop + 2, {width: x5 - x4,align: "center",lineBreak: false});
-            line(x4, 340.6, x5, 340.6);
-            // Table total row
+            doc.text("1", x0, itemTop + 4, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text(itemDesc, x1 + 4, itemTop + 4, { width: x2 - x1 - 8, align: "left", lineBreak: false });
+            doc.text(Number(po.qty || 0).toFixed(2), x2, itemTop + 4, { width: x3 - x2, align: "center", lineBreak: false });
+            doc.text(fmtCur(po.price_per_unit), x3, itemTop + 4, { width: x4 - x3, align: "center", lineBreak: false });
+            doc.text(fmtCur(po.total_price), x4, itemTop + 4, { width: x5 - x4, align: "center", lineBreak: false });
+
+            // Total row
             line(x0, totalY, x5, totalY);
-            doc.font("Calibri").fontSize(7.56).text("TOTAL:", x0, totalY + 1.8, {width: x4 - x0,align: "center",lineBreak: false});
-            doc.text(fmtCur(po.total_price), x4, totalY + 1.8, {width: x5 - x4,align: "center",lineBreak: false});
-            // Footer frame: terms & conditions (left) and signature block (right)
+            doc.font("Calibri-Bold").fontSize(7.56).text("TOTAL:", x0, totalY + 3.5, { width: x4 - x0, align: "center", lineBreak: false });
+            doc.text(fmtCur(po.total_price), x4, totalY + 3.5, { width: x5 - x4, align: "center", lineBreak: false });
+
+            // 6. Footer: Terms & conditions (left) and signature block (right)
             const footerY = tableBottom;
             const footerBottom = 618.9;
             rect(x0, footerY, x5 - x0, footerBottom - footerY);
             const footerSplit = x3;
             line(footerSplit, footerY, footerSplit, footerBottom);
-            line(x0, 531.4, footerSplit, 531.4);
-            line(x1, 531.4, x1, 607.5);
-            line(x2, 531.4, x2, 607.5);
+            line(x0, footerY + 14, footerSplit, footerY + 14);
+            line(x1, footerY + 14, x1, 607.5);
             line(x0, 607.5, x5, 607.5);
-            doc.font("Calibri").fontSize(7.56).text("TERMS & CONDITIONS :", x0, footerY + 1, {width: footerSplit - x0,align: "center",lineBreak: false});
+
+            doc.font("Calibri-Bold").fontSize(7.56).text("TERMS & CONDITIONS :", x0, footerY + 3.5, { width: footerSplit - x0, align: "center", lineBreak: false });
             doc.font("Calibri").fontSize(7.56);
-            doc.text("1", x0, 533, {width: x1 - x0,align: "center",lineBreak: false});
-            doc.text("2", x0, 543.6, {width: x1 - x0,align: "center",lineBreak: false});
-            if (po.payment_terms_remarks)doc.text("3", x0, 554.2, {width: x1 - x0,align: "center",lineBreak: false});
-            doc.text("DELIVERY : AT OUR OFFICE.", x1 + 3, 533, {width: x2 - x1 - 6,lineBreak: false});
-            doc.text("TAX : EXTRA", x1 + 3, 543.6, {width: x2 - x1 - 6,lineBreak: false});
-            if (po.payment_terms_remarks)doc.text(po.payment_terms_remarks, x1 + 3, 554.2, {width: x2 - x1 - 6,lineBreak: false});
-            // Authorised signatory block
-            const signX = footerSplit + 1.5;
-            doc.font("Arial-Bold").fontSize(6.96);
-            doc.text("FOR,", signX, footerY + 0.5, {lineBreak: false});
-            doc.text("NIMIT ELECTRONICS AND EQUIPMENTS,", signX, footerY + 11.5, {width: x5 - signX - 3,lineBreak: false});
-            doc.text("AUTHORISED SIGNATORY", signX, 597, {width: x5 - signX - 3,lineBreak: false});
+            doc.text("1", x0, footerY + 19, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text("2", x0, footerY + 31, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text("DELIVERY : AT OUR OFFICE.", x1 + 4, footerY + 19, { width: footerSplit - x1 - 8, lineBreak: false });
+            doc.text("TAX : EXTRA", x1 + 4, footerY + 31, { width: footerSplit - x1 - 8, lineBreak: false });
+            if (po.payment_terms_remarks) {
+                doc.text("3", x0, footerY + 43, { width: x1 - x0, align: "center", lineBreak: false });
+                doc.text(po.payment_terms_remarks, x1 + 4, footerY + 43, { width: footerSplit - x1 - 8, lineBreak: false });
+            }
+
+            // Signature block
+            const signX = footerSplit + 6;
+            doc.font("Arial-Bold").fontSize(7).text("FOR,", signX, footerY + 2, { lineBreak: false });
+            doc.text("NIMIT ELECTRONICS AND EQUIPMENTS,", signX, footerY + 13, { width: x5 - signX - 4, lineBreak: false });
+            doc.text("AUTHORISED SIGNATORY", signX, 595, { width: x5 - signX - 4, lineBreak: false });
+
             doc.end();
             stream.on("finish", () => resolve(outputPath));
             stream.on("error", reject);
@@ -1675,6 +1715,333 @@ app.get("/order-tracking", async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Failed to fetch order tracking data"
+        });
+    }
+});
+
+// GET /order-tracking/export - Export order tracking summary matching applied filters as real Excel (.xlsx)
+app.get("/order-tracking/export", async (req, res) => {
+    const statusParam = (req.query.status || "").trim().toUpperCase();
+    const searchParam = (req.query.search || "").trim();
+    const singleDate = (req.query.date || "").trim();
+    const fromDate = (req.query.from_date || req.query.from || singleDate).trim();
+    const toDate = (req.query.to_date || req.query.to || singleDate).trim();
+
+    try {
+        const whereClauses = [];
+        const params = [];
+
+        if (statusParam && statusParam !== "ALL") {
+            if (statusParam === "NO_INQUIRY" || statusParam === "NONE") {
+                whereClauses.push("status IS NULL");
+            } else {
+                whereClauses.push("status = ?");
+                params.push(statusParam);
+            }
+        }
+
+        if (searchParam) {
+            whereClauses.push("(pr_number LIKE ? OR po_number LIKE ? OR party_name LIKE ? OR item_name LIKE ?)");
+            const wild = `%${searchParam}%`;
+            params.push(wild, wild, wild, wild);
+        }
+
+        if (fromDate) {
+            whereClauses.push("COALESCE(pr_date, DATE(created_at)) >= ?");
+            params.push(fromDate);
+        }
+
+        if (toDate) {
+            whereClauses.push("COALESCE(pr_date, DATE(created_at)) <= ?");
+            params.push(toDate);
+        }
+
+        const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+        const baseFromSql = `
+            FROM (
+                SELECT
+                    pr.id AS pr_id,
+                    pr.pr_number,
+                    pr.pr_date,
+                    pr.created_at,
+                    pr.party_name,
+                    pr.location,
+                    pr.territory,
+                    pr.product_category,
+                    pr.item_name,
+                    pr.make,
+                    pr.model,
+                    pr.qty,
+                    pr.unit,
+                    pr.sales_rate,
+                    pr.taxable_value,
+                    pr.product_remarks,
+                    vi.inquiry_id,
+                    po.po_number,
+                    CASE
+                        WHEN po.status = 'COMPLETED' THEN 'CLOSED'
+                        WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
+                        ELSE vi.status
+                    END AS status
+                FROM purchase_requests pr
+                LEFT JOIN vendor_inquiries vi
+                    ON vi.pr_id = pr.id
+                LEFT JOIN purchase_orders po
+                    ON po.pr_id = pr.id
+            ) t
+            ${whereSql}
+        `;
+
+        const [rows] = await db.query(
+            `SELECT * ${baseFromSql} ORDER BY pr_id DESC`,
+            params
+        );
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "ProcureIQ";
+        workbook.lastModifiedBy = "ProcureIQ Enterprise";
+        workbook.created = new Date();
+        workbook.modified = new Date();
+
+        const sheet = workbook.addWorksheet("Order Summary", {
+            views: [{ showGridLines: true }],
+            properties: { defaultRowHeight: 22 }
+        });
+
+        // 1. Title Banner
+        sheet.mergeCells("A1:Q1");
+        const titleCell = sheet.getCell("A1");
+        titleCell.value = "NIMIT — PROCUREIQ ORDER TRACKING SUMMARY";
+        titleCell.font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+        titleCell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF0F172A" }
+        };
+        titleCell.alignment = { vertical: "middle", horizontal: "center" };
+        sheet.getRow(1).height = 36;
+
+        // 2. Metadata / Filter Bar Subtitle
+        sheet.mergeCells("A2:Q2");
+        const metaCell = sheet.getCell("A2");
+        const now = new Date();
+        const dateTag = now.toISOString().slice(0, 10);
+        const filterStatusText = (statusParam && statusParam !== "ALL") ? statusParam : "All Statuses";
+        const filterDateText = (fromDate || toDate) ? `From: ${fromDate || "Start"} To: ${toDate || "Present"}` : "All Dates";
+        const filterSearchText = searchParam ? ` | Search: "${searchParam}"` : "";
+        metaCell.value = `Exported: ${now.toLocaleDateString("en-IN")} ${now.toLocaleTimeString("en-IN")} | Status: ${filterStatusText} | Period: ${filterDateText}${filterSearchText} | Total Records: ${rows.length}`;
+        metaCell.font = { name: "Segoe UI", size: 10, italic: true, color: { argb: "FF334155" } };
+        metaCell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFF1F5F9" }
+        };
+        metaCell.alignment = { vertical: "middle", horizontal: "center" };
+        sheet.getRow(2).height = 24;
+
+        // Blank spacer row
+        sheet.getRow(3).height = 10;
+
+        // 3. Table Column Headers
+        const columns = [
+            { header: "S.No", key: "sno", width: 8 },
+            { header: "PR Number", key: "pr_number", width: 22 },
+            { header: "PR Date", key: "pr_date", width: 14 },
+            { header: "PO Number", key: "po_number", width: 22 },
+            { header: "Status", key: "status", width: 18 },
+            { header: "Party Name", key: "party_name", width: 30 },
+            { header: "Location", key: "location", width: 18 },
+            { header: "Territory", key: "territory", width: 14 },
+            { header: "Product Category", key: "product_category", width: 24 },
+            { header: "Item Name", key: "item_name", width: 36 },
+            { header: "Make", key: "make", width: 18 },
+            { header: "Model", key: "model", width: 20 },
+            { header: "Quantity", key: "qty", width: 14 },
+            { header: "Unit", key: "unit", width: 12 },
+            { header: "Sales Rate (INR)", key: "sales_rate", width: 18 },
+            { header: "Taxable Value (INR)", key: "taxable_value", width: 20 },
+            { header: "Remarks", key: "remarks", width: 32 }
+        ];
+
+        const headerRow = sheet.getRow(4);
+        headerRow.height = 28;
+        columns.forEach((col, idx) => {
+            const cell = headerRow.getCell(idx + 1);
+            cell.value = col.header;
+            cell.font = { name: "Segoe UI", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FF2563EB" }
+            };
+            cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+            cell.border = {
+                top: { style: "medium", color: { argb: "FF1D4ED8" } },
+                left: { style: "thin", color: { argb: "FF93C5FD" } },
+                bottom: { style: "medium", color: { argb: "FF1D4ED8" } },
+                right: { style: "thin", color: { argb: "FF93C5FD" } }
+            };
+            sheet.getColumn(idx + 1).width = col.width;
+        });
+
+        // 4. Data Rows
+        let currentRowIdx = 5;
+        let totalQty = 0;
+        let totalTaxableValue = 0;
+
+        rows.forEach((row, idx) => {
+            const dataRow = sheet.getRow(currentRowIdx);
+            dataRow.height = 22;
+
+            let prDateStr = "—";
+            if (row.pr_date) {
+                prDateStr = row.pr_date instanceof Date ? row.pr_date.toISOString().slice(0, 10) : String(row.pr_date).slice(0, 10);
+            } else if (row.created_at) {
+                prDateStr = row.created_at instanceof Date ? row.created_at.toISOString().slice(0, 10) : String(row.created_at).slice(0, 10);
+            }
+
+            const rawStatus = (row.status || "NO_INQUIRY").toUpperCase();
+            const statusDisplay = row.status ? row.status.replace(/_/g, " ") : "NO INQUIRY";
+
+            const qty = Number(row.qty || 0);
+            const salesRate = Number(row.sales_rate || 0);
+            const taxableVal = Number(row.taxable_value || 0);
+
+            totalQty += qty;
+            totalTaxableValue += taxableVal;
+
+            const isEven = idx % 2 === 0;
+            const bgArgb = isEven ? "FFFFFFFF" : "FFF8FAFC";
+
+            const values = [
+                idx + 1,
+                row.pr_number || "—",
+                prDateStr,
+                row.po_number || "—",
+                statusDisplay,
+                row.party_name || "—",
+                row.location || "—",
+                row.territory || "—",
+                row.product_category || "—",
+                row.item_name || "—",
+                row.make || "—",
+                row.model || "—",
+                qty,
+                row.unit || "—",
+                salesRate,
+                taxableVal,
+                row.product_remarks || ""
+            ];
+
+            values.forEach((val, colIdx) => {
+                const cell = dataRow.getCell(colIdx + 1);
+                cell.value = val;
+                cell.font = { name: "Segoe UI", size: 10, color: { argb: "FF0F172A" } };
+                cell.fill = {
+                    type: "pattern",
+                    pattern: "solid",
+                    fgColor: { argb: bgArgb }
+                };
+                cell.border = {
+                    top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    right: { style: "thin", color: { argb: "FFE2E8F0" } }
+                };
+
+                if (colIdx === 0) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                } else if (colIdx === 1 || colIdx === 2 || colIdx === 3) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                } else if (colIdx === 4) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                    if (rawStatus === "OPEN") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FF1D4ED8" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
+                    } else if (rawStatus === "VENDOR_SELECTED") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFB45309" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFBEB" } };
+                    } else if (rawStatus === "CLOSED") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FF15803D" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0FDF4" } };
+                    } else if (rawStatus === "CANCELLED") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFB91C1C" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF2F2" } };
+                    }
+                } else if (colIdx === 12) {
+                    cell.alignment = { vertical: "middle", horizontal: "right" };
+                    cell.numFmt = "#,##0";
+                } else if (colIdx === 13) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                } else if (colIdx === 14) {
+                    cell.alignment = { vertical: "middle", horizontal: "right" };
+                    cell.numFmt = "₹#,##0.00";
+                } else if (colIdx === 15) {
+                    cell.alignment = { vertical: "middle", horizontal: "right" };
+                    cell.numFmt = "₹#,##0.00";
+                } else {
+                    cell.alignment = { vertical: "middle", horizontal: "left" };
+                }
+            });
+
+            currentRowIdx++;
+        });
+
+        // 5. Total Row
+        const totalRow = sheet.getRow(currentRowIdx);
+        totalRow.height = 26;
+        sheet.mergeCells(`A${currentRowIdx}:L${currentRowIdx}`);
+        const totalLabelCell = totalRow.getCell(1);
+        totalLabelCell.value = "TOTAL SUMMARY";
+        totalLabelCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
+        totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
+        totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+
+        for (let c = 1; c <= 17; c++) {
+            const cell = totalRow.getCell(c);
+            cell.border = {
+                top: { style: "medium", color: { argb: "FF0F172A" } },
+                bottom: { style: "double", color: { argb: "FF0F172A" } },
+                left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                right: { style: "thin", color: { argb: "FFE2E8F0" } }
+            };
+            if (c > 12) {
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+            }
+        }
+
+        const qtyTotalCell = totalRow.getCell(13);
+        qtyTotalCell.value = totalQty;
+        qtyTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
+        qtyTotalCell.alignment = { vertical: "middle", horizontal: "right" };
+        qtyTotalCell.numFmt = "#,##0";
+
+        const taxableTotalCell = totalRow.getCell(16);
+        taxableTotalCell.value = totalTaxableValue;
+        taxableTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
+        taxableTotalCell.alignment = { vertical: "middle", horizontal: "right" };
+        taxableTotalCell.numFmt = "₹#,##0.00";
+
+        // Auto filter on table headers
+        if (currentRowIdx > 5) {
+            sheet.autoFilter = `A4:Q${currentRowIdx - 1}`;
+        }
+
+        const statusSuffix = (statusParam && statusParam !== "ALL") ? `_${statusParam}` : "";
+        const filename = `Order_Summary${statusSuffix}_${dateTag}.xlsx`;
+
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+        await workbook.xlsx.write(res);
+        return res.end();
+    } catch (error) {
+        console.error(error);
+        log(`Order tracking Excel export failed - ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to export order tracking Excel file"
         });
     }
 });
@@ -3017,8 +3384,10 @@ app.post("/purchase-orders/:po_id/issue", async (req, res) => {
         const [rows] = await connection.execute(`
             SELECT
                 po.*,
-                vom.office_address AS vendor_address,
-                vom.gst_number     AS vendor_gst
+                COALESCE(po.vendor_address, vom.office_address) AS vendor_address,
+                vom.gst_number     AS vendor_gst,
+                vom.office_contact_name,
+                vom.office_contact_number
             FROM purchase_orders po
             LEFT JOIN vendor_oem_masters vom ON vom.vendor_id = po.vendor_id
             WHERE po.po_id = ?
@@ -3064,13 +3433,18 @@ app.post("/purchase-orders/:po_id/issue", async (req, res) => {
     }
 });
 
-// GET /purchase-orders/:po_id/download - Downloads the previously generated PDF of an issued purchase order
+// GET /purchase-orders/:po_id/download - Downloads the PDF of an issued purchase order
 app.get("/purchase-orders/:po_id/download", async (req, res) => {
     const poId = Number(req.params.po_id);
     if (!Number.isInteger(poId) || poId <= 0) return res.status(400).json({ success: false, message: "Invalid PO ID" });
     try {
         const [rows] = await db.execute(
-            `SELECT po.*, vom.office_address AS vendor_address, vom.gst_number AS vendor_gst
+            `SELECT
+                po.*,
+                COALESCE(po.vendor_address, vom.office_address) AS vendor_address,
+                vom.gst_number AS vendor_gst,
+                vom.office_contact_name,
+                vom.office_contact_number
              FROM purchase_orders po
              LEFT JOIN vendor_oem_masters vom ON vom.vendor_id = po.vendor_id
              WHERE po.po_id = ? LIMIT 1`,
@@ -3079,40 +3453,15 @@ app.get("/purchase-orders/:po_id/download", async (req, res) => {
         if (!rows.length) return res.status(404).json({ success: false, message: "Purchase Order not found" });
         const po = rows[0];
 
-        const cleanName = String(po.po_number || "PO").replace(/[\/\\:*?"<>|]/g, "_") + ".pdf";
-        const candidatePaths = [
-            po.issued_po_path ? path.resolve(__dirname, po.issued_po_path) : null,
-            po.issued_po_path ? path.resolve(__dirname, "../", po.issued_po_path.replace(/^\.\.[\/\\]/, "")) : null,
-            path.resolve(__dirname, "../purchase-orders", cleanName),
-            path.resolve(__dirname, "../storage/purchase-orders", cleanName),
-            path.resolve(__dirname, "../../purchase-orders", cleanName)
-        ].filter(Boolean);
+        const generatedPath = await generatePoPdf(po);
+        const relPath = path.relative(__dirname, generatedPath).replace(/\\/g, "/");
+        await db.execute(`UPDATE purchase_orders SET issued_po_path = ? WHERE po_id = ?`, [relPath, poId]);
 
-        let absPath = candidatePaths.find(p => fs.existsSync(p)) || null;
-
-        // Auto-regenerate on the fly if file is missing
-        if (!absPath || !fs.existsSync(absPath)) {
-            try {
-                const generatedPath = await generatePoPdf(po);
-                if (fs.existsSync(generatedPath)) {
-                    absPath = generatedPath;
-                    const relPath = path.relative(__dirname, generatedPath).replace(/\\/g, "/");
-                    await db.execute(`UPDATE purchase_orders SET issued_po_path = ? WHERE po_id = ?`, [relPath, poId]);
-                }
-            } catch (genErr) {
-                log(`Could not auto-generate missing PO PDF: ${genErr.message}`);
-            }
-        }
-
-        if (!absPath || !fs.existsSync(absPath)) {
-            return res.status(404).json({ success: false, message: "PDF file not found on server" });
-        }
-
-        const safeFileName = cleanName;
+        const safeFileName = String(po.po_number || "PO").replace(/[\/\\:*?"<>|]/g, "_") + ".pdf";
         res.setHeader("Content-Type", "application/pdf");
         res.setHeader("Content-Disposition", `attachment; filename="${safeFileName}"`);
-        res.setHeader("Content-Length", fs.statSync(absPath).size);
-        fs.createReadStream(absPath).pipe(res);
+        res.setHeader("Content-Length", fs.statSync(generatedPath).size);
+        fs.createReadStream(generatedPath).pipe(res);
     } catch (error) {
         console.error(error);
         log(`PO download failed - ${error.message}`);

@@ -22,10 +22,14 @@ function generatePoPdf(po) {
             doc.registerFont("Calibri-Bold", path.join(fontDir, "CALIBRIB.TTF"));
 
             function fmtDate(val) {
-                if (!val) return "";
+                if (!val) return "-";
+                if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}/.test(val)) {
+                    const parts = val.slice(0, 10).split("-");
+                    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+                }
                 const d = new Date(val);
                 if (isNaN(d.getTime())) return String(val);
-                return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+                return d.toLocaleDateString("en-GB", { timeZone: "Asia/Kolkata" }).replace(/\//g, ".");
             }
 
             function fmtCur(val) {
@@ -42,7 +46,7 @@ function generatePoPdf(po) {
 
             doc.lineWidth(1);
 
-            // Company letterhead image
+            // 1. Company letterhead image
             if (fs.existsSync(headerImgPath)) {
                 doc.image(headerImgPath, 50.4, 54, {
                     width: 504.8,
@@ -50,122 +54,155 @@ function generatePoPdf(po) {
                 });
             }
 
-            // Top metadata frame
-            const x0 = 50.4;
-            const x1 = 92.4;
-            const x2 = 293.2;
-            const x3 = 345.5;
-            const x4 = 425.4;
-            const x5 = 555.2;
+            const ML = 85.6;
+            const MR = 524;
+            const MW = MR - ML;
 
-            const yTop = 138;
-            const yMid = 149.2;
-            const yBot = 160.4;
+            // 2. Title box
+            const titleY = 192.2;
+            const titleH = 21.9;
+            rect(ML, titleY, MW, titleH);
+            doc.font("Arial-Bold")
+                .fontSize(15.24)
+                .text("PURCHASE ORDER", ML, titleY + 3.5, {
+                    width: MW,
+                    align: "center",
+                    lineBreak: false
+                });
 
-            rect(x0, yTop, x5 - x0, yBot - yTop);
-            line(x0, yMid, x5, yMid);
-            line(x2, yTop, x2, yBot);
+            // 3. Vendor block (left) and PO reference block (right)
+            const vendorY = 214.1;
+            const vendorH = 84;
+            rect(ML, vendorY, MW, vendorH);
 
-            doc.font("Arial-Bold").fontSize(7.56);
-            doc.text("P. O. NO. :", x0 + 2, yTop + 2, { lineBreak: false });
-            doc.font("Arial").fontSize(7.56);
-            doc.text(po.po_number || "", x0 + 44, yTop + 2, { lineBreak: false });
+            const splitX = 316.3; // Matches lower table column 2 border cleanly
+            const colDivider = 416; // Divider between Label and Value in PO table
 
-            doc.font("Arial-Bold").fontSize(7.56);
-            doc.text("DATE :", x2 + 2, yTop + 2, { lineBreak: false });
-            doc.font("Arial").fontSize(7.56);
-            doc.text(fmtDate(po.created_at || new Date()), x2 + 35, yTop + 2, { lineBreak: false });
+            line(splitX, vendorY, splitX, vendorY + vendorH);
+            line(colDivider, vendorY, colDivider, vendorY + vendorH);
 
-            doc.font("Arial-Bold").fontSize(7.56);
-            doc.text("P. R. NO. :", x0 + 2, yMid + 2, { lineBreak: false });
-            doc.font("Arial").fontSize(7.56);
-            doc.text(po.pr_number || "", x0 + 44, yMid + 2, { lineBreak: false });
+            // Left: Vendor details
+            doc.font("Arial-Bold").fontSize(9).text("TO,", ML + 4, vendorY + 4, { lineBreak: false });
+            const vendorName = String(po.vendor_name || "").trim();
+            const vendorAddress = String(po.vendor_address || "").trim();
+            const vendorGst = String(po.vendor_gst || po.gst_number || "").trim();
 
-            doc.font("Arial-Bold").fontSize(7.56);
-            doc.text("DATE :", x2 + 2, yMid + 2, { lineBreak: false });
-            doc.font("Arial").fontSize(7.56);
-            doc.text(fmtDate(po.pr_created_at || po.created_at || new Date()), x2 + 35, yMid + 2, { lineBreak: false });
+            let vendorTextY = vendorY + 16;
+            if (vendorName) {
+                doc.font("Arial-Bold").fontSize(8.5).text(vendorName, ML + 4, vendorTextY, { width: splitX - ML - 8, lineBreak: false });
+                vendorTextY += 12;
+            }
+            if (vendorAddress) {
+                doc.font("Arial").fontSize(8).text(vendorAddress, ML + 4, vendorTextY, { width: splitX - ML - 8, lineGap: 1 });
+                const addrH = doc.heightOfString(vendorAddress, { width: splitX - ML - 8, lineGap: 1 });
+                vendorTextY += addrH + 4;
+            }
+            if (vendorGst) {
+                doc.font("Arial-Bold").fontSize(8.5).text(`GST: ${vendorGst}`, ML + 4, vendorTextY, { width: splitX - ML - 8, lineBreak: false });
+            }
 
-            // Supplier details block
-            const suppTop = 165.4;
-            const suppBottom = 237.4;
-            rect(x0, suppTop, x5 - x0, suppBottom - suppTop);
+            // Right: Order References Table (6 rows x 14pt height = 84pt)
+            const companyGst = process.env.GST_NUMBER || "24AAHPS5083K1ZO";
+            const rowH = 14;
+            const refRows = [
+                { label: "REF. P.O. NO.", val: po.po_number || "-", boldVal: true },
+                { label: "P.O. DATE",      val: fmtDate(po.po_date || po.created_at) },
+                { label: "REF. P.R. NO.", val: po.pr_number || "-" },
+                { label: "P.R. DATE",      val: fmtDate(po.pr_date || po.created_at) },
+                { label: "GST NO.",        val: companyGst },
+                { label: "VENDOR CODE",    val: po.vendor_code || "-" }
+            ];
 
-            doc.font("Calibri-Bold").fontSize(8.52);
-            doc.text(po.vendor_name || "", x0 + 5, suppTop + 4, { width: x5 - x0 - 10 });
-            doc.font("Calibri").fontSize(7.56);
-            const address = po.office_address || po.factory_address || "";
-            doc.text(address, x0 + 5, doc.y + 2, { width: x5 - x0 - 10 });
+            refRows.forEach((r, idx) => {
+                const currentY = vendorY + idx * rowH;
+                if (idx > 0) {
+                    line(splitX, currentY, MR, currentY);
+                }
+                const textY = currentY + 3.2;
+                // Label
+                doc.font("Arial-Bold").fontSize(8.2).text(r.label, splitX + 4, textY, { width: colDivider - splitX - 6, lineBreak: false });
+                // Value
+                doc.font(r.boldVal ? "Arial-Bold" : "Arial").fontSize(8.2).text(r.val, colDivider + 4, textY, { width: MR - colDivider - 6, lineBreak: false });
+            });
 
-            // Table headers
-            const tableHeaderY = 242.4;
-            const headerH = 18;
-            const tableBottom = 517.4;
-            const totalY = 499.4;
+            // 4. Attention Box
+            const attnY = 298.1;
+            const attnH = 21.5;
+            rect(ML, attnY, MW, attnH);
+            doc.font("Arial-Bold").fontSize(9).text(`ATTN. : ${po.vendor_name || ""}`, ML, attnY + 5.5, {
+                width: MW,
+                align: "center",
+                lineBreak: false
+            });
+
+            // 5. Item Table
+            const tableHeaderY = 319.6;
+            const headerH = 16;
+            const x0 = 85.6;
+            const x1 = 147.6;
+            const x2 = 316.3;
+            const x3 = 350.3;
+            const x4 = 428.4;
+            const x5 = 524;
+            const totalY = 509.7;
+            const totalH = 14;
+            const tableBottom = totalY + totalH;
 
             rect(x0, tableHeaderY, x5 - x0, tableBottom - tableHeaderY);
+            line(x1, tableHeaderY, x1, tableBottom);
+            line(x2, tableHeaderY, x2, tableBottom);
+            line(x3, tableHeaderY, x3, tableBottom);
+            line(x4, tableHeaderY, x4, tableBottom);
             line(x0, tableHeaderY + headerH, x5, tableHeaderY + headerH);
 
-            // Vertical column lines
-            line(x1, tableHeaderY, x1, totalY);
-            line(x2, tableHeaderY, x2, totalY);
-            line(x3, tableHeaderY, x3, totalY);
-            line(x4, tableHeaderY, x4, totalY);
-
             doc.font("Calibri-Bold").fontSize(7.56);
-            doc.text("SR. NO.", x0, tableHeaderY + 5, { width: x1 - x0, align: "center", lineBreak: false });
-            doc.text("DESCRIPTION", x1, tableHeaderY + 5, { width: x2 - x1, align: "center", lineBreak: false });
-            doc.text("QTY", x2, tableHeaderY + 5, { width: x3 - x2, align: "center", lineBreak: false });
-            doc.text("RATE (RS.)", x3, tableHeaderY + 5, { width: x4 - x3, align: "center", lineBreak: false });
-            doc.text("AMOUNT (RS.)", x4, tableHeaderY + 5, { width: x5 - x4, align: "center", lineBreak: false });
+            doc.text("SR. NO.", x0, tableHeaderY + 4, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text("Model Number", x1, tableHeaderY + 4, { width: x2 - x1, align: "center", lineBreak: false });
+            doc.text("Qty", x2, tableHeaderY + 4, { width: x3 - x2, align: "center", lineBreak: false });
+            doc.text("Unit Rate", x3, tableHeaderY + 4, { width: x4 - x3, align: "center", lineBreak: false });
+            doc.text("Total", x4, tableHeaderY + 4, { width: x5 - x4, align: "center", lineBreak: false });
 
-            // Single line item row
-            const itemTop = tableHeaderY + headerH + 1;
-            const itemDesc = [
-                po.item_name,
-                po.make,
-                po.model
-            ].filter(Boolean).join(" / ");
-
+            // Item row
+            const itemTop = tableHeaderY + headerH;
+            const itemDesc = [po.item_name, po.make, po.model].filter(Boolean).join(" / ");
             doc.font("Calibri").fontSize(7.56);
-            doc.text("1", x0, itemTop + 2, { width: x1 - x0, align: "center", lineBreak: false });
-            doc.text(itemDesc, x1 + 3, itemTop + 2, { width: x2 - x1 - 6, align: "left", lineBreak: false });
-            doc.text(Number(po.qty || 0).toFixed(2), x2, itemTop + 2, { width: x3 - x2, align: "center", lineBreak: false });
-            doc.text(fmtCur(po.price_per_unit), x3, itemTop + 2, { width: x4 - x3, align: "center", lineBreak: false });
-            doc.text(fmtCur(po.total_price), x4, itemTop + 2, { width: x5 - x4, align: "center", lineBreak: false });
+            doc.text("1", x0, itemTop + 4, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text(itemDesc, x1 + 4, itemTop + 4, { width: x2 - x1 - 8, align: "left", lineBreak: false });
+            doc.text(Number(po.qty || 0).toFixed(2), x2, itemTop + 4, { width: x3 - x2, align: "center", lineBreak: false });
+            doc.text(fmtCur(po.price_per_unit), x3, itemTop + 4, { width: x4 - x3, align: "center", lineBreak: false });
+            doc.text(fmtCur(po.total_price), x4, itemTop + 4, { width: x5 - x4, align: "center", lineBreak: false });
 
-            // Table total row
+            // Total row
             line(x0, totalY, x5, totalY);
-            doc.font("Calibri-Bold").fontSize(7.56).text("TOTAL:", x0, totalY + 2, { width: x4 - x0, align: "center", lineBreak: false });
-            doc.text(fmtCur(po.total_price), x4, totalY + 2, { width: x5 - x4, align: "center", lineBreak: false });
+            doc.font("Calibri-Bold").fontSize(7.56).text("TOTAL:", x0, totalY + 3.5, { width: x4 - x0, align: "center", lineBreak: false });
+            doc.text(fmtCur(po.total_price), x4, totalY + 3.5, { width: x5 - x4, align: "center", lineBreak: false });
 
-            // Footer frame: terms & conditions (left) and signature block (right)
+            // 6. Footer: Terms & conditions (left) and signature block (right)
             const footerY = tableBottom;
             const footerBottom = 618.9;
             rect(x0, footerY, x5 - x0, footerBottom - footerY);
             const footerSplit = x3;
             line(footerSplit, footerY, footerSplit, footerBottom);
-            line(x0, 531.4, footerSplit, 531.4);
-            line(x1, 531.4, x1, 607.5);
-            line(x2, 531.4, x2, 607.5);
+            line(x0, footerY + 14, footerSplit, footerY + 14);
+            line(x1, footerY + 14, x1, 607.5);
             line(x0, 607.5, x5, 607.5);
 
-            doc.font("Calibri-Bold").fontSize(7.56).text("TERMS & CONDITIONS :", x0, footerY + 1, { width: footerSplit - x0, align: "center", lineBreak: false });
+            doc.font("Calibri-Bold").fontSize(7.56).text("TERMS & CONDITIONS :", x0, footerY + 3.5, { width: footerSplit - x0, align: "center", lineBreak: false });
             doc.font("Calibri").fontSize(7.56);
-            doc.text("1", x0, 533, { width: x1 - x0, align: "center", lineBreak: false });
-            doc.text("2", x0, 543.6, { width: x1 - x0, align: "center", lineBreak: false });
-            if (po.payment_terms_remarks) doc.text("3", x0, 554.2, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text("1", x0, footerY + 19, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text("2", x0, footerY + 31, { width: x1 - x0, align: "center", lineBreak: false });
+            doc.text("DELIVERY : AT OUR OFFICE.", x1 + 4, footerY + 19, { width: footerSplit - x1 - 8, lineBreak: false });
+            doc.text("TAX : EXTRA", x1 + 4, footerY + 31, { width: footerSplit - x1 - 8, lineBreak: false });
+            if (po.payment_terms_remarks) {
+                doc.text("3", x0, footerY + 43, { width: x1 - x0, align: "center", lineBreak: false });
+                doc.text(po.payment_terms_remarks, x1 + 4, footerY + 43, { width: footerSplit - x1 - 8, lineBreak: false });
+            }
 
-            doc.text("DELIVERY : AT OUR OFFICE.", x1 + 3, 533, { width: x2 - x1 - 6, lineBreak: false });
-            doc.text("TAX : EXTRA", x1 + 3, 543.6, { width: x2 - x1 - 6, lineBreak: false });
-            if (po.payment_terms_remarks) doc.text(po.payment_terms_remarks, x1 + 3, 554.2, { width: x2 - x1 - 6, lineBreak: false });
-
-            // Authorised signatory block
-            const signX = footerSplit + 1.5;
-            doc.font("Arial-Bold").fontSize(6.96);
-            doc.text("FOR,", signX, footerY + 0.5, { lineBreak: false });
-            doc.text("NIMIT ELECTRONICS AND EQUIPMENTS,", signX, footerY + 11.5, { width: x5 - signX - 3, lineBreak: false });
-            doc.text("AUTHORISED SIGNATORY", signX, 597, { width: x5 - signX - 3, lineBreak: false });
+            // Signature block
+            const signX = footerSplit + 6;
+            doc.font("Arial-Bold").fontSize(7).text("FOR,", signX, footerY + 2, { lineBreak: false });
+            doc.text("NIMIT ELECTRONICS AND EQUIPMENTS,", signX, footerY + 13, { width: x5 - signX - 4, lineBreak: false });
+            doc.text("AUTHORISED SIGNATORY", signX, 595, { width: x5 - signX - 4, lineBreak: false });
 
             doc.end();
             stream.on("finish", () => resolve(outputPath));

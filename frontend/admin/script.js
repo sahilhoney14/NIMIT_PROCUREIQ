@@ -208,6 +208,7 @@ function prInfoItems(x, extraFirst = "") {
 
     return `
         ${extraFirst}
+        ${x.po_date ? item("PO Date", formatDate(x.po_date)) : ""}
         ${item("PR Number", escapeHtml(x.pr_number || "-"))}
         ${item("PR Date", formatDate(x.pr_date))}
         ${item("Party Name", escapeHtml(x.party_name || "-"))}
@@ -2408,6 +2409,77 @@ function initOrderTrackingFilters() {
         orderTrackingPage = 1;
         loadOrderTracking();
     });
+
+    // Export Summary button (Excel .xlsx)
+    const exportBtn = document.getElementById("orderTrackingExportBtn");
+    exportBtn?.addEventListener("click", async () => {
+        const originalText = exportBtn.innerHTML;
+        exportBtn.disabled = true;
+        exportBtn.innerHTML = `
+            <svg class="ot-export-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M12 6v6l4 2"></path>
+            </svg>
+            <span>Exporting Excel...</span>
+        `;
+
+        try {
+            const params = new URLSearchParams();
+            if (orderTrackingStatus && orderTrackingStatus !== "ALL") {
+                params.set("status", orderTrackingStatus);
+            }
+            if (orderTrackingSearchQuery && orderTrackingSearchQuery.trim()) {
+                params.set("search", orderTrackingSearchQuery.trim());
+            }
+            if (orderTrackingFromDate) {
+                params.set("from_date", orderTrackingFromDate);
+            }
+            if (orderTrackingToDate) {
+                params.set("to_date", orderTrackingToDate);
+            }
+
+            const response = await apiFetch(`/order-tracking/export?${params.toString()}`);
+            if (!response || !response.ok) {
+                throw new Error("Export request failed");
+            }
+
+            const blob = await response.blob();
+            const excelBlob = new Blob([blob], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
+            const downloadUrl = window.URL.createObjectURL(excelBlob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = downloadUrl;
+
+            // Extract filename from header or fallback to .xlsx
+            let downloadFilename = "";
+            const disposition = response.headers.get("Content-Disposition");
+            if (disposition && disposition.includes("filename=")) {
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    downloadFilename = match[1].replace(/['"]/g, "").trim();
+                }
+            }
+            if (!downloadFilename) {
+                const dateStr = new Date().toISOString().slice(0, 10);
+                const statusSuffix = (orderTrackingStatus && orderTrackingStatus !== "ALL") ? `_${orderTrackingStatus}` : "";
+                downloadFilename = `Order_Summary${statusSuffix}_${dateStr}.xlsx`;
+            }
+
+            a.download = downloadFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (err) {
+            console.error("Order tracking Excel export failed:", err);
+            alert("Failed to export order summary to Excel. Please try again.");
+        } finally {
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = originalText;
+        }
+    });
 }
 
 async function loadOrderTracking() {
@@ -2688,7 +2760,7 @@ function renderPurchaseOrders(orders) {
                         ${vendorDetailField("Accounts Team Name", po.accounts_team_name)}
                         ${vendorDetailField("Accounts Team Contact", po.accounts_team_contact)}
                         ${vendorDetailField("Accounts Team Email", po.accounts_team_email)}
-                        ${vendorDetailField("GST Number", po.gst_number)}
+                        ${vendorDetailField("GST Number", po.gst_number || po.vendor_gst)}
                         ${vendorDetailField("PAN Number", po.pan_number)}
                         ${vendorDetailField("MSME Number", po.msme_number)}
                         ${vendorDetailField("Bank Details", po.bank_details)}

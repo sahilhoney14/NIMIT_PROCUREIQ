@@ -1,53 +1,157 @@
-const loginForm = document.getElementById("loginForm");
-const loginButton = document.getElementById("loginButton");
-const message = document.getElementById("message");
+document.addEventListener("DOMContentLoaded", () => {
+    const loginForm = document.getElementById("loginForm");
+    const loginButton = document.getElementById("loginButton");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    const togglePasswordBtn = document.getElementById("togglePassword");
+    const eyeIcon = document.getElementById("eyeIcon");
+    const eyeOffIcon = document.getElementById("eyeOffIcon");
+    const rememberMeCheckbox = document.getElementById("rememberMe");
+    const message = document.getElementById("message");
 
-loginForm.addEventListener("submit", async event => {
-    event.preventDefault();
+    const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
+    const forgotModal = document.getElementById("forgotModal");
+    const closeModalBtn = document.getElementById("closeModalBtn");
 
-    const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value;
+    // Load saved username if Remember Me was previously selected
+    const savedUsername = localStorage.getItem("procureiq_remembered_username");
+    if (savedUsername) {
+        usernameInput.value = savedUsername;
+        rememberMeCheckbox.checked = true;
+        passwordInput.focus();
+    } else {
+        usernameInput.focus();
+    }
 
-    message.textContent = "";
-    message.className = "message";
-    loginButton.disabled = true;
-    loginButton.textContent = "Signing in...";
+    // Toggle Password Visibility
+    if (togglePasswordBtn) {
+        togglePasswordBtn.addEventListener("click", () => {
+            const isPassword = passwordInput.getAttribute("type") === "password";
+            if (isPassword) {
+                passwordInput.setAttribute("type", "text");
+                eyeIcon.style.display = "none";
+                eyeOffIcon.style.display = "block";
+                togglePasswordBtn.setAttribute("aria-label", "Hide password");
+            } else {
+                passwordInput.setAttribute("type", "password");
+                eyeIcon.style.display = "block";
+                eyeOffIcon.style.display = "none";
+                togglePasswordBtn.setAttribute("aria-label", "Show password");
+            }
+        });
+    }
 
-    try {
-        const response = await fetch("/login", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            credentials: "include",
-            body: JSON.stringify({ username, password })
+    // Forgot Password Modal
+    if (forgotPasswordBtn && forgotModal && closeModalBtn) {
+        forgotPasswordBtn.addEventListener("click", () => {
+            forgotModal.classList.add("active");
+            forgotModal.setAttribute("aria-hidden", "false");
         });
 
-        const data = await response.json();
+        closeModalBtn.addEventListener("click", () => {
+            forgotModal.classList.remove("active");
+            forgotModal.setAttribute("aria-hidden", "true");
+        });
 
-        if (!response.ok) {
-            message.textContent = data.message || "Login failed";
-            message.className = "message error";
+        forgotModal.addEventListener("click", (e) => {
+            if (e.target === forgotModal) {
+                forgotModal.classList.remove("active");
+                forgotModal.setAttribute("aria-hidden", "true");
+            }
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && forgotModal.classList.contains("active")) {
+                forgotModal.classList.remove("active");
+                forgotModal.setAttribute("aria-hidden", "true");
+            }
+        });
+    }
+
+    // Helper: Show Message
+    function showMessage(text, type) {
+        message.textContent = text;
+        message.className = `message ${type}`;
+        message.style.display = "flex";
+    }
+
+    function clearMessage() {
+        message.textContent = "";
+        message.className = "message";
+        message.style.display = "none";
+    }
+
+    // Submit handler
+    loginForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+
+        if (!username) {
+            showMessage("Please enter your username or email", "error");
+            usernameInput.focus();
             return;
         }
 
-        if (data.token) {
-            localStorage.setItem("auth_token", data.token);
-            if (data.user) {
-                localStorage.setItem("auth_user", JSON.stringify(data.user));
-            }
+        if (!password) {
+            showMessage("Please enter your password", "error");
+            passwordInput.focus();
+            return;
         }
 
-        message.textContent = "Login successful. Redirecting...";
-        message.className = "message success";
+        clearMessage();
+        loginButton.disabled = true;
+        const originalContent = loginButton.innerHTML;
+        loginButton.innerHTML = `
+            <span>Signing in...</span>
+        `;
 
-        window.location.href = data.redirect_url;
-    } catch (error) {
-        console.error("Login request failed:", error);
-        message.textContent = "Unable to connect to the login service";
-        message.className = "message error";
-    } finally {
-        loginButton.disabled = false;
-        loginButton.textContent = "Login";
-    }
+        try {
+            const response = await fetch("/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "include",
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                showMessage(data.message || "Invalid username or password", "error");
+                loginButton.disabled = false;
+                loginButton.innerHTML = originalContent;
+                return;
+            }
+
+            // Remember Me preference handling
+            if (rememberMeCheckbox.checked) {
+                localStorage.setItem("procureiq_remembered_username", username);
+            } else {
+                localStorage.removeItem("procureiq_remembered_username");
+            }
+
+            // Store token / session
+            if (data.token) {
+                localStorage.setItem("auth_token", data.token);
+                if (data.user) {
+                    localStorage.setItem("auth_user", JSON.stringify(data.user));
+                }
+            }
+
+            showMessage("Login successful! Redirecting...", "success");
+
+            setTimeout(() => {
+                window.location.href = data.redirect_url || "/";
+            }, 500);
+
+        } catch (error) {
+            console.error("Login request failed:", error);
+            showMessage("Unable to connect to the authentication service. Please check your network.", "error");
+            loginButton.disabled = false;
+            loginButton.innerHTML = originalContent;
+        }
+    });
 });

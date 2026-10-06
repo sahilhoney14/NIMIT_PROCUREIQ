@@ -33,22 +33,19 @@ body {
 }
 
 .project-name {
-    font-size: 21px;
+    font-size: 24px;
     font-weight: 800;
     color: #0f172a;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
     display: flex;
     align-items: center;
-    gap: 8px;
+    line-height: 1;
+    user-select: none;
 }
 
-.project-name::before {
-    content: '';
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    background: #2563eb;
-    border-radius: 3px;
+.project-name span {
+    color: #2563eb;
+    font-weight: 800;
 }
 
 .company-logo {
@@ -1192,6 +1189,50 @@ td input.taxable-input {
     color: #0f172a;
 }
 
+/* ── Order Tracking Export Button ── */
+.ot-export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 14px;
+    background-color: #2563eb;
+    color: #ffffff;
+    border: 1px solid #1d4ed8;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+    transition: all 0.15s ease-in-out;
+    user-select: none;
+}
+
+.ot-export-btn:hover {
+    background-color: #1d4ed8;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+    transform: translateY(-1px);
+}
+
+.ot-export-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+}
+
+.ot-export-btn:disabled {
+    background-color: #94a3b8;
+    border-color: #cbd5e1;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.ot-export-icon {
+    flex-shrink: 0;
+}
+
 /* ── Order Tracking Date Filter Controls ── */
 .ot-date-filter-wrap {
     display: flex;
@@ -2124,6 +2165,11 @@ td input.taxable-input {
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 10px;
+}
+
+.insights-custom-range.hidden,
+#insightsCustomRange.hidden {
+    display: none !important;
 }
 
 .insights-date-group {

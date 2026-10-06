@@ -30,3 +30,15 @@
     box-shadow: var(--shadow-sm);
     padding: 20px;
 }
+
+.logo h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.03em;
+}
+
+.logo h2 span {
+    color: #2563eb;
+    font-weight: 800;
+}

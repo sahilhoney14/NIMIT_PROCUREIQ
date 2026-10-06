@@ -21,8 +21,19 @@ body {
 }
 
 .project-name {
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: -0.03em;
+    display: flex;
+    align-items: center;
+    line-height: 1;
+    user-select: none;
+}
+
+.project-name span {
+    color: #2563eb;
+    font-weight: 800;
 }
 
 .company-logo {
