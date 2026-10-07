@@ -30,8 +30,12 @@ async function apiFetch(endpoint, options = {}) {
     if (response.status === 401 && !window.location.pathname.startsWith("/login") && window.location.pathname !== "/") {
         localStorage.removeItem("auth_token");
         localStorage.removeItem("auth_user");
-        window.location.href = "/";
+        window.location.href = "/?reason=session_expired";
         return null;
+    }
+
+    if (response.status === 403) {
+        console.warn(`[API] 403 Forbidden for endpoint: ${endpoint}`);
     }
 
     return response;

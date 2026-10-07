@@ -143,6 +143,12 @@ function verifyProcurement(req, res, next) {
         }
         return res.redirect("/");
     }
+    if (!["ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT"].includes(authUser.role)) {
+        if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
+            return res.status(403).json({ success: false, message: "Forbidden: Procurement access required" });
+        }
+        return res.redirect("/");
+    }
     req.user = authUser;
     next();
 }
@@ -1038,20 +1044,45 @@ const num = (v) => Number(v || 0);
    STATIC FILES AND PAGE
    ========================================================================== */
 
-// Static asset mounts
+// Static asset mounts (Public)
 app.use("/logo", express.static(path.resolve(__dirname, "../NIMIT LOGO.png")));
-app.use("/backend/purchase-orders", express.static(poFolder));
-app.use("/backend/vendor", express.static(vendorFolder));
-app.use("/backend/proforma-invoice", express.static(piFolder));
-
-app.use("/admin", express.static(path.resolve(__dirname, "../../frontend/admin"), { index: false }));
-app.use("/procurement-manager", express.static(path.resolve(__dirname, "../../frontend/procurement-manager"), { index: false }));
-app.use("/procurement", express.static(path.resolve(__dirname, "../../frontend/procurement"), { index: false }));
 app.use("/shared", express.static(path.resolve(__dirname, "../../frontend/shared")));
 app.use("/auth", express.static(path.resolve(__dirname, "../../frontend/auth"), { index: false }));
-app.use("/storage", express.static(path.resolve(__dirname, "../storage")));
 app.use(express.static(path.resolve(__dirname, "../../frontend/auth")));
 app.use(express.static(path.resolve(__dirname, "../../frontend/auth-service")));
+
+// Protected storage & uploaded files (Procurement, Manager, Admin only)
+app.use("/backend/purchase-orders", verifyProcurement, express.static(poFolder));
+app.use("/backend/vendor", verifyProcurement, express.static(vendorFolder));
+app.use("/backend/proforma-invoice", verifyProcurement, express.static(piFolder));
+app.use("/storage", verifyProcurement, express.static(path.resolve(__dirname, "../storage")));
+
+// Portal Dashboard Routes (Enforce auth, role verification, and inject credentials)
+app.get(["/admin", "/admin/", "/admin/index.html"], verifyAdmin, (req, res) => {
+    const htmlPath = path.resolve(__dirname, "../../frontend/admin/index.html");
+    let html = fs.readFileSync(htmlPath, "utf8");
+    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script></head>`);
+    return res.send(html);
+});
+
+app.get(["/procurement-manager", "/procurement-manager/", "/procurement-manager/index.html"], verifyManager, (req, res) => {
+    const htmlPath = path.resolve(__dirname, "../../frontend/procurement-manager/index.html");
+    let html = fs.readFileSync(htmlPath, "utf8");
+    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script></head>`);
+    return res.send(html);
+});
+
+app.get(["/procurement", "/procurement/", "/procurement/index.html"], verifyProcurement, (req, res) => {
+    const htmlPath = path.resolve(__dirname, "../../frontend/procurement/index.html");
+    let html = fs.readFileSync(htmlPath, "utf8");
+    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script></head>`);
+    return res.send(html);
+});
+
+// Protect portal asset folders (css, js, images) so unauthorized requests cannot access them directly
+app.use("/admin", verifyAdmin, express.static(path.resolve(__dirname, "../../frontend/admin"), { index: false }));
+app.use("/procurement-manager", verifyManager, express.static(path.resolve(__dirname, "../../frontend/procurement-manager"), { index: false }));
+app.use("/procurement", verifyProcurement, express.static(path.resolve(__dirname, "../../frontend/procurement"), { index: false }));
 
 // Root and Authentication Gateway Routes
 app.get("/", (req, res) => {
@@ -1145,9 +1176,10 @@ app.post("/login", async (req, res) => {
 app.get("/verify", (req, res) => {
     const user = resolveAuthUser(req);
     if (!user) {
-        return res.status(401).json({ authenticated: false });
+        return res.status(401).json({ success: false, authenticated: false, message: "Unauthenticated" });
     }
     return res.json({
+        success: true,
         authenticated: true,
         user_id: user.user_id,
         username: user.username,
@@ -1173,27 +1205,7 @@ app.post("/logout", (req, res) => {
     }
 });
 
-// Portal Dashboards
-app.get(["/admin", "/admin/"], verifyAdmin, (req, res) => {
-    const htmlPath = path.resolve(__dirname, "../../frontend/admin/index.html");
-    let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};</script></head>`);
-    return res.send(html);
-});
-
-app.get(["/procurement-manager", "/procurement-manager/"], verifyManager, (req, res) => {
-    const htmlPath = path.resolve(__dirname, "../../frontend/procurement-manager/index.html");
-    let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};</script></head>`);
-    return res.send(html);
-});
-
-app.get(["/procurement", "/procurement/"], verifyProcurement, (req, res) => {
-    const htmlPath = path.resolve(__dirname, "../../frontend/procurement/index.html");
-    let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};</script></head>`);
-    return res.send(html);
-});/* ==========================================================================
+/* ==========================================================================
    TAB: USER MANAGEMENT
    ========================================================================== */
 
@@ -1308,7 +1320,7 @@ app.put("/users/:user_id/access",verifyAdmin,async(req,res)=>{
    ========================================================================== */
 
 // POST /purchase-requests - Creates a single purchase request with the next PR number and opens a vendor inquiry for it
-app.post("/purchase-requests", async (req, res) => {
+app.post("/purchase-requests", verifyProcurement, async (req, res) => {
     const {
         pr_date,
         party_name,
@@ -1441,7 +1453,7 @@ app.post("/purchase-requests", async (req, res) => {
 });
 
 // POST /purchase-requests/import-preview - Reads an uploaded Excel sheet and returns editable PR rows without saving anything
-app.post("/purchase-requests/import-preview", upload.single("file"), async (req, res) => {
+app.post("/purchase-requests/import-preview", verifyProcurement, upload.single("file"), async (req, res) => {
     log("POST /purchase-requests/import-preview - Excel preview requested");
     try {
         if (!req.file) {
@@ -1506,7 +1518,7 @@ app.post("/purchase-requests/import-preview", upload.single("file"), async (req,
 });
 
 // POST /purchase-requests/import - Saves the reviewed Excel rows as purchase requests (one PR number and one vendor inquiry per row) in a single transaction
-app.post("/purchase-requests/import", async (req, res) => {
+app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
     const connection = await db.getConnection();
     try {
         const rows = req.body.rows || [];
@@ -1609,7 +1621,7 @@ app.post("/purchase-requests/import", async (req, res) => {
    ========================================================================== */
 
 // GET /order-tracking - Paginated list (10 per page) of all purchase requests with their inquiry status and PO number
-app.get("/order-tracking", async (req, res) => {
+app.get("/order-tracking", verifyProcurement, async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = 10;
     const offset = (page - 1) * limit;
@@ -1671,6 +1683,7 @@ app.get("/order-tracking", async (req, res) => {
                     pr.product_remarks,
                     vi.inquiry_id,
                     po.po_number,
+                    po.po_date,
                     CASE
                         WHEN po.status = 'COMPLETED' THEN 'CLOSED'
                         WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
@@ -1720,7 +1733,7 @@ app.get("/order-tracking", async (req, res) => {
 });
 
 // GET /order-tracking/export - Export order tracking summary matching applied filters as real Excel (.xlsx)
-app.get("/order-tracking/export", async (req, res) => {
+app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
     const statusParam = (req.query.status || "").trim().toUpperCase();
     const searchParam = (req.query.search || "").trim();
     const singleDate = (req.query.date || "").trim();
@@ -1779,6 +1792,7 @@ app.get("/order-tracking/export", async (req, res) => {
                     pr.product_remarks,
                     vi.inquiry_id,
                     po.po_number,
+                    po.po_date,
                     CASE
                         WHEN po.status = 'COMPLETED' THEN 'CLOSED'
                         WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
@@ -1849,6 +1863,7 @@ app.get("/order-tracking/export", async (req, res) => {
             { header: "PR Number", key: "pr_number", width: 22 },
             { header: "PR Date", key: "pr_date", width: 14 },
             { header: "PO Number", key: "po_number", width: 22 },
+            { header: "PO Date", key: "po_date", width: 14 },
             { header: "Status", key: "status", width: 18 },
             { header: "Party Name", key: "party_name", width: 30 },
             { header: "Location", key: "location", width: 18 },
@@ -1901,6 +1916,11 @@ app.get("/order-tracking/export", async (req, res) => {
                 prDateStr = row.created_at instanceof Date ? row.created_at.toISOString().slice(0, 10) : String(row.created_at).slice(0, 10);
             }
 
+            let poDateStr = "—";
+            if (row.po_date) {
+                poDateStr = row.po_date instanceof Date ? row.po_date.toISOString().slice(0, 10) : String(row.po_date).slice(0, 10);
+            }
+
             const rawStatus = (row.status || "NO_INQUIRY").toUpperCase();
             const statusDisplay = row.status ? row.status.replace(/_/g, " ") : "NO INQUIRY";
 
@@ -1919,6 +1939,7 @@ app.get("/order-tracking/export", async (req, res) => {
                 row.pr_number || "—",
                 prDateStr,
                 row.po_number || "—",
+                poDateStr,
                 statusDisplay,
                 row.party_name || "—",
                 row.location || "—",
@@ -2051,7 +2072,7 @@ app.get("/order-tracking/export", async (req, res) => {
    ========================================================================== */
 
 // POST /vendors - Registers a vendor entered manually, together with its uploaded documents
-app.post("/vendors", getVendorDocuments(), async (req, res) => {
+app.post("/vendors", verifyProcurement, getVendorDocuments(), async (req, res) => {
     log("POST /vendors - Manual vendor entry");
     const connection = await db.getConnection();
     try {
@@ -2090,7 +2111,7 @@ app.post("/vendors", getVendorDocuments(), async (req, res) => {
 });
 
 // GET /vendors/check-gst - Checks whether a vendor with the given GST number is already registered
-app.get("/vendors/check-gst", async (req, res) => {
+app.get("/vendors/check-gst", verifyProcurement, async (req, res) => {
     const gstNumber = cleanValue(req.query.gst_number);
     if (!gstNumber) {
         return res.status(400).json({
@@ -2124,7 +2145,7 @@ app.get("/vendors/check-gst", async (req, res) => {
 });
 
 // POST /vendors/import-preview - Reads an uploaded vendor Excel (registration form or one-row table) and returns the parsed vendor without saving
-app.post("/vendors/import-preview", upload.single("file"), async (req, res) => {
+app.post("/vendors/import-preview", verifyProcurement, upload.single("file"), async (req, res) => {
     log("POST /vendors/import-preview - Vendor Excel preview requested");
     try {
         if (!req.file) {
@@ -2156,7 +2177,7 @@ app.post("/vendors/import-preview", upload.single("file"), async (req, res) => {
 });
 
 // POST /vendors/import - Saves the reviewed vendor from an Excel import together with its uploaded documents
-app.post("/vendors/import", getVendorDocuments(), async (req, res) => {
+app.post("/vendors/import", verifyProcurement, getVendorDocuments(), async (req, res) => {
     log("POST /vendors/import - Saving imported vendor");
     const connection = await db.getConnection();
     try {
@@ -2195,7 +2216,7 @@ app.post("/vendors/import", getVendorDocuments(), async (req, res) => {
 });
 
 // GET /vendors - Lists all non-blacklisted vendors (oldest first) for vendor dropdowns
-app.get("/vendors", async (req, res) => {
+app.get("/vendors", verifyProcurement, async (req, res) => {
     try {
         const [rows] = await db.execute(
             `SELECT
@@ -2237,7 +2258,7 @@ app.get("/vendors/all", verifyAdmin, async (req, res) => {
 
 // GET /vendor-inquiries - Lists OPEN and VENDOR_SELECTED inquiries
 // Excludes inquiries whose PO has been issued/completed/cancelled
-app.get("/vendor-inquiries", async (req, res) => {
+app.get("/vendor-inquiries", verifyProcurement, async (req, res) => {
     try {
         const [inquiries] = await db.execute(`
             SELECT
@@ -2290,7 +2311,7 @@ app.get("/vendor-inquiries", async (req, res) => {
 // Edits PR fields on an open or vendor-selected inquiry.
 // OPEN: all fields editable.
 // VENDOR_SELECTED + DRAFT PO: only non-financial fields editable.
-app.put("/vendor-inquiries/:inquiry_id/purchase-request", async (req, res) => {
+app.put("/vendor-inquiries/:inquiry_id/purchase-request", verifyProcurement, async (req, res) => {
     const inquiryId = Number(req.params.inquiry_id);
     if (!Number.isInteger(inquiryId) || inquiryId <= 0) {
         return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
@@ -2530,7 +2551,7 @@ app.put("/vendor-inquiries/:inquiry_id/purchase-request", async (req, res) => {
 });
 
 // GET /vendor-inquiries/:inquiry_id - Returns one OPEN inquiry with all vendor quotations added to it so far
-app.get("/vendor-inquiries/:inquiry_id", async (req, res) => {
+app.get("/vendor-inquiries/:inquiry_id", verifyProcurement, async (req, res) => {
     const inquiryId = Number(req.params.inquiry_id);
     if (!Number.isInteger(inquiryId) || inquiryId <= 0) {
         return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
@@ -2566,9 +2587,18 @@ app.get("/vendor-inquiries/:inquiry_id", async (req, res) => {
                 viv.payment_type,
                 viv.advance_type,
                 viv.advance_value,
+                COALESCE(
+                    viv.advance_amount,
+                    CASE
+                        WHEN viv.advance_type = 'FIXED_AMOUNT' THEN viv.advance_value
+                        WHEN viv.advance_type = 'PERCENTAGE' AND viv.advance_value IS NOT NULL AND viv.total_price IS NOT NULL
+                            THEN ROUND((viv.advance_value / 100.0) * viv.total_price, 2)
+                        ELSE NULL
+                    END
+                ) AS advance_amount,
                 viv.balance_due_days,
                 viv.payment_terms_remarks,
-                viv.remarks
+                COALESCE(viv.remarks, viv.payment_terms_remarks) AS remarks
             FROM vendor_inquiry_vendors viv
             INNER JOIN vendor_oem_masters vom ON viv.vendor_id = vom.vendor_id
             WHERE viv.inquiry_id = ?
@@ -2585,7 +2615,7 @@ app.get("/vendor-inquiries/:inquiry_id", async (req, res) => {
 // POST /vendor-inquiries/:inquiry_id/vendors
 // Adds a vendor's quotation to an OPEN or VENDOR_SELECTED inquiry
 // Allowed only while the related PO is still DRAFT (or does not exist)
-app.post("/vendor-inquiries/:inquiry_id/vendors", async (req, res) => {
+app.post("/vendor-inquiries/:inquiry_id/vendors", verifyProcurement, async (req, res) => {
     const inquiryId = Number(req.params.inquiry_id);
 
     const {
@@ -2772,10 +2802,17 @@ app.post("/vendor-inquiries/:inquiry_id/vendors", async (req, res) => {
         let advanceAmount = null;
 
         if (advance_value && Number(advance_value) > 0) {
-            advanceAmount = parseFloat(
-                ((Number(advance_value) / 100) * totalPrice).toFixed(2)
-            );
+            if (advance_type === "FIXED_AMOUNT") {
+                advanceAmount = parseFloat(Number(advance_value).toFixed(2));
+            } else {
+                advanceAmount = parseFloat(
+                    ((Number(advance_value) / 100) * totalPrice).toFixed(2)
+                );
+            }
         }
+
+        const finalRemarks = (remarks || "").trim() || (payment_terms_remarks || "").trim() || null;
+        const finalPaymentRemarks = (payment_terms_remarks || "").trim() || (remarks || "").trim() || null;
 
         if (!Number.isFinite(totalPrice)) {
             await connection.rollback();
@@ -2816,8 +2853,8 @@ app.post("/vendor-inquiries/:inquiry_id/vendors", async (req, res) => {
             advance_value ? Number(advance_value) : null,
             advanceAmount,
             balance_due_days ? Number(balance_due_days) : null,
-            payment_terms_remarks?.trim() || null,
-            remarks?.trim() || null
+            finalPaymentRemarks,
+            finalRemarks
         ]);
 
         await connection.commit();
@@ -2875,7 +2912,7 @@ app.post("/vendor-inquiries/:inquiry_id/vendors", async (req, res) => {
 
 // POST /vendor-inquiries/:inquiry_id/cancel
 // Cancels an OPEN inquiry (with or without quotations). Not allowed once a PO exists.
-app.post("/vendor-inquiries/:inquiry_id/cancel", async (req, res) => {
+app.post("/vendor-inquiries/:inquiry_id/cancel", verifyManager, async (req, res) => {
     const inquiryId = Number(req.params.inquiry_id);
     const { reason } = req.body;
 
@@ -2965,7 +3002,7 @@ app.post("/vendor-inquiries/:inquiry_id/cancel", async (req, res) => {
 });
 
 // GET /quotation-comparisons - Lists all OPEN inquiries with every vendor quotation (cheapest first) for side-by-side comparison
-app.get("/quotation-comparisons", async (req, res) => {
+app.get("/quotation-comparisons", verifyProcurement, async (req, res) => {
     try {
         const [inquiries] = await db.execute(`
             SELECT
@@ -3004,12 +3041,21 @@ app.get("/quotation-comparisons", async (req, res) => {
                 viv.total_price,
                 viv.advance_type,
                 viv.advance_value,
-                viv.advance_amount,
+                COALESCE(
+                    viv.advance_amount,
+                    CASE
+                        WHEN viv.advance_type = 'FIXED_AMOUNT' THEN viv.advance_value
+                        WHEN viv.advance_type = 'PERCENTAGE' AND viv.advance_value IS NOT NULL AND viv.total_price IS NOT NULL
+                            THEN ROUND((viv.advance_value / 100.0) * viv.total_price, 2)
+                        ELSE NULL
+                    END
+                ) AS advance_amount,
                 viv.expected_delivery_date,
                 viv.balance_due_days,
                 viv.payment_type,
                 viv.is_selected,
-                viv.remarks
+                viv.payment_terms_remarks,
+                COALESCE(viv.remarks, viv.payment_terms_remarks) AS remarks
             FROM vendor_inquiry_vendors viv
             INNER JOIN vendor_oem_masters vom
                 ON viv.vendor_id = vom.vendor_id
@@ -3034,7 +3080,7 @@ app.get("/quotation-comparisons", async (req, res) => {
 });
 
 // POST /vendor-inquiries/:inquiry_id/select-vendor - Finalizes the chosen vendor quotation and creates a DRAFT purchase order from it
-app.post("/vendor-inquiries/:inquiry_id/select-vendor", async (req, res) => {
+app.post("/vendor-inquiries/:inquiry_id/select-vendor", verifyManager, async (req, res) => {
     const inquiryId = Number(req.params.inquiry_id);
     const { inquiry_vendor_id } = req.body;
     if (!Number.isInteger(inquiryId) || inquiryId <= 0)return res.status(400).json({ success: false, message: "Invalid inquiry ID" });
@@ -3223,7 +3269,7 @@ app.post("/vendor-inquiries/:inquiry_id/select-vendor", async (req, res) => {
    ========================================================================== */
 
 // GET /purchase-orders - Lists all purchase orders (newest first) with full vendor master details and quotation remarks
-app.get("/purchase-orders", async (req, res) => {
+app.get("/purchase-orders", verifyProcurement, async (req, res) => {
     try {
         const [rows] = await db.execute(`
             SELECT
@@ -3376,7 +3422,7 @@ app.get("/purchase-orders", async (req, res) => {
 });
 
 // POST /purchase-orders/:po_id/issue - Issues a DRAFT purchase order: generates the PDF, marks it ISSUED and returns the PDF as a download
-app.post("/purchase-orders/:po_id/issue", async (req, res) => {
+app.post("/purchase-orders/:po_id/issue", verifyManager, async (req, res) => {
     const poId = Number(req.params.po_id);
     const connection = await db.getConnection();
     try {
@@ -3434,7 +3480,7 @@ app.post("/purchase-orders/:po_id/issue", async (req, res) => {
 });
 
 // GET /purchase-orders/:po_id/download - Downloads the PDF of an issued purchase order
-app.get("/purchase-orders/:po_id/download", async (req, res) => {
+app.get("/purchase-orders/:po_id/download", verifyProcurement, async (req, res) => {
     const poId = Number(req.params.po_id);
     if (!Number.isInteger(poId) || poId <= 0) return res.status(400).json({ success: false, message: "Invalid PO ID" });
     try {
@@ -3470,7 +3516,7 @@ app.get("/purchase-orders/:po_id/download", async (req, res) => {
 });
 
 // POST /purchase-orders/:po_id/complete - Manually marks a purchase order COMPLETED (needs at least one receipt) and closes its inquiry
-app.post("/purchase-orders/:po_id/complete", async (req, res) => {
+app.post("/purchase-orders/:po_id/complete", verifyProcurement, async (req, res) => {
     const poId = Number(req.params.po_id);
     if (!Number.isInteger(poId) || poId <= 0)return res.status(400).json({ success: false, message: "Invalid PO ID" });
     const connection = await db.getConnection();
@@ -3540,7 +3586,7 @@ app.post("/purchase-orders/:po_id/complete", async (req, res) => {
 // POST /purchase-orders/:po_id/proforma-invoice - Uploads (or replaces) the Proforma
 // Invoice for an issued/completed PO. Stored at backend/proforma-invoice/<PO number
 // with PO swapped for PI>.<ext>. Report log: PI_UPLOADED.
-app.post("/purchase-orders/:po_id/proforma-invoice", upload.single("proforma_invoice"), async (req, res) => {
+app.post("/purchase-orders/:po_id/proforma-invoice", verifyProcurement, upload.single("proforma_invoice"), async (req, res) => {
     const poId = Number(req.params.po_id);
     if (!Number.isInteger(poId) || poId <= 0)return res.status(400).json({ success: false, message: "Invalid PO ID" });
     if (!req.file)return res.status(400).json({ success: false, message: "Proforma Invoice file is required" });
@@ -3579,7 +3625,7 @@ app.post("/purchase-orders/:po_id/proforma-invoice", upload.single("proforma_inv
 
 // GET /purchase-orders/:po_id/proforma-invoice/status - Tells the frontend whether a
 // Proforma Invoice already exists for this PO, so it can show Upload vs Download.
-app.get("/purchase-orders/:po_id/proforma-invoice/status", async (req, res) => {
+app.get("/purchase-orders/:po_id/proforma-invoice/status", verifyProcurement, async (req, res) => {
     const poId = Number(req.params.po_id);
     if (!Number.isInteger(poId) || poId <= 0)return res.status(400).json({ success: false, message: "Invalid PO ID" });
     try {
@@ -3598,7 +3644,7 @@ app.get("/purchase-orders/:po_id/proforma-invoice/status", async (req, res) => {
 
 // GET /purchase-orders/:po_id/proforma-invoice - Downloads the uploaded Proforma
 // Invoice for a PO. Report log: PI_DOWNLOADED.
-app.get("/purchase-orders/:po_id/proforma-invoice", async (req, res) => {
+app.get("/purchase-orders/:po_id/proforma-invoice", verifyProcurement, async (req, res) => {
     const poId = Number(req.params.po_id);
     if (!Number.isInteger(poId) || poId <= 0)return res.status(400).json({ success: false, message: "Invalid PO ID" });
     try {
@@ -3625,7 +3671,7 @@ app.get("/purchase-orders/:po_id/proforma-invoice", async (req, res) => {
 // Deletes a DRAFT PO row entirely and re-opens the inquiry for vendor re-selection.
 // The PO number is freed so it can be assigned to the next vendor selected.
 // Use this when the wrong vendor was selected.
-app.post("/purchase-orders/:po_id/reselect", async (req, res) => {
+app.post("/purchase-orders/:po_id/reselect", verifyManager, async (req, res) => {
     const poId = Number(req.params.po_id);
     const { reason } = req.body;
 
@@ -3729,7 +3775,7 @@ app.post("/purchase-orders/:po_id/reselect", async (req, res) => {
 // The PO row is KEPT for audit trail but marked CANCELLED.
 // The PO number is never reused.
 // Use this when the client has cancelled the requirement entirely.
-app.post("/purchase-orders/:po_id/cancel", async (req, res) => {
+app.post("/purchase-orders/:po_id/cancel", verifyManager, async (req, res) => {
     const poId = Number(req.params.po_id);
     const { reason } = req.body;
 
@@ -3829,7 +3875,7 @@ app.post("/purchase-orders/:po_id/cancel", async (req, res) => {
    ========================================================================== */
 
 // GET /goods-received - Lists ISSUED purchase orders with ordered / received / remaining quantities and progress
-app.get("/goods-received", async (req, res) => {
+app.get("/goods-received", verifyProcurement, async (req, res) => {
     try {
         const [rows] = await db.execute(`
             SELECT
@@ -3897,7 +3943,7 @@ app.get("/goods-received", async (req, res) => {
 });
 
 // GET /goods-received/:po_id - Returns one purchase order with its full receipt and return history and stock figures
-app.get("/goods-received/:po_id", async (req, res) => {
+app.get("/goods-received/:po_id", verifyProcurement, async (req, res) => {
     const poId = Number(req.params.po_id);
     if (!Number.isInteger(poId) || poId <= 0)return res.status(400).json({ success: false, message: "Invalid PO ID" });
     try {
@@ -3954,7 +4000,7 @@ app.get("/goods-received/:po_id", async (req, res) => {
 });
 
 // POST /goods-received - Records a goods receipt against a purchase order (cannot exceed the remaining quantity)
-app.post("/goods-received", async (req, res) => {
+app.post("/goods-received", verifyProcurement, async (req, res) => {
     const { po_id, received_quantity, receipt_date, remarks } = req.body;
     const poId        = Number(po_id);
     const receivedQty = Number(received_quantity);
@@ -4041,7 +4087,7 @@ app.post("/goods-received", async (req, res) => {
 });
 
 // POST /goods-returns - Records goods returned to the vendor against a purchase order (cannot exceed the quantity in hand)
-app.post("/goods-returns", async (req, res) => {
+app.post("/goods-returns", verifyProcurement, async (req, res) => {
     const { po_id, receipt_id, return_quantity, return_reason, return_date } = req.body;
     const poId      = Number(po_id);
     const receiptId = receipt_id ? Number(receipt_id) : null;
@@ -4141,7 +4187,7 @@ app.post("/goods-returns", async (req, res) => {
    ========================================================================== */
 
 // GET /vendor-performance - Scorecard for every vendor: order count and value, average lead time, on-time delivery %, open orders
-app.get("/vendor-performance", async (req, res) => {
+app.get("/vendor-performance", verifyProcurement, async (req, res) => {
     try {
         const [rows] = await db.execute(`
             SELECT
@@ -4217,7 +4263,7 @@ app.get("/vendor-performance", async (req, res) => {
 });
 
 // GET /vendor-performance/:vendor_id - Detailed performance of one vendor: profile, KPIs and per-PO delivery breakdown
-app.get("/vendor-performance/:vendor_id", async (req, res) => {
+app.get("/vendor-performance/:vendor_id", verifyProcurement, async (req, res) => {
     const vendorId = Number(req.params.vendor_id);
     if (!Number.isInteger(vendorId) || vendorId <= 0)return res.status(400).json({ success: false, message: "Invalid vendor ID" });
     try {
@@ -4314,7 +4360,7 @@ app.get("/vendor-performance/:vendor_id", async (req, res) => {
 });
 
 // POST /vendor-performance/:vendor_id/blacklist - Blacklists a vendor so it no longer appears in vendor dropdowns or quotations
-app.post("/vendor-performance/:vendor_id/blacklist", async (req, res) => {
+app.post("/vendor-performance/:vendor_id/blacklist", verifyManager, async (req, res) => {
     const vendorId = Number(req.params.vendor_id);
     const { reason } = req.body;
     if (!Number.isInteger(vendorId) || vendorId <= 0)return res.status(400).json({ success: false, message: "Invalid vendor ID" });
@@ -4357,7 +4403,7 @@ app.post("/vendor-performance/:vendor_id/blacklist", async (req, res) => {
 });
 
 // POST /vendor-performance/:vendor_id/unblacklist - Removes a vendor from the blacklist, restoring it to normal use
-app.post("/vendor-performance/:vendor_id/unblacklist", async (req, res) => {
+app.post("/vendor-performance/:vendor_id/unblacklist", verifyManager, async (req, res) => {
     const vendorId = Number(req.params.vendor_id);
     const { reason } = req.body;
     if (!Number.isInteger(vendorId) || vendorId <= 0)return res.status(400).json({ success: false, message: "Invalid vendor ID" });
@@ -4399,7 +4445,7 @@ app.post("/vendor-performance/:vendor_id/unblacklist", async (req, res) => {
     }
 });
 
-app.get("/vendors/:vendor_id", async (req, res) => {
+app.get("/vendors/:vendor_id", verifyProcurement, async (req, res) => {
     const vendorId = Number(req.params.vendor_id);
     if (!Number.isInteger(vendorId) || vendorId <= 0) {
         return res.status(400).json({ success: false, message: "Invalid vendor ID" });
@@ -4635,7 +4681,7 @@ app.put("/vendors/:vendor_id/bank", verifyAdmin, async (req, res) => {
    ========================================================================== */
 
 // GET /past-price-reference/models - Lists the distinct models ever purchased (with make, item and category) for the model picker
-app.get("/past-price-reference/models", async (req, res) => {
+app.get("/past-price-reference/models", verifyProcurement, async (req, res) => {
     try {
         const [rows] = await db.execute(`
             SELECT DISTINCT
@@ -4656,7 +4702,7 @@ app.get("/past-price-reference/models", async (req, res) => {
 });
 
 // GET /past-price-reference - Purchase price history of one model: all purchases, the last three, and purchases grouped by vendor
-app.get("/past-price-reference", async (req, res) => {
+app.get("/past-price-reference", verifyProcurement, async (req, res) => {
     const model = cleanValue(req.query.model);
     if (!model)return res.status(400).json({ success: false, message: "Model name is required" });
     try {
@@ -4711,7 +4757,7 @@ app.get("/past-price-reference", async (req, res) => {
 });
 
 // GET /management-insights - Dashboard analytics for a chosen period: PR/PO overview, financials, trends, top performers, payments, receipts and PR-to-PO efficiency
-app.get("/management-insights", async (req, res) => {
+app.get("/management-insights", verifyManager, async (req, res) => {
     try {
         const { period = "current_month", from, to } = req.query;
         const range = resolveInsightsRange(period, from, to);
@@ -4987,7 +5033,7 @@ app.get("/management-insights", async (req, res) => {
 });
 
 // GET /report-logs - Paginated business-activity history from report_logs, optionally filtered by username, action, and date range
-app.get("/report-logs", async (req, res) => {
+app.get("/report-logs", verifyManager, async (req, res) => {
     const page  = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
     const offset = (page - 1) * limit;
@@ -5039,7 +5085,7 @@ app.get("/report-logs", async (req, res) => {
 });
 
 // GET /audit-logs - Paginated administrative/system change history from audit_logs, optionally filtered by username, action, and date range
-app.get("/audit-logs", async (req, res) => {
+app.get("/audit-logs", verifyAdmin, async (req, res) => {
     const page  = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 25));
     const offset = (page - 1) * limit;

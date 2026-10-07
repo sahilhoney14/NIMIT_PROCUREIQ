@@ -105,6 +105,27 @@ function formatCurrency(value) {
     return isNaN(n) ? "-" : n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatAdvanceAmount(v) {
+    let amt = v.advance_amount;
+    if ((amt == null || amt === "" || Number(amt) === 0) && v.advance_value != null && v.total_price != null) {
+        if (v.advance_type === "FIXED_AMOUNT") {
+            amt = Number(v.advance_value);
+        } else {
+            amt = (Number(v.advance_value) / 100) * Number(v.total_price);
+        }
+    }
+    return (amt != null && !isNaN(Number(amt)) && Number(amt) > 0)
+        ? `₹${formatCurrency(amt)}`
+        : "-";
+}
+
+function formatRemarks(v) {
+    const list = [v.remarks, v.payment_terms_remarks].filter(r => r && String(r).trim() !== "" && String(r).trim() !== "-");
+    const unique = [...new Set(list.map(s => String(s).trim()))];
+    return unique.length ? escapeHtml(unique.join(" / ")) : "-";
+}
+
+
 // FIX: always derive today's date in IST, not UTC.
 // new Date().toISOString() is UTC and gives yesterday's date in IST between
 // midnight and 05:30 IST.
@@ -130,8 +151,12 @@ async function apiFetch(url, options = {}) {
     if (response.status === 401) {
         localStorage.removeItem("auth_token");
         localStorage.removeItem("auth_user");
-        window.location.href = "/";
+        window.location.href = "/?reason=session_expired";
         return null; // redirect already happened
+    }
+    if (response.status === 403) {
+        const errJson = await response.clone().json().catch(() => null);
+        alert(errJson?.message || "Forbidden: You do not have permission to perform this action.");
     }
     return response;
 }
@@ -1577,8 +1602,6 @@ async function loadInquiryVendors(inquiryId) {
 function renderInquiryVendorTable(container, vendors) {
     if (!vendors.length) { container.innerHTML = ""; container.hidden = true; return; }
 
-    // FIX: the backend returns payment_terms_remarks, not remarks, for the
-    // payment notes column. Map the right field.
     container.innerHTML = `
         <div class="table-container">
             <table class="inquiry-vendor-table">
@@ -1588,10 +1611,11 @@ function renderInquiryVendorTable(container, vendors) {
                         <th>Vendor Name</th>
                         <th>Price / Unit</th>
                         <th>Total Price</th>
-                        <th>Delivery Date</th>
-                        <th>Payment Type</th>
                         <th>Advance</th>
-                        <th>Payment Remarks</th>
+                        <th>Advance Amount</th>
+                        <th>Delivery Date</th>
+                        <th>Balance Due (days)</th>
+                        <th>Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1601,18 +1625,11 @@ function renderInquiryVendorTable(container, vendors) {
                             <td>${escapeHtml(v.vendor_name || "-")}</td>
                             <td>${formatCurrency(v.price_per_unit)}</td>
                             <td>${formatCurrency(v.total_price)}</td>
+                            <td>${v.advance_value != null ? `${escapeHtml(String(v.advance_value))}%` : "-"}</td>
+                            <td>${formatAdvanceAmount(v)}</td>
                             <td>${formatDate(v.expected_delivery_date)}</td>
-                            <td>${escapeHtml(v.payment_type || "-")}</td>
-                            <td>
-                                ${v.advance_value != null
-                                    ? `${escapeHtml(String(v.advance_value))}%`
-                                    + (v.balance_due_days != null
-                                        ? `<br><span style="font-size:12px;color:#777;">Balance in ${escapeHtml(String(v.balance_due_days))} days</span>`
-                                        : "")
-                                    : "-"
-                                }
-                            </td>
-                            <td>${escapeHtml(v.payment_terms_remarks || "-")}</td>
+                            <td>${v.balance_due_days != null ? escapeHtml(String(v.balance_due_days)) : "-"}</td>
+                            <td>${formatRemarks(v)}</td>
                         </tr>
                     `).join("")}
                 </tbody>
@@ -1780,10 +1797,10 @@ function renderQuotationComparisons(inquiries) {
                                             </td>
                                             <td>${formatCurrency(v.total_price)}</td>
                                             <td>${v.advance_value != null ? `${escapeHtml(String(v.advance_value))}%` : "-"}</td>
-                                            <td>${v.advance_amount != null ? `₹${formatCurrency(v.advance_amount)}` : "-"}</td>
+                                            <td>${formatAdvanceAmount(v)}</td>
                                             <td>${formatDate(v.expected_delivery_date)}</td>
                                             <td>${v.balance_due_days != null ? escapeHtml(String(v.balance_due_days)) : "-"}</td>
-                                            <td>${escapeHtml(v.remarks || "-")}</td>
+                                            <td>${formatRemarks(v)}</td>
                                         </tr>
                                     `;
                                 }).join("")}
@@ -2113,9 +2130,14 @@ function renderOrderTracking(rows) {
         const card = document.createElement("div");
         card.className = "po-row";
 
+        const poDateBadge = (row.po_number && row.po_date)
+            ? `<span class="ot-row-date">${formatDate(row.po_date)}</span>`
+            : "";
+
         const poNumberDisplay = `<div class="po-row-field">
                    <span class="inquiry-card-label">PO Number</span>
                    <span class="inquiry-card-value">${escapeHtml(row.po_number || "—")}</span>
+                   ${poDateBadge}
                </div>`;
 
         const dateBadge = (row.pr_date || row.created_at)
@@ -2242,7 +2264,44 @@ orderTrackingList.addEventListener("click", event => {
 
 // ─── Purchase Orders: Load List ────────────────────────────────────────────────
 
+let allPurchaseOrders = [];
+let poStatusFilter = "ALL";
+let poFiltersInitialized = false;
+
+function initPurchaseOrderFilters() {
+    if (poFiltersInitialized) return;
+    const pillsWrap = document.getElementById("poStatusPills");
+    if (!pillsWrap) return;
+    poFiltersInitialized = true;
+
+    pillsWrap.addEventListener("click", (e) => {
+        const pill = e.target.closest(".ot-pill");
+        if (!pill) return;
+        const status = pill.dataset.status || "ALL";
+        poStatusFilter = status;
+
+        pillsWrap.querySelectorAll(".ot-pill").forEach(p => {
+            if (p.dataset.status === status) {
+                p.classList.add("active");
+            } else {
+                p.classList.remove("active");
+            }
+        });
+
+        applyPurchaseOrderFilter();
+    });
+}
+
+function applyPurchaseOrderFilter() {
+    let filtered = allPurchaseOrders;
+    if (poStatusFilter && poStatusFilter !== "ALL") {
+        filtered = allPurchaseOrders.filter(po => (po.status || "").toUpperCase() === poStatusFilter.toUpperCase());
+    }
+    renderPurchaseOrders(filtered);
+}
+
 async function loadPurchaseOrders() {
+    initPurchaseOrderFilters();
     purchaseOrdersList.innerHTML = "Loading...";
 
     try {
@@ -2256,7 +2315,8 @@ async function loadPurchaseOrders() {
             return;
         }
 
-        renderPurchaseOrders(result.purchase_orders || []);
+        allPurchaseOrders = result.purchase_orders || [];
+        applyPurchaseOrderFilter();
 
     } catch {
         purchaseOrdersList.textContent = "Failed to connect to procurement service";
@@ -2278,7 +2338,11 @@ function renderPurchaseOrders(orders) {
     purchaseOrdersList.innerHTML = "";
 
     if (!orders.length) {
-        purchaseOrdersList.textContent = "No purchase orders available";
+        purchaseOrdersList.innerHTML = `
+            <div style="padding: 32px 16px; text-align: center; color: #64748b; font-size: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+                No purchase orders found${poStatusFilter !== "ALL" ? ` with status "<strong>${escapeHtml(poStatusFilter)}</strong>"` : ""}.
+            </div>
+        `;
         return;
     }
 
@@ -2291,6 +2355,7 @@ function renderPurchaseOrders(orders) {
                 <div class="po-row-field">
                     <span class="inquiry-card-label">PO Number</span>
                     <span class="inquiry-card-value">${escapeHtml(po.po_number || "-")}</span>
+                    ${po.po_date ? `<span class="ot-row-date">${formatDate(po.po_date)}</span>` : ""}
                 </div>
                 <div class="po-row-field">
                     <span class="inquiry-card-label">Party Name</span>

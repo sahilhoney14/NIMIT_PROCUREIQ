@@ -99,8 +99,12 @@ async function apiFetch(url, options = {}) {
     if (response.status === 401) {
         localStorage.removeItem("auth_token");
         localStorage.removeItem("auth_user");
-        window.location.href = "/";
+        window.location.href = "/?reason=session_expired";
         return null; // redirect already started
+    }
+    if (response.status === 403) {
+        const errJson = await response.clone().json().catch(() => null);
+        alert(errJson?.message || "Forbidden: You do not have permission to perform this action.");
     }
     return response;
 }
@@ -1537,6 +1541,26 @@ async function loadInquiryVendors(inquiryId) {
 }
 
 // FIX: 9 headers, 9 cells, same order; removed the empty Action column
+function formatAdvanceAmount(v) {
+    let amt = v.advance_amount;
+    if ((amt == null || amt === "" || Number(amt) === 0) && v.advance_value != null && v.total_price != null) {
+        if (v.advance_type === "FIXED_AMOUNT") {
+            amt = Number(v.advance_value);
+        } else {
+            amt = (Number(v.advance_value) / 100) * Number(v.total_price);
+        }
+    }
+    return (amt != null && !isNaN(Number(amt)) && Number(amt) > 0)
+        ? `₹${formatCurrency(amt)}`
+        : "-";
+}
+
+function formatRemarks(v) {
+    const list = [v.remarks, v.payment_terms_remarks].filter(r => r && String(r).trim() !== "" && String(r).trim() !== "-");
+    const unique = [...new Set(list.map(s => String(s).trim()))];
+    return unique.length ? escapeHtml(unique.join(" / ")) : "-";
+}
+
 function renderInquiryVendorTable(container, vendors) {
     if (!vendors.length) {
         container.innerHTML = "";
@@ -1570,10 +1594,10 @@ function renderInquiryVendorTable(container, vendors) {
                             <td>${formatCurrency(v.price_per_unit)}</td>
                             <td>${formatCurrency(v.total_price)}</td>
                             <td>${v.advance_value != null ? `${escapeHtml(String(v.advance_value))}%` : "-"}</td>
-                            <td>${v.advance_amount != null ? `₹${formatCurrency(v.advance_amount)}` : "-"}</td>
+                            <td>${formatAdvanceAmount(v)}</td>
                             <td>${formatDate(v.expected_delivery_date)}</td>
                             <td>${v.balance_due_days != null ? escapeHtml(String(v.balance_due_days)) : "-"}</td>
-                            <td>${escapeHtml(v.remarks || "-")}</td>
+                            <td>${formatRemarks(v)}</td>
                         </tr>
                     `).join("")}
                 </tbody>
@@ -1690,10 +1714,10 @@ function renderQuotationComparisons(inquiries) {
                                             <td class="${isLowest ? "lowest-price" : ""}">${formatCurrency(v.price_per_unit)}</td>
                                             <td>${formatCurrency(v.total_price)}</td>
                                             <td>${v.advance_value != null ? `${escapeHtml(String(v.advance_value))}%` : "-"}</td>
-                                            <td>${v.advance_amount != null ? `₹${formatCurrency(v.advance_amount)}` : "-"}</td>
+                                            <td>${formatAdvanceAmount(v)}</td>
                                             <td>${formatDate(v.expected_delivery_date)}</td>
                                             <td>${v.balance_due_days != null ? escapeHtml(String(v.balance_due_days)) : "-"}</td>
-                                            <td>${escapeHtml(v.remarks || "-")}</td>
+                                            <td>${formatRemarks(v)}</td>
                                             <td>
                                                 ${v.is_selected
                                                     ? `<span style="color:#16803c;font-weight:600;">✓ Selected</span>`
@@ -1726,14 +1750,93 @@ function renderQuotationComparisons(inquiries) {
 
 // ─── Quotation & Comparisons: Select Vendor ────────────────────────────────────
 
-document.getElementById("quotationList").addEventListener("click", async event => {
+function confirmVendorSelection({ prNumber, vendorName, vendorCode, pricePerUnit, totalPrice }) {
+    return new Promise(resolve => {
+        const modal = document.getElementById("selectVendorModal");
+        if (!modal) {
+            const ok = confirm(
+                `Confirm Vendor Selection:\n\n` +
+                `PR Number: ${prNumber}\n` +
+                `Vendor: ${vendorName} (${vendorCode})\n` +
+                `Price / Unit: ${pricePerUnit}\n` +
+                `Total Price: ${totalPrice}\n\n` +
+                `Are you sure you want to select this vendor? A draft Purchase Order will be created.`
+            );
+            return resolve(ok);
+        }
+
+        const prEl = document.getElementById("confirmPrNumber");
+        const vendorEl = document.getElementById("confirmVendorName");
+        const unitEl = document.getElementById("confirmUnitPrice");
+        const totalEl = document.getElementById("confirmTotalPrice");
+        const confirmBtn = document.getElementById("confirmSelectVendorBtn");
+        const cancelBtn = document.getElementById("cancelSelectVendorBtn");
+        const closeBtn = document.getElementById("closeSelectVendorModal");
+
+        if (prEl) prEl.textContent = prNumber;
+        if (vendorEl) vendorEl.textContent = vendorCode && vendorCode !== "-" ? `${vendorName} (${vendorCode})` : vendorName;
+        if (unitEl) unitEl.textContent = pricePerUnit;
+        if (totalEl) totalEl.textContent = totalPrice;
+
+        modal.classList.remove("hidden");
+
+        const cleanup = (result) => {
+            modal.classList.add("hidden");
+            confirmBtn?.removeEventListener("click", onConfirm);
+            cancelBtn?.removeEventListener("click", onCancel);
+            closeBtn?.removeEventListener("click", onCancel);
+            modal.removeEventListener("click", onBackdrop);
+            document.removeEventListener("keydown", onKeydown);
+            resolve(result);
+        };
+
+        const onConfirm = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(false); };
+        const onKeydown = (e) => { if (e.key === "Escape") cleanup(false); };
+
+        confirmBtn?.addEventListener("click", onConfirm);
+        cancelBtn?.addEventListener("click", onCancel);
+        closeBtn?.addEventListener("click", onCancel);
+        modal.addEventListener("click", onBackdrop);
+        document.addEventListener("keydown", onKeydown);
+    });
+}
+
+document.getElementById("quotationList")?.addEventListener("click", async event => {
     const btn = event.target.closest(".select-vendor-btn");
     if (!btn) return;
 
     const inquiryId       = btn.dataset.inquiryId;
     const inquiryVendorId = btn.dataset.inquiryVendorId;
 
-    const confirmed = confirm("Select this vendor for the purchase request? This cannot be undone from here.");
+    // Read PR and vendor details from card and row before opening confirmation
+    const card       = btn.closest(".inquiry-card");
+    const prNumber   = card?.querySelector(".inquiry-card-item .inquiry-card-label")
+        ? (() => {
+            for (const item of card.querySelectorAll(".inquiry-card-item")) {
+                if (item.querySelector(".inquiry-card-label")?.textContent?.trim() === "PR Number") {
+                    return item.querySelector(".inquiry-card-value")?.textContent?.trim() || "-";
+                }
+            }
+            return "-";
+        })()
+        : "-";
+    const row = btn.closest("tr");
+    const vendorCode = row?.querySelector("td:nth-child(1)")?.textContent?.trim() || "-";
+    const vendorName = row?.querySelector("td:nth-child(2)")?.textContent?.trim() || "-";
+    const pricePerUnit = row?.querySelector("td:nth-child(3)")?.textContent?.trim() || "-";
+    const totalPrice = row?.querySelector("td:nth-child(4)")?.textContent?.trim() || "-";
+
+    // 2nd-time confirmation step
+    const confirmed = await confirmVendorSelection({
+        prNumber,
+        vendorName,
+        vendorCode,
+        pricePerUnit,
+        totalPrice
+    });
+
     if (!confirmed) return;
 
     btn.disabled = true;
@@ -1757,7 +1860,6 @@ document.getElementById("quotationList").addEventListener("click", async event =
         }
 
         await loadQuotationComparisons();
-
     } catch {
         alert("Failed to connect to procurement manager service");
         btn.disabled = false;
@@ -2076,9 +2178,14 @@ function renderOrderTracking(rows) {
         const card = document.createElement("div");
         card.className = "po-row";
 
+        const poDateBadge = (row.po_number && row.po_date)
+            ? `<span class="ot-row-date">${formatDate(row.po_date)}</span>`
+            : "";
+
         const poNumberDisplay = `<div class="po-row-field">
                    <span class="inquiry-card-label">PO Number</span>
                    <span class="inquiry-card-value">${escapeHtml(row.po_number || "—")}</span>
+                   ${poDateBadge}
                </div>`;
 
         const poNumberItem = row.po_number
@@ -2160,7 +2267,44 @@ orderTrackingList.addEventListener("click", event => {
 
 // ─── Purchase Orders: Load List ────────────────────────────────────────────────
 
+let allPurchaseOrders = [];
+let poStatusFilter = "ALL";
+let poFiltersInitialized = false;
+
+function initPurchaseOrderFilters() {
+    if (poFiltersInitialized) return;
+    const pillsWrap = document.getElementById("poStatusPills");
+    if (!pillsWrap) return;
+    poFiltersInitialized = true;
+
+    pillsWrap.addEventListener("click", (e) => {
+        const pill = e.target.closest(".ot-pill");
+        if (!pill) return;
+        const status = pill.dataset.status || "ALL";
+        poStatusFilter = status;
+
+        pillsWrap.querySelectorAll(".ot-pill").forEach(p => {
+            if (p.dataset.status === status) {
+                p.classList.add("active");
+            } else {
+                p.classList.remove("active");
+            }
+        });
+
+        applyPurchaseOrderFilter();
+    });
+}
+
+function applyPurchaseOrderFilter() {
+    let filtered = allPurchaseOrders;
+    if (poStatusFilter && poStatusFilter !== "ALL") {
+        filtered = allPurchaseOrders.filter(po => (po.status || "").toUpperCase() === poStatusFilter.toUpperCase());
+    }
+    renderPurchaseOrders(filtered);
+}
+
 async function loadPurchaseOrders() {
+    initPurchaseOrderFilters();
     purchaseOrdersList.innerHTML = "Loading...";
 
     try {
@@ -2173,7 +2317,8 @@ async function loadPurchaseOrders() {
             return;
         }
 
-        renderPurchaseOrders(result.purchase_orders || []);
+        allPurchaseOrders = result.purchase_orders || [];
+        applyPurchaseOrderFilter();
 
     } catch {
         purchaseOrdersList.textContent = "Failed to connect to procurement service";
@@ -2193,7 +2338,11 @@ function renderPurchaseOrders(orders) {
     purchaseOrdersList.innerHTML = "";
 
     if (!orders.length) {
-        purchaseOrdersList.textContent = "No purchase orders available";
+        purchaseOrdersList.innerHTML = `
+            <div style="padding: 32px 16px; text-align: center; color: #64748b; font-size: 14px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+                No purchase orders found${poStatusFilter !== "ALL" ? ` with status "<strong>${escapeHtml(poStatusFilter)}</strong>"` : ""}.
+            </div>
+        `;
         return;
     }
 
@@ -2206,6 +2355,7 @@ function renderPurchaseOrders(orders) {
                 <div class="po-row-field">
                     <span class="inquiry-card-label">PO Number</span>
                     <span class="inquiry-card-value">${escapeHtml(po.po_number || "-")}</span>
+                    ${po.po_date ? `<span class="ot-row-date">${formatDate(po.po_date)}</span>` : ""}
                 </div>
                 <div class="po-row-field">
                     <span class="inquiry-card-label">Party Name</span>
@@ -3369,13 +3519,13 @@ function renderPPRResults({ last3, byVendor }) {
 let procurementTrendChart = null;
 let prPoTrendChart = null;
 let poStatusChart = null;
-let insightsRequestId = 0;   // FIX: ignore out-of-order responses
+let insightsRequestId = 0;   // ignore out-of-order responses
 
-const insightsPeriod          = document.getElementById("insightsPeriod");
-const insightsCustomRange     = document.getElementById("insightsCustomRange");
-const insightsFromDate        = document.getElementById("insightsFromDate");
-const insightsToDate          = document.getElementById("insightsToDate");
-const applyInsightsDate       = document.getElementById("applyInsightsDate");
+const insightsPeriod            = document.getElementById("insightsPeriod");
+const insightsCustomRange       = document.getElementById("insightsCustomRange");
+const insightsFromDate          = document.getElementById("insightsFromDate");
+const insightsToDate            = document.getElementById("insightsToDate");
+const applyInsightsDate         = document.getElementById("applyInsightsDate");
 const managementInsightsMessage = document.getElementById("managementInsightsMessage");
 
 // ---------------------------------------------------------
@@ -3468,9 +3618,17 @@ async function loadManagementInsights() {
     }
 }
 
-// FIX: clear stale numbers / charts when a load fails
+// clear stale numbers / charts when a load fails
 function resetManagementInsights() {
     renderManagementInsights({});
+}
+
+function formatRupeeLakh(value) {
+    const n = Number(value);
+    if (isNaN(n) || n === 0) return "₹0";
+    const sign = n < 0 ? "-" : "";
+    const abs = Math.abs(n);
+    return `${sign}₹${abs.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
 function renderManagementInsights(data) {
@@ -3478,10 +3636,9 @@ function renderManagementInsights(data) {
     renderInsightFinancials(data);
     renderInsightOperational(data);
     renderTopPerformers(data.top_performers || {});
-    renderPaymentInsights(data.payment_types || []);
     renderProcurementTrend(data.trends?.daily_procurement || []);
-    renderPRPOTrend(data.trends?.monthly_procurement || []);
-    renderPOStatus(data.po_status || []);
+    renderPRPOTrend(data.trends?.monthly_procurement || [], data);
+    renderPOStatus(data.po_status || [], data.overview?.total_pos || 0);
 }
 
 const setText = (id, text) => {
@@ -3524,14 +3681,20 @@ function unitBreakdown(rows, key) {
 
 function renderInsightOverview(data) {
     const overview = data.overview || {};
+    const totalPRs = Number(data.purchase_requests?.total || 0);
+    const totalPOs = Number(overview.total_pos || 0);
+    const draftPOs = Number(overview.draft_pos || 0);
+    const issuedPOs = Number(overview.issued_pos || 0);
+    const completedPOs = Number(overview.completed_pos || 0);
+    const cancelledPOs = Number(overview.cancelled_pos || 0);
 
-    // FIX: PR card reads the real PR count, not PRs that happen to have a PO
-    setText("insightTotalPRs",      formatCount(data.purchase_requests?.total));
-    setText("insightTotalPOs",      formatCount(overview.total_pos));
-    setText("insightDraftPOs",      formatCount(overview.draft_pos));
-    setText("insightIssuedPOs",     formatCount(overview.issued_pos));
-    setText("insightCompletedPOs",  formatCount(overview.completed_pos));
-    setText("insightCancelledPOs",  formatCount(overview.cancelled_pos));
+    // PR and PO pipeline cards
+    setText("insightTotalPRs",      formatCount(totalPRs));
+    setText("insightTotalPOs",      formatCount(totalPOs));
+    setText("insightDraftPOs",      formatCount(draftPOs));
+    setText("insightIssuedPOs",     formatCount(issuedPOs));
+    setText("insightCompletedPOs",  formatCount(completedPOs));
+    setText("insightCancelledPOs",  formatCount(cancelledPOs));
 }
 
 // ---------------------------------------------------------
@@ -3542,9 +3705,9 @@ function renderInsightFinancials(data) {
     const financial = data.financial || {};
     const overview  = data.overview  || {};
 
-    setText("insightSalesValue",       formatRupee(financial.total_sales_value || 0));
-    setText("insightProcurementValue", formatRupee(financial.total_procurement_value || 0));
-    setText("insightGrossProfit",      formatRupee(financial.gross_profit || 0));
+    setText("insightSalesValue",       formatRupeeLakh(financial.total_sales_value || 0));
+    setText("insightProcurementValue", formatRupeeLakh(financial.total_procurement_value || 0));
+    setText("insightGrossProfit",      formatRupeeLakh(financial.gross_profit || 0));
     setText("insightGrossMargin",      `${Number(financial.gross_margin_percentage || 0).toFixed(2)}%`);
     setText("insightAveragePO",        formatRupee(overview.average_po_value || 0));
     setText("insightHighestPO",        formatRupee(overview.highest_po_value || 0));
@@ -3553,7 +3716,7 @@ function renderInsightFinancials(data) {
     const isLoss = Number(financial.gross_profit || 0) < 0;
     ["insightGrossProfit", "insightGrossMargin"].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.style.color = isLoss ? "#c00" : "";
+        if (el) el.style.color = isLoss ? "#e11d48" : "";
     });
 }
 
@@ -3564,15 +3727,13 @@ function renderInsightFinancials(data) {
 function renderInsightOperational(data) {
     const eff = data.efficiency || {};
 
-    // FIX: null from the backend means "no data", show "-" not "0 days"
     const days = (v, digits = 0) => (v === null || v === undefined ? "-" : `${Number(v).toFixed(digits)} days`);
 
     setText("insightAveragePRPO", days(eff.average_pr_to_po_days, 1));
     setText("insightFastestPRPO", days(eff.fastest_pr_to_po_days));
     setText("insightSlowestPRPO", days(eff.slowest_pr_to_po_days));
 
-    // FIX: quantities shown per unit instead of one meaningless sum
-    setText("insightGoodsReceived",     unitBreakdown(data.goods_received?.by_unit, "received"));
+    setText("insightGoodsReceived", unitBreakdown(data.goods_received?.by_unit, "received"));
 }
 
 // ---------------------------------------------------------
@@ -3581,11 +3742,17 @@ function renderInsightOperational(data) {
 
 function renderProcurementTrend(rows) {
     const canvas = document.getElementById("procurementTrendChart");
-    if (!canvas) return;
+    if (!canvas || typeof Chart === "undefined") return;
 
     if (procurementTrendChart) procurementTrendChart.destroy();
 
     setChartEmpty(canvas, !rows.length || rows.every(r => !r.sales_value && !r.procurement_value));
+
+    const trendSub = document.getElementById("trendChartSubtitle");
+    if (trendSub && insightsPeriod) {
+        const selText = insightsPeriod.options[insightsPeriod.selectedIndex]?.text || "current period";
+        trendSub.textContent = `Daily performance for ${selText.replace(/\s*\(.*?\)/, "")}`;
+    }
 
     const labels  = rows.map(r => r.day);
     const compact = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
@@ -3600,27 +3767,58 @@ function renderProcurementTrend(rows) {
         });
     };
 
-    // Compact, stock-chart look: thin lines, no points, crosshair tooltip, value axis on the right
-    const line = (label, key, color, fill) => ({
-        label,
-        data: rows.map(r => Number(r[key] || 0)),
-        borderColor: color,
-        backgroundColor: color + "22",
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        tension: 0.28,
-        fill
-    });
+    const ctx = canvas.getContext("2d");
+    const salesGradient = ctx.createLinearGradient(0, 0, 0, 240);
+    salesGradient.addColorStop(0, "rgba(37, 99, 235, 0.16)");
+    salesGradient.addColorStop(1, "rgba(37, 99, 235, 0.00)");
 
     procurementTrendChart = new Chart(canvas, {
         type: "line",
         data: {
             labels,
             datasets: [
-                line("Sales Value",       "sales_value",       "#2563eb", true),
-                line("Procurement Value", "procurement_value", "#8b5cf6", false),
-                line("Gross Profit",      "gross_profit",      "#10b981", false)
+                {
+                    label: "Sales Value",
+                    data: rows.map(r => Number(r.sales_value || 0)),
+                    borderColor: "#2563eb",
+                    backgroundColor: salesGradient,
+                    borderWidth: 2.2,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: "#2563eb",
+                    pointHoverBorderColor: "#ffffff",
+                    pointHoverBorderWidth: 2,
+                    tension: 0.35,
+                    fill: true
+                },
+                {
+                    label: "Procurement Value",
+                    data: rows.map(r => Number(r.procurement_value || 0)),
+                    borderColor: "#8b5cf6",
+                    backgroundColor: "transparent",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: "#8b5cf6",
+                    pointHoverBorderColor: "#ffffff",
+                    pointHoverBorderWidth: 2,
+                    tension: 0.35,
+                    fill: false
+                },
+                {
+                    label: "Gross Profit",
+                    data: rows.map(r => Number(r.gross_profit || 0)),
+                    borderColor: "#10b981",
+                    backgroundColor: "transparent",
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: "#10b981",
+                    pointHoverBorderColor: "#ffffff",
+                    pointHoverBorderWidth: 2,
+                    tension: 0.35,
+                    fill: false
+                }
             ]
         },
         options: {
@@ -3628,15 +3826,17 @@ function renderProcurementTrend(rows) {
             maintainAspectRatio: false,
             interaction: { mode: "index", intersect: false },
             plugins: {
-                legend: {
-                    position: "top",
-                    align: "start",
-                    labels: { usePointStyle: true, boxWidth: 8, font: { size: 12, weight: "600" } }
-                },
+                legend: { display: false },
                 tooltip: {
+                    backgroundColor: "#0f172a",
+                    titleFont: { size: 12, weight: "700" },
+                    bodyFont: { size: 12, weight: "500" },
+                    padding: 10,
+                    cornerRadius: 8,
+                    usePointStyle: true,
                     callbacks: {
                         title: items => dayLabel(labels[items[0].dataIndex], true),
-                        label: ctx => `${ctx.dataset.label}: ${formatRupee(ctx.raw)}`
+                        label: ctx => `  ${ctx.dataset.label}: ${formatRupee(ctx.raw)}`
                     }
                 }
             },
@@ -3648,35 +3848,61 @@ function renderProcurementTrend(rows) {
                         maxTicksLimit: 8,
                         maxRotation: 0,
                         font: { size: 11, weight: "600" },
+                        color: "#64748b",
                         callback: function (value) { return dayLabel(this.getLabelForValue(value)); }
                     }
                 },
                 y: {
-                    position: "right",
-                    grid: { color: "rgba(128,128,128,0.12)" },
+                    position: "left",
+                    grid: { color: "rgba(226, 232, 240, 0.6)" },
                     ticks: {
                         maxTicksLimit: 5,
-                        font: { size: 11 },
+                        font: { size: 11, weight: "500" },
+                        color: "#64748b",
                         callback: value => (Number(value) < 0 ? "-" : "") + "₹" + compact.format(Math.abs(Number(value)))
                     }
                 }
             }
         }
     });
-}
 
+    const legendHolder = document.getElementById("trendChartLegend");
+    if (legendHolder) {
+        legendHolder.querySelectorAll(".legend-pill").forEach(pill => {
+            pill.onclick = () => {
+                const idx = Number(pill.getAttribute("data-dataset-index"));
+                if (procurementTrendChart && procurementTrendChart.data.datasets[idx]) {
+                    const isVisible = procurementTrendChart.isDatasetVisible(idx);
+                    procurementTrendChart.setDatasetVisibility(idx, !isVisible);
+                    procurementTrendChart.update();
+                    pill.classList.toggle("legend-pill-dimmed", isVisible);
+                }
+            };
+        });
+    }
+}
 
 // ---------------------------------------------------------
 // PR VS PO CHART
 // ---------------------------------------------------------
 
-function renderPRPOTrend(rows) {
+function renderPRPOTrend(rows, data) {
     const canvas = document.getElementById("prPoTrendChart");
-    if (!canvas) return;
+    if (!canvas || typeof Chart === "undefined") return;
 
     if (prPoTrendChart) prPoTrendChart.destroy();
 
     setChartEmpty(canvas, !rows.length);
+
+    // Update bottom conversion rate box
+    const totalPRs = Number(data?.purchase_requests?.total || 0);
+    const totalPOs = Number(data?.overview?.total_pos || 0);
+    const convRate = totalPRs > 0 ? (totalPOs / totalPRs) * 100 : 0;
+    setText("conversionRatePercentage", `${convRate.toFixed(1)}%`);
+    const pBar = document.getElementById("conversionProgressBar");
+    if (pBar) {
+        pBar.style.width = `${Math.min(100, Math.max(0, convRate))}%`;
+    }
 
     prPoTrendChart = new Chart(canvas, {
         type: "bar",
@@ -3686,14 +3912,14 @@ function renderPRPOTrend(rows) {
                 {
                     label: "Purchase Requests",
                     data: rows.map(r => Number(r.pr_count || 0)),
-                    backgroundColor: "#3b82f6",
+                    backgroundColor: "#2563eb",
                     borderRadius: 6,
                     borderSkipped: false
                 },
                 {
                     label: "Purchase Orders",
                     data: rows.map(r => Number(r.po_count || 0)),
-                    backgroundColor: "#8b5cf6",
+                    backgroundColor: "#7c3aed",
                     borderRadius: 6,
                     borderSkipped: false
                 }
@@ -3705,22 +3931,32 @@ function renderPRPOTrend(rows) {
             plugins: {
                 legend: {
                     position: "top",
+                    align: "end",
                     labels: {
-                        boxWidth: 10,
+                        boxWidth: 7,
+                        boxHeight: 7,
                         usePointStyle: true,
-                        font: { size: 12, weight: "600" }
+                        font: { size: 11, weight: "600" },
+                        color: "#475569"
                     }
+                },
+                tooltip: {
+                    backgroundColor: "#0f172a",
+                    titleFont: { size: 12, weight: "700" },
+                    bodyFont: { size: 12, weight: "500" },
+                    padding: 10,
+                    cornerRadius: 8
                 }
             },
             scales: {
                 x: {
                     grid: { display: false },
-                    ticks: { font: { size: 11, weight: "600" } }
+                    ticks: { font: { size: 10.5, weight: "600" }, color: "#64748b" }
                 },
                 y: {
                     beginAtZero: true,
-                    ticks: { precision: 0, font: { size: 11 } },
-                    grid: { color: "rgba(128,128,128,0.12)" }
+                    ticks: { precision: 0, font: { size: 10.5 }, color: "#64748b" },
+                    grid: { color: "rgba(226, 232, 240, 0.6)" }
                 }
             }
         }
@@ -3731,20 +3967,40 @@ function renderPRPOTrend(rows) {
 // PO STATUS CHART
 // ---------------------------------------------------------
 
-function renderPOStatus(rows) {
+function renderPOStatus(rows, totalPOs) {
     const canvas = document.getElementById("poStatusChart");
-    if (!canvas) return;
+    if (!canvas || typeof Chart === "undefined") return;
 
     if (poStatusChart) poStatusChart.destroy();
 
     setChartEmpty(canvas, !rows.length);
 
+    const totPOs = Number(totalPOs) || rows.reduce((s, r) => s + Number(r.po_count || 0), 0);
+    setText("doughnutCenterNumber", formatCount(totPOs));
+
     const statusColors = {
-        "DRAFT": "#f59e0b",
-        "ISSUED": "#0284c7",
         "COMPLETED": "#10b981",
+        "ISSUED": "#0284c7",
+        "DRAFT": "#f59e0b",
         "CANCELLED": "#f43f5e"
     };
+
+    const statusCounts = {};
+    rows.forEach(r => {
+        const st = String(r.status || "").toUpperCase();
+        statusCounts[st] = Number(r.po_count || 0);
+    });
+
+    const getStatusStat = (st) => {
+        const count = statusCounts[st] || 0;
+        const pct = totPOs > 0 ? ((count / totPOs) * 100).toFixed(1) : "0.0";
+        return `${formatCount(count)} (${pct}%)`;
+    };
+
+    setText("legendCountCompleted", getStatusStat("COMPLETED"));
+    setText("legendCountIssued",    getStatusStat("ISSUED"));
+    setText("legendCountDraft",     getStatusStat("DRAFT"));
+    setText("legendCountCancelled", getStatusStat("CANCELLED"));
 
     const labels = rows.map(r => String(r.status || "").replace(/_/g, " ").toUpperCase());
     const colors = rows.map(r => statusColors[String(r.status || "").toUpperCase()] || "#64748b");
@@ -3756,23 +4012,24 @@ function renderPOStatus(rows) {
             datasets: [{
                 data: rows.map(r => Number(r.po_count || 0)),
                 backgroundColor: colors,
-                borderWidth: 3,
+                borderWidth: 2,
                 borderColor: "#ffffff"
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            cutout: "70%",
+            cutout: "74%",
             plugins: {
                 legend: {
-                    position: "bottom",
-                    labels: {
-                        boxWidth: 10,
-                        usePointStyle: true,
-                        padding: 16,
-                        font: { size: 12, weight: "600" }
-                    }
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: "#0f172a",
+                    titleFont: { size: 12, weight: "700" },
+                    bodyFont: { size: 12, weight: "500" },
+                    padding: 10,
+                    cornerRadius: 8
                 }
             }
         }
@@ -3801,7 +4058,7 @@ function renderTopPerformers(top) {
         setText(metaId, item ? metaText : "No orders in this period");
     };
 
-    const meta = item => `${formatCount(item.po_count)} PO${item.po_count === 1 ? "" : "s"} · ${formatRupee(item.procurement_value)}`;
+    const meta = item => `${formatCount(item.po_count)} PO${item.po_count === 1 ? "" : "s"} · ${formatRupeeLakh(item.procurement_value)}`;
 
     fill("insightTopMake", "insightTopMakeMeta", top.make,
         top.make?.name, top.make && meta(top.make));
@@ -3815,26 +4072,6 @@ function renderTopPerformers(top) {
         top.vendor && meta(top.vendor));
 }
 
-function renderPaymentInsights(rows) {
-    const getBadgeClass = (type) => {
-        const t = String(type || "").toUpperCase();
-        if (t.includes("CREDIT")) return "payment-badge-credit";
-        if (t.includes("ADVANCE")) return "payment-badge-advance";
-        return "payment-badge-custom";
-    };
-
-    renderInsightRows("insightPaymentBody", rows, 3, "No payment data available", row => `
-        <tr>
-            <td>
-                <span class="payment-pill ${getBadgeClass(row.payment_type)}">
-                    ${escapeHtml(row.payment_type || "Standard")}
-                </span>
-            </td>
-            <td style="font-weight: 700; color: #0f172a;">${formatCount(row.po_count)}</td>
-            <td style="font-weight: 700; color: #0f172a;">${formatRupee(row.procurement_value || 0)}</td>
-        </tr>
-    `);
-}
 
 // ─── Reports & Audits ──────────────────────────────────────────────────────
 

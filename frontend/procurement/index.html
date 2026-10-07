@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Procurement</title>
+    <script src="/shared/js/auth-guard.js" data-allowed-roles="PROCUREMENT,PROCUREMENT_MANAGER,ADMIN"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -658,6 +659,23 @@
                 <h1>Purchase Orders</h1>
 
                 <section class="entry-section">
+                    <div class="ot-filter-bar">
+                        <div class="ot-filter-pills" id="poStatusPills">
+                            <button type="button" class="ot-pill active" data-status="ALL">All</button>
+                            <button type="button" class="ot-pill" data-status="DRAFT">
+                                <span class="ot-pill-dot dot-draft"></span>Draft
+                            </button>
+                            <button type="button" class="ot-pill" data-status="ISSUED">
+                                <span class="ot-pill-dot dot-issued"></span>Issued
+                            </button>
+                            <button type="button" class="ot-pill" data-status="COMPLETED">
+                                <span class="ot-pill-dot dot-completed"></span>Completed
+                            </button>
+                            <button type="button" class="ot-pill" data-status="CANCELLED">
+                                <span class="ot-pill-dot dot-cancelled"></span>Cancelled
+                            </button>
+                        </div>
+                    </div>
                     <div id="purchaseOrdersList" class="inquiry-list">
                         Loading...
                     </div>

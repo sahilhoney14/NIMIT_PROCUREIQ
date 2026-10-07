@@ -9,9 +9,44 @@ document.addEventListener("DOMContentLoaded", () => {
     const rememberMeCheckbox = document.getElementById("rememberMe");
     const message = document.getElementById("message");
 
+    if (!loginForm) return;
+
     const forgotPasswordBtn = document.getElementById("forgotPasswordBtn");
     const forgotModal = document.getElementById("forgotModal");
     const closeModalBtn = document.getElementById("closeModalBtn");
+
+    // Handle reason banner from route guard
+    const urlParams = new URLSearchParams(window.location.search);
+    const reason = urlParams.get("reason");
+    if (reason === "session_expired") {
+        showMessage("Your session has expired. Please sign in again.", "info");
+    } else if (reason === "unauthenticated") {
+        showMessage("Please sign in to access the protected dashboard.", "info");
+    }
+
+    // Check if user is already authenticated and redirect
+    const existingToken = localStorage.getItem("auth_token");
+    if (existingToken) {
+        fetch("/verify", {
+            headers: { "Authorization": `Bearer ${existingToken}` },
+            credentials: "include"
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.authenticated) {
+                const target = data.role === "ADMIN" ? "/admin" :
+                              (data.role === "PROCUREMENT_MANAGER" ? "/procurement-manager" : "/procurement");
+                window.location.replace(target);
+            } else {
+                localStorage.removeItem("auth_token");
+                localStorage.removeItem("auth_user");
+            }
+        })
+        .catch(() => {
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("auth_user");
+        });
+    }
 
     // Load saved username if Remember Me was previously selected
     const savedUsername = localStorage.getItem("procureiq_remembered_username");
