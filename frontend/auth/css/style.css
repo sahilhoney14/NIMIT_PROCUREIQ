@@ -98,8 +98,8 @@ body {
 }
 
 .form-group input:focus {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    border-color: #0B57A4;
+    box-shadow: 0 0 0 3px rgba(11, 87, 164, 0.15);
 }
 
 .form-group input::placeholder {
@@ -112,7 +112,7 @@ body {
     margin-top: 4px;
     border: none;
     border-radius: 7px;
-    background: #2563eb;
+    background: #0B57A4;
     color: #ffffff;
     font-size: 15px;
     font-weight: 600;
@@ -121,15 +121,16 @@ body {
 }
 
 #loginButton:hover {
-    background: #1d4ed8;
+    background: #084482;
 }
 
 #loginButton:active {
+    background: #063768;
     transform: scale(0.99);
 }
 
 #loginButton:disabled {
-    background: #93c5fd;
+    background: #94a3b8;
     cursor: not-allowed;
 }
 

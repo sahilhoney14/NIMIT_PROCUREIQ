@@ -6,6 +6,7 @@ const { validateLogin } = require("./auth.validation");
 router.get("/login", authController.renderLogin);
 router.post("/login", validateLogin, authController.login);
 router.get("/verify", authController.verify);
+router.post("/refresh", authController.refresh);
 router.get("/logout", authController.logout);
 router.post("/logout", authController.logout);
 

@@ -24,27 +24,33 @@ const manualForm          = document.getElementById("manualForm");
 const qtyInput            = document.getElementById("qty");
 const salesRateInput      = document.getElementById("sales_rate");
 const taxableValueInput   = document.getElementById("taxable_value");
-const excelFile           = document.getElementById("excelFile");
-const excelFileName       = document.getElementById("excelFileName");
-const importButton        = document.getElementById("importButton");
-const excelPreview        = document.getElementById("excelPreview");
-const previewBody         = document.getElementById("previewBody");
-const saveImportedButton  = document.getElementById("saveImportedButton");
-const message             = document.getElementById("message");
+const excelFile               = document.getElementById("excelFile");
+const excelFileName           = document.getElementById("excelFileName");
+const clearExcelFileBtn       = document.getElementById("clearExcelFileBtn");
+const importButton            = document.getElementById("importButton");
+const excelPreview            = document.getElementById("excelPreview");
+const closePrPreviewBtn       = document.getElementById("closePrPreviewBtn");
+const previewBody             = document.getElementById("previewBody");
+const saveImportedButton      = document.getElementById("saveImportedButton");
+const cancelImportedButton    = document.getElementById("cancelImportedButton");
+const message                 = document.getElementById("message");
 
 // Vendor Masters
-const vendorManualButton    = document.getElementById("vendorManualButton");
-const vendorExcelButton     = document.getElementById("vendorExcelButton");
-const vendorManualSection   = document.getElementById("vendorManualSection");
-const vendorExcelSection    = document.getElementById("vendorExcelSection");
-const vendorManualForm      = document.getElementById("vendorManualForm");
-const vendorExcelFile       = document.getElementById("vendorExcelFile");
-const vendorExcelFileName   = document.getElementById("vendorExcelFileName");
-const vendorImportButton    = document.getElementById("vendorImportButton");
-const vendorExcelPreview    = document.getElementById("vendorExcelPreview");
-const vendorPreviewForm     = document.getElementById("vendorPreviewForm");
-const saveVendorExcelButton = document.getElementById("saveVendorExcelButton");
-const vendorMessage         = document.getElementById("vendorMessage");
+const vendorManualButton        = document.getElementById("vendorManualButton");
+const vendorExcelButton         = document.getElementById("vendorExcelButton");
+const vendorManualSection       = document.getElementById("vendorManualSection");
+const vendorExcelSection        = document.getElementById("vendorExcelSection");
+const vendorManualForm          = document.getElementById("vendorManualForm");
+const vendorExcelFile           = document.getElementById("vendorExcelFile");
+const vendorExcelFileName       = document.getElementById("vendorExcelFileName");
+const clearVendorExcelFileBtn   = document.getElementById("clearVendorExcelFileBtn");
+const vendorImportButton        = document.getElementById("vendorImportButton");
+const vendorExcelPreview        = document.getElementById("vendorExcelPreview");
+const closeVendorPreviewBtn     = document.getElementById("closeVendorPreviewBtn");
+const vendorPreviewForm         = document.getElementById("vendorPreviewForm");
+const saveVendorExcelButton     = document.getElementById("saveVendorExcelButton");
+const cancelVendorExcelButton   = document.getElementById("cancelVendorExcelButton");
+const vendorMessage             = document.getElementById("vendorMessage");
 
 // Vendor Inquiries
 const vendorInquiriesPage = document.getElementById("vendorInquiriesPage");
@@ -171,27 +177,106 @@ function currentUser() {
 
 // apiFetch: used by the Proforma Invoice calls. Only defined here if another
 // script has not already provided it. On a 401 it redirects to the login page.
-if (typeof window.apiFetch !== "function") {
-    window.apiFetch = async function (url, options = {}) {
-        const token = localStorage.getItem("auth_token");
-        const headers = { ...options.headers };
-        if (token && !headers["Authorization"]) {
-            headers["Authorization"] = `Bearer ${token}`;
-        }
+// apiFetch: used by all dashboard calls. Automatically refreshes access tokens silently on 401.
+let adminRefreshPromise = null;
+
+async function silentRefreshTokenAdmin() {
+    if (!adminRefreshPromise) {
+        adminRefreshPromise = (async () => {
+            try {
+                const storedRefresh = localStorage.getItem("refresh_token");
+                const res = await fetch("/refresh", {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    },
+                    body: storedRefresh ? JSON.stringify({ refresh_token: storedRefresh }) : undefined
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.token) {
+                        localStorage.setItem("auth_token", data.token);
+                        if (data.refreshToken) {
+                            localStorage.setItem("refresh_token", data.refreshToken);
+                        }
+                        return data.token;
+                    }
+                }
+                return null;
+            } catch {
+                return null;
+            } finally {
+                adminRefreshPromise = null;
+            }
+        })();
+    }
+    return adminRefreshPromise;
+}
+
+async function apiFetch(url, options = {}) {
+    const token = localStorage.getItem("auth_token");
+    const headers = {
+        "Accept": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        ...options.headers
+    };
+    if (token && !headers["Authorization"]) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    try {
         const response = await fetch(url, { credentials: "include", ...options, headers });
-        if (response.status === 401) {
+        const contentType = response.headers.get("content-type") || "";
+
+        // If server redirected to HTML login page (unauthenticated)
+        if (response.redirected || (response.status === 200 && contentType.includes("text/html"))) {
+            if (!options._retry) {
+                const refreshedToken = await silentRefreshTokenAdmin();
+                if (refreshedToken) {
+                    headers["Authorization"] = `Bearer ${refreshedToken}`;
+                    return apiFetch(url, { ...options, headers, _retry: true });
+                }
+            }
             localStorage.removeItem("auth_token");
+            localStorage.removeItem("refresh_token");
             localStorage.removeItem("auth_user");
             window.location.href = "/?reason=session_expired";
             return null;
         }
-        if (response.status === 403) {
-            const errJson = await response.clone().json().catch(() => null);
-            alert(errJson?.message || "Forbidden: You do not have permission to perform this action.");
+
+        // On 401 Unauthorized, silently refresh and retry
+        if (response.status === 401 && !options._retry) {
+            const refreshedToken = await silentRefreshTokenAdmin();
+            if (refreshedToken) {
+                headers["Authorization"] = `Bearer ${refreshedToken}`;
+                return apiFetch(url, { ...options, headers, _retry: true });
+            }
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("auth_user");
+            window.location.href = "/?reason=session_expired";
+            return null;
         }
+
+        if (response.status === 401 && options._retry) {
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("auth_user");
+            window.location.href = "/?reason=session_expired";
+            return null;
+        }
+
         return response;
-    };
+    } catch (networkErr) {
+        console.error(`[apiFetch] Network error for ${url}:`, networkErr);
+        throw networkErr;
+    }
 }
+
+window.apiFetch = apiFetch;
 
 function prefillOfficeUse() {
     const regDate = document.getElementById("registration_date");
@@ -570,12 +655,41 @@ manualForm?.addEventListener("submit", async event => {
     }
 });
 
-// ─── PR Excel: File Chosen ─────────────────────────────────────────────────────
+// ─── PR Excel: File Chosen & Clear ─────────────────────────────────────────────
+
+function clearPrExcel() {
+    importedRows = [];
+    previewBody.innerHTML = "";
+    excelPreview?.classList.add("hidden");
+    if (excelFile) excelFile.value = "";
+    if (excelFileName) excelFileName.textContent = "No file chosen";
+    clearExcelFileBtn?.classList.add("hidden");
+    showMessage("");
+}
 
 excelFile?.addEventListener("change", () => {
-    excelFileName.textContent = excelFile.files.length
-        ? excelFile.files[0].name
-        : "No file chosen";
+    if (excelFile.files.length) {
+        excelFileName.textContent = excelFile.files[0].name;
+        clearExcelFileBtn?.classList.remove("hidden");
+    } else {
+        excelFileName.textContent = "No file chosen";
+        clearExcelFileBtn?.classList.add("hidden");
+    }
+});
+
+clearExcelFileBtn?.addEventListener("click", () => {
+    clearPrExcel();
+    showMessage("File selection cleared.");
+});
+
+closePrPreviewBtn?.addEventListener("click", () => {
+    clearPrExcel();
+    showMessage("Import discarded.");
+});
+
+cancelImportedButton?.addEventListener("click", () => {
+    clearPrExcel();
+    showMessage("Import discarded.");
 });
 
 // ─── PR Excel: Import Preview ──────────────────────────────────────────────────
@@ -654,6 +768,7 @@ function renderPreview() {
             </td>
             <td><input type="number" data-index="${index}" data-field="sales_rate" value="${row.sales_rate ?? 0}" min="0.01" step="0.01"></td>
             <td><input class="taxable-input" type="number" value="${calculateRowTaxableValue(row)}" readonly></td>
+            <td style="text-align: center;"><button type="button" class="row-delete-btn" data-delete-index="${index}" title="Remove this row">✕</button></td>
         `;
 
         previewBody.appendChild(tr);
@@ -664,6 +779,19 @@ function renderPreview() {
     previewBody.querySelectorAll("[data-field]").forEach(input => {
         input.addEventListener("change", updateImportedRow);
         input.addEventListener("input", updateImportedRow);
+    });
+
+    previewBody.querySelectorAll("[data-delete-index]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const idx = Number(e.currentTarget.dataset.deleteIndex);
+            importedRows.splice(idx, 1);
+            if (importedRows.length === 0) {
+                clearPrExcel();
+            } else {
+                renderPreview();
+                showMessage(`${importedRows.length} row(s) remaining.`);
+            }
+        });
     });
 }
 
@@ -768,12 +896,7 @@ saveImportedButton?.addEventListener("click", async () => {
             alert(`${count} purchase request(s) saved successfully.`);
         }
 
-        showMessage("");
-        importedRows = [];
-        previewBody.innerHTML = "";
-        excelPreview.classList.add("hidden");
-        excelFile.value = "";
-        excelFileName.textContent = "No file chosen";
+        clearPrExcel();
 
     } catch {
         showMessage("Failed to connect to procurement service");
@@ -855,12 +978,47 @@ document.getElementById("gst_number")?.addEventListener("blur", async event => {
     await checkVendorGST(event.target.value);
 });
 
-// ─── Vendor Masters: Excel File Chosen ────────────────────────────────────────
+// ─── Vendor Masters: Excel File Chosen & Clear ────────────────────────────────
+
+function clearVendorExcel() {
+    vendorExcelPreview?.classList.add("hidden");
+    if (vendorPreviewForm) vendorPreviewForm.innerHTML = "";
+    if (vendorExcelFile) vendorExcelFile.value = "";
+    if (vendorExcelFileName) vendorExcelFileName.textContent = "No file chosen";
+    clearVendorExcelFileBtn?.classList.add("hidden");
+    [
+        "excel_gst_document", "excel_pan_document", "excel_msme_document",
+        "excel_itr_last_year_document", "excel_itr_second_last_year_document", "excel_itr_third_last_year_document"
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+    });
+    showVendorMessage("");
+}
 
 vendorExcelFile?.addEventListener("change", () => {
-    vendorExcelFileName.textContent = vendorExcelFile.files.length
-        ? vendorExcelFile.files[0].name
-        : "No file chosen";
+    if (vendorExcelFile.files.length) {
+        vendorExcelFileName.textContent = vendorExcelFile.files[0].name;
+        clearVendorExcelFileBtn?.classList.remove("hidden");
+    } else {
+        vendorExcelFileName.textContent = "No file chosen";
+        clearVendorExcelFileBtn?.classList.add("hidden");
+    }
+});
+
+clearVendorExcelFileBtn?.addEventListener("click", () => {
+    clearVendorExcel();
+    showVendorMessage("Vendor file selection cleared.");
+});
+
+closeVendorPreviewBtn?.addEventListener("click", () => {
+    clearVendorExcel();
+    showVendorMessage("Vendor import discarded.");
+});
+
+cancelVendorExcelButton?.addEventListener("click", () => {
+    clearVendorExcel();
+    showVendorMessage("Vendor import discarded.");
 });
 
 // ─── Vendor Masters: required-field validation (matches NOT NULL columns) ─────
@@ -1323,19 +1481,7 @@ saveVendorExcelButton?.addEventListener("click", async () => {
         }
 
         alert(`Vendor "${vendorName}" added successfully!\nVendor Code: ${result.vendor_code}`);
-        showVendorMessage("");
-
-        vendorExcelPreview.classList.add("hidden");
-        vendorPreviewForm.innerHTML = "";
-        vendorExcelFile.value = "";
-        vendorExcelFileName.textContent = "No file chosen";
-
-        ["excel_gst_document", "excel_pan_document", "excel_msme_document",
-         "excel_itr_last_year_document", "excel_itr_second_last_year_document", "excel_itr_third_last_year_document"
-        ].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.value = "";
-        });
+        clearVendorExcel();
 
     } catch {
         showVendorMessage("Failed to connect to procurement service");
@@ -2062,10 +2208,12 @@ function renderInquiryVendorTable(container, vendors) {
 
 // ─── Logout (shared: admin + manager) ─────────────────────────────────────────
 
-logoutButton?.addEventListener("click", async () => {
+async function performLogout() {
     try {
-        logoutButton.disabled = true;
+        if (logoutButton) logoutButton.disabled = true;
+        if (dropdownLogoutBtn) dropdownLogoutBtn.disabled = true;
         localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
         localStorage.removeItem("auth_user");
 
         const response = await apiFetch("/logout", { method: "POST" });
@@ -2086,9 +2234,28 @@ logoutButton?.addEventListener("click", async () => {
         showUsersMessage("Failed to logout");
         showMessage("Failed to logout");
     } finally {
-        logoutButton.disabled = false;
+        if (logoutButton) logoutButton.disabled = false;
+        if (dropdownLogoutBtn) dropdownLogoutBtn.disabled = false;
     }
+}
+
+logoutButton?.addEventListener("click", performLogout);
+
+// ─── Profile dropdown menu ───────────────────────────────────────────────────
+const userProfileMenu = document.getElementById("userProfileMenu");
+const userDropdown    = document.getElementById("userDropdown");
+const dropdownLogoutBtn = document.getElementById("dropdownLogoutBtn");
+
+userProfileMenu?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    userDropdown?.classList.toggle("hidden");
 });
+
+document.addEventListener("click", () => {
+    userDropdown?.classList.add("hidden");
+});
+
+dropdownLogoutBtn?.addEventListener("click", performLogout);
 
 // ─── Quotation & Comparisons ───────────────────────────────────────────────────
 
@@ -2623,6 +2790,252 @@ function statusClass(status) {
     return `status-${(status || "none").toLowerCase()}`;
 }
 
+function renderOrderTrackingStepper(row) {
+    const isPrCancelled = (row.vi_status === "CANCELLED" || row.status === "CANCELLED") && (!row.po_number && row.po_status !== "CANCELLED");
+    const isOrderCancelled = row.po_status === "CANCELLED" || (row.status === "CANCELLED" && Boolean(row.po_number));
+
+    const poNumber = row.po_number || null;
+    const poStatus = (row.po_status || "").toUpperCase();
+    const viStatus = (row.vi_status || "").toUpperCase();
+    const totalReceived = Number(row.total_received) || 0;
+    const qty = Number(row.qty) || 0;
+    const isCompleted = poStatus === "COMPLETED";
+    const isReceived = totalReceived > 0 || isCompleted;
+    const isIssued = poStatus === "ISSUED" || poStatus === "COMPLETED" || totalReceived > 0;
+    const isDraft = Boolean(poNumber) || isIssued;
+    const isVendorSelected = viStatus === "VENDOR_SELECTED" || viStatus === "CLOSED" || isDraft;
+
+    let steps = [];
+    let badgeText = "";
+    let badgeClass = "";
+    let alertBannerHtml = "";
+    let isCancelled = false;
+
+    const prDateDisplay = formatDate(row.pr_date || row.created_at);
+
+    if (isPrCancelled) {
+        isCancelled = true;
+        badgeText = "PR Cancelled";
+        badgeClass = "badge-cancelled";
+        const cancelDate = row.vi_updated_at ? formatDate(row.vi_updated_at) : prDateDisplay;
+        alertBannerHtml = `
+            <div class="tracker-alert-banner cancelled">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+                <span>Purchase Request was cancelled${cancelDate && cancelDate !== "-" ? ` on ${cancelDate}` : ""}.</span>
+            </div>
+        `;
+        steps = [
+            {
+                title: "Open",
+                state: "completed",
+                date: prDateDisplay,
+                subtext: "PR Raised"
+            },
+            {
+                title: "PR Cancelled",
+                state: "cancelled",
+                date: row.vi_updated_at ? formatDate(row.vi_updated_at) : "",
+                subtext: "Request Cancelled"
+            }
+        ];
+    } else if (isOrderCancelled) {
+        isCancelled = true;
+        badgeText = "Order Cancelled";
+        badgeClass = "badge-cancelled";
+        const cancelDate = row.po_updated_at ? formatDate(row.po_updated_at) : "";
+        alertBannerHtml = `
+            <div class="tracker-alert-banner cancelled">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                </svg>
+                <span>Purchase Order ${escapeHtml(row.po_number || "")} was cancelled${cancelDate && cancelDate !== "-" ? ` on ${cancelDate}` : ""}.</span>
+            </div>
+        `;
+        steps = [
+            {
+                title: "Open",
+                state: "completed",
+                date: prDateDisplay,
+                subtext: "PR Raised"
+            },
+            {
+                title: "Vendor Selected",
+                state: "completed",
+                date: formatDate(row.vi_updated_at || row.po_created_at),
+                subtext: row.vendor_name ? escapeHtml(row.vendor_name) : "Vendor Selected"
+            },
+            {
+                title: "Draft",
+                state: "completed",
+                date: formatDate(row.po_created_at || row.po_date),
+                subtext: row.po_number ? escapeHtml(row.po_number) : "PO Draft Created"
+            },
+            {
+                title: "Order Cancelled",
+                state: "cancelled",
+                date: cancelDate,
+                subtext: "PO Cancelled"
+            }
+        ];
+    } else {
+        // Normal 6-stage flow: Open -> Vendor Selected -> Draft -> Issued -> Received -> Completed
+        let currentStageIndex = 0;
+        if (isCompleted) {
+            currentStageIndex = 5;
+            badgeText = "Order Completed";
+            badgeClass = "badge-completed";
+        } else if (isReceived) {
+            currentStageIndex = 4;
+            badgeText = `Received (${totalReceived} / ${qty} ${row.unit || "units"})`;
+            badgeClass = "badge-received";
+        } else if (isIssued) {
+            currentStageIndex = 3;
+            badgeText = "PO Issued";
+            badgeClass = "badge-issued";
+        } else if (isDraft) {
+            currentStageIndex = 2;
+            badgeText = "PO Draft";
+            badgeClass = "badge-draft";
+        } else if (isVendorSelected) {
+            currentStageIndex = 1;
+            badgeText = "Vendor Selected";
+            badgeClass = "badge-vendor-selected";
+        } else {
+            currentStageIndex = 0;
+            badgeText = "Open";
+            badgeClass = "badge-open";
+        }
+
+        steps = [
+            {
+                title: "Open",
+                state: "completed",
+                date: prDateDisplay,
+                subtext: "PR Raised"
+            },
+            {
+                title: "Vendor Selected",
+                state: currentStageIndex >= 1 ? "completed" : "pending",
+                date: currentStageIndex >= 1 ? formatDate(row.vi_updated_at || row.po_created_at) : "",
+                subtext: row.vendor_name ? escapeHtml(row.vendor_name) : (currentStageIndex >= 1 ? "Vendor Selected" : "Awaiting Vendor")
+            },
+            {
+                title: "Draft",
+                state: currentStageIndex >= 2 ? "completed" : "pending",
+                date: currentStageIndex >= 2 ? formatDate(row.po_created_at || row.po_date) : "",
+                subtext: row.po_number ? escapeHtml(row.po_number) : (currentStageIndex >= 2 ? "PO Drafted" : "Pending Draft")
+            },
+            {
+                title: "Issued",
+                state: currentStageIndex >= 3 ? "completed" : "pending",
+                date: currentStageIndex >= 3 ? formatDate(row.po_updated_at || row.po_date) : "",
+                subtext: currentStageIndex >= 3 ? "PO Issued" : "Awaiting Issue"
+            },
+            {
+                title: "Received",
+                state: currentStageIndex >= 4 ? "completed" : "pending",
+                date: row.last_received_date ? formatDate(row.last_received_date) : "",
+                subtext: totalReceived > 0 ? `${totalReceived} / ${qty} ${row.unit || "units"}` : "Goods Inward"
+            },
+            {
+                title: "Completed",
+                state: currentStageIndex >= 5 ? "completed" : "pending",
+                date: isCompleted ? formatDate(row.po_updated_at || row.last_received_date) : "",
+                subtext: isCompleted ? "Fulfilled & Closed" : (totalReceived >= qty && qty > 0 ? "Ready to Complete" : "Awaiting Completion")
+            }
+        ];
+    }
+
+    const checkSvg = `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>`;
+    const crossSvg = `<svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>`;
+
+    let activeIndex = 0;
+    for (let i = 0; i < steps.length; i++) {
+        if (steps[i].state === "completed" || steps[i].state === "cancelled") {
+            activeIndex = i;
+        }
+    }
+
+    const stepsHtml = steps.map((step, idx) => {
+        const isLast = idx === steps.length - 1;
+        const isActive = idx === activeIndex && !isCancelled;
+
+        let lineBeforeClass = "line-pending";
+        if (step.state === "cancelled") {
+            lineBeforeClass = "line-cancelled";
+        } else if (step.state === "completed") {
+            lineBeforeClass = "line-completed";
+        }
+
+        let lineAfterClass = "line-pending";
+        if (!isLast) {
+            const nextStep = steps[idx + 1];
+            if (nextStep.state === "cancelled") {
+                lineAfterClass = "line-cancelled";
+            } else if (nextStep.state === "completed") {
+                lineAfterClass = "line-completed";
+            }
+        }
+
+        let circleContent = "";
+        let circleClass = "circle-pending";
+        if (step.state === "completed") {
+            circleClass = "circle-completed";
+            circleContent = checkSvg;
+        } else if (step.state === "cancelled") {
+            circleClass = "circle-cancelled";
+            circleContent = crossSvg;
+        }
+
+        const dateHtml = (step.date && step.date !== "-") ? `<span class="step-date">${step.date}</span>` : "";
+        const subtextHtml = step.subtext ? `<span class="step-subtext">${step.subtext}</span>` : "";
+
+        let stepClasses = `stepper-step ${step.state}`;
+        if (isActive) stepClasses += " active";
+
+        return `
+            <div class="${stepClasses}">
+                <div class="stepper-node-row">
+                    <div class="stepper-line line-before ${lineBeforeClass}"></div>
+                    <div class="step-circle ${circleClass}">
+                        ${circleContent}
+                    </div>
+                    <div class="stepper-line line-after ${lineAfterClass}"></div>
+                </div>
+                <div class="step-text-wrap">
+                    <span class="step-title">${escapeHtml(step.title)}</span>
+                    ${dateHtml}
+                    ${subtextHtml}
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    return `
+        <div class="order-tracker-card">
+            <div class="order-tracker-header">
+                <div class="order-tracker-title-wrap">
+                    <span class="order-tracker-icon ${isCancelled ? 'cancelled' : ''}">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                    </span>
+                    <h4 class="order-tracker-heading">Order Progress Tracker</h4>
+                </div>
+                <span class="order-tracker-badge ${badgeClass}">${escapeHtml(badgeText)}</span>
+            </div>
+            ${alertBannerHtml}
+            <div class="order-stepper-wrapper">
+                <div class="order-stepper-track">
+                    ${stepsHtml}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderOrderTracking(rows) {
     orderTrackingList.innerHTML = "";
 
@@ -2686,6 +3099,7 @@ function renderOrderTracking(rows) {
                 <div class="inquiry-card-info">
                     ${prInfoItems(row, poNumberItem)}
                 </div>
+                ${renderOrderTrackingStepper(row)}
             </div>
         `;
 

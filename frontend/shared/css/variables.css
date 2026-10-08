@@ -1,6 +1,6 @@
 :root {
-    --primary-color: #0b57d0;
-    --primary-hover: #0842a0;
+    --primary-color: #0B57A4;
+    --primary-hover: #084482;
     --primary-light: #e8f0fe;
     --bg-main: #f8fafc;
     --bg-card: #ffffff;
@@ -8,7 +8,7 @@
     --text-secondary: #64748b;
     --text-muted: #94a3b8;
     --border-color: #e2e8f0;
-    --border-focus: #3b82f6;
+    --border-focus: #0B57A4;
     --success-color: #10b981;
     --success-bg: #ecfdf5;
     --warning-color: #f59e0b;

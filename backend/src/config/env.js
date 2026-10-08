@@ -10,5 +10,8 @@ module.exports = {
     SESSION_SECRET: process.env.SESSION_SECRET || "procureiq_secure_session_secret_key_2026",
     JWT_SECRET: process.env.JWT_SECRET || "procureiq_jwt_super_secure_secret_token_2026",
     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "8h",
+    JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
+    JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "procureiq_refresh_jwt_super_secure_key_2026",
+    JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
     NODE_ENV: process.env.NODE_ENV || "development"
 };

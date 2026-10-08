@@ -13,7 +13,8 @@ const { readSheet } = require("read-excel-file/node");
 const PDFDocument = require("pdfkit");
 const ExcelJS = require("exceljs");
 const env = require("./config/env");
-const { generateToken, verifyToken, extractToken, resolveAuthUser } = require("./services/jwt.service");
+const authController = require("./modules/auth/auth.controller");
+const { generateAccessToken, generateRefreshToken, generateToken, verifyToken, verifyRefreshToken, extractToken, resolveAuthUser } = require("./services/jwt.service");
 
 const app = express();
 const PORT = env.PORT || 3000;
@@ -96,16 +97,22 @@ app.use("/api", apiRouter);
    AUTHENTICATION (JWT & Session verification middleware)
    ========================================================================== */
 
+function isDashboardPageRequest(req) {
+    const p = (req.path || "").replace(/\/+$/, "") || "/";
+    const acceptsHtml = req.headers.accept?.includes("text/html");
+    return acceptsHtml && (p === "/admin" || p === "/procurement-manager" || p === "/procurement");
+}
+
 function verifyAdmin(req, res, next) {
     const authUser = resolveAuthUser(req);
     if (!authUser) {
-        if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
+        if (!isDashboardPageRequest(req)) {
             return res.status(401).json({ success: false, message: "Unauthenticated" });
         }
         return res.redirect("/");
     }
     if (authUser.role !== "ADMIN") {
-        if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
+        if (!isDashboardPageRequest(req)) {
             return res.status(403).json({ success: false, message: "Forbidden: ADMIN access required" });
         }
         if (authUser.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
@@ -119,13 +126,13 @@ function verifyAdmin(req, res, next) {
 function verifyManager(req, res, next) {
     const authUser = resolveAuthUser(req);
     if (!authUser) {
-        if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
+        if (!isDashboardPageRequest(req)) {
             return res.status(401).json({ success: false, message: "Unauthenticated" });
         }
         return res.redirect("/");
     }
     if (!["ADMIN", "PROCUREMENT_MANAGER"].includes(authUser.role)) {
-        if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
+        if (!isDashboardPageRequest(req)) {
             return res.status(403).json({ success: false, message: "Forbidden: Manager access required" });
         }
         if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
@@ -138,13 +145,13 @@ function verifyManager(req, res, next) {
 function verifyProcurement(req, res, next) {
     const authUser = resolveAuthUser(req);
     if (!authUser) {
-        if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
+        if (!isDashboardPageRequest(req)) {
             return res.status(401).json({ success: false, message: "Unauthenticated" });
         }
         return res.redirect("/");
     }
     if (!["ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT"].includes(authUser.role)) {
-        if (req.xhr || req.headers.accept?.includes("json") || req.path.startsWith("/api/")) {
+        if (!isDashboardPageRequest(req)) {
             return res.status(403).json({ success: false, message: "Forbidden: Procurement access required" });
         }
         return res.redirect("/");
@@ -1046,10 +1053,11 @@ const num = (v) => Number(v || 0);
 
 // Static asset mounts (Public)
 app.use("/logo", express.static(path.resolve(__dirname, "../NIMIT LOGO.png")));
+app.use("/logo-white", express.static(path.resolve(__dirname, "../NIMIT LOGO WHITE.png")));
 app.use("/shared", express.static(path.resolve(__dirname, "../../frontend/shared")));
 app.use("/auth", express.static(path.resolve(__dirname, "../../frontend/auth"), { index: false }));
-app.use(express.static(path.resolve(__dirname, "../../frontend/auth")));
-app.use(express.static(path.resolve(__dirname, "../../frontend/auth-service")));
+app.use(express.static(path.resolve(__dirname, "../../frontend/auth"), { index: false }));
+app.use(express.static(path.resolve(__dirname, "../../frontend/auth-service"), { index: false }));
 
 // Protected storage & uploaded files (Procurement, Manager, Admin only)
 app.use("/backend/purchase-orders", verifyProcurement, express.static(poFolder));
@@ -1061,21 +1069,21 @@ app.use("/storage", verifyProcurement, express.static(path.resolve(__dirname, ".
 app.get(["/admin", "/admin/", "/admin/index.html"], verifyAdmin, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/admin/index.html");
     let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script></head>`);
+    html = html.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
     return res.send(html);
 });
 
 app.get(["/procurement-manager", "/procurement-manager/", "/procurement-manager/index.html"], verifyManager, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/procurement-manager/index.html");
     let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script></head>`);
+    html = html.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
     return res.send(html);
 });
 
 app.get(["/procurement", "/procurement/", "/procurement/index.html"], verifyProcurement, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/procurement/index.html");
     let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("</head>", `<script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script></head>`);
+    html = html.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
     return res.send(html);
 });
 
@@ -1105,105 +1113,11 @@ app.get("/login", (req, res) => {
     return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
 });
 
-app.post("/login", async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        log(`POST /login - Attempt for user: ${username}`);
-
-        if (!username || !password) {
-            return res.status(400).json({ success: false, message: "Username and password required" });
-        }
-
-        const [rows] = await db.execute("SELECT * FROM users WHERE username = ? LIMIT 1", [username]);
-        if (!rows.length) {
-            log(`Login failed - user not found: ${username}`);
-            return res.status(401).json({ success: false, message: "Invalid username or password" });
-        }
-
-        const user = rows[0];
-        if (!user.is_active) {
-            log(`Login failed - account inactive: ${username}`);
-            await db.execute("INSERT INTO login_logs (user_id, login_status) VALUES (?, 'FAILED')", [user.user_id]);
-            return res.status(403).json({ success: false, message: "User account has no access" });
-        }
-
-        const match = await bcrypt.compare(password, user.password_hash);
-        if (!match) {
-            log(`Login failed - invalid password: ${username}`);
-            await db.execute("INSERT INTO login_logs (user_id, login_status) VALUES (?, 'FAILED')", [user.user_id]);
-            return res.status(401).json({ success: false, message: "Invalid username or password" });
-        }
-
-        await db.execute("INSERT INTO login_logs (user_id, login_status) VALUES (?, 'SUCCESS')", [user.user_id]);
-
-        const tokenPayload = {
-            user_id: user.user_id,
-            username: user.username,
-            role: user.role
-        };
-
-        const token = generateToken(tokenPayload);
-
-        // Set HttpOnly cookie for browser navigation & protection against XSS
-        res.cookie("jwt_token", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 8 * 60 * 60 * 1000 // 8 hours
-        });
-
-        // Set in session as fallback
-        if (req.session) {
-            req.session.user = tokenPayload;
-        }
-
-        const redirect_url = user.role === "ADMIN" ? "/admin" : (user.role === "PROCUREMENT_MANAGER" ? "/procurement-manager" : "/procurement");
-        log(`Login successful - ${username} (${user.role}) redirecting to ${redirect_url}`);
-
-        return res.json({
-            success: true,
-            token, // Returned for clients that store token and send Authorization: Bearer
-            role: user.role,
-            user: tokenPayload,
-            redirect_url
-        });
-    } catch (error) {
-        log(`Login error: ${error.message}`);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-});
-
-app.get("/verify", (req, res) => {
-    const user = resolveAuthUser(req);
-    if (!user) {
-        return res.status(401).json({ success: false, authenticated: false, message: "Unauthenticated" });
-    }
-    return res.json({
-        success: true,
-        authenticated: true,
-        user_id: user.user_id,
-        username: user.username,
-        role: user.role
-    });
-});
-
-app.post("/logout", (req, res) => {
-    const user = resolveAuthUser(req)?.username || req.session?.user?.username || "Unknown";
-    res.clearCookie("jwt_token");
-    res.clearCookie("auth_token");
-    res.clearCookie("login_session");
-
-    if (req.session) {
-        req.session.destroy(err => {
-            if (err) log(`Error destroying session: ${err.message}`);
-            log(`Logged out user: ${user}`);
-            return res.json({ success: true, redirect_url: "/" });
-        });
-    } else {
-        log(`Logged out user: ${user}`);
-        return res.json({ success: true, redirect_url: "/" });
-    }
-});
+app.post("/login", authController.login);
+app.post(["/refresh", "/api/auth/refresh"], authController.refresh);
+app.get("/verify", authController.verify);
+app.get("/logout", authController.logout);
+app.post("/logout", authController.logout);
 
 /* ==========================================================================
    TAB: USER MANAGEMENT
@@ -1266,7 +1180,7 @@ app.put("/users/:user_id/password",verifyAdmin,async(req,res)=>{
         );
         if(!userRows.length)return res.status(404).json({success:false,message:"User not found"});
         const passwordHash=await bcrypt.hash(password,10);
-        await db.execute(`UPDATE users SET password_hash=? WHERE user_id=?`,[passwordHash,userId]);
+        await db.execute(`UPDATE users SET password_hash=?, token_version = token_version + 1 WHERE user_id=?`,[passwordHash,userId]);
         await writeReportLog(req,"USER_PASSWORD_CHANGED",
             `Password changed for user ID ${userId}. Username: "${userRows[0].username}", Role: ${userRows[0].role}.`
         );
@@ -1295,7 +1209,7 @@ app.put("/users/:user_id/access",verifyAdmin,async(req,res)=>{
         );
         if(!userRows.length)return res.status(404).json({success:false,message:"User not found"});
         const user=userRows[0];
-        await db.execute(`UPDATE users SET is_active=? WHERE user_id=?`,[is_active,userId]);
+        await db.execute(`UPDATE users SET is_active=?, token_version = token_version + 1 WHERE user_id=?`,[is_active,userId]);
         const action=is_active?"USER_ACCESS_GRANTED":"USER_ACCESS_REVOKED";
         await writeReportLog(req,action,
             `User access changed. User ID: ${userId}, Username: "${user.username}", Role: ${user.role}, Previous active status: ${user.is_active}, New active status: ${is_active}.`
@@ -1682,8 +1596,17 @@ app.get("/order-tracking", verifyProcurement, async (req, res) => {
                     pr.taxable_value,
                     pr.product_remarks,
                     vi.inquiry_id,
+                    vi.status AS vi_status,
+                    vi.updated_at AS vi_updated_at,
+                    po.po_id,
                     po.po_number,
                     po.po_date,
+                    po.status AS po_status,
+                    po.vendor_name,
+                    po.created_at AS po_created_at,
+                    po.updated_at AS po_updated_at,
+                    GREATEST(0, COALESCE((SELECT SUM(gr.received_quantity) FROM goods_received gr WHERE gr.po_id = po.po_id), 0) - COALESCE((SELECT SUM(ret.return_quantity) FROM goods_returns ret WHERE ret.po_id = po.po_id), 0)) AS total_received,
+                    (SELECT MAX(gr.received_date) FROM goods_received gr WHERE gr.po_id = po.po_id) AS last_received_date,
                     CASE
                         WHEN po.status = 'COMPLETED' THEN 'CLOSED'
                         WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
@@ -1791,8 +1714,17 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
                     pr.taxable_value,
                     pr.product_remarks,
                     vi.inquiry_id,
+                    vi.status AS vi_status,
+                    vi.updated_at AS vi_updated_at,
+                    po.po_id,
                     po.po_number,
                     po.po_date,
+                    po.status AS po_status,
+                    po.vendor_name,
+                    po.created_at AS po_created_at,
+                    po.updated_at AS po_updated_at,
+                    GREATEST(0, COALESCE((SELECT SUM(gr.received_quantity) FROM goods_received gr WHERE gr.po_id = po.po_id), 0) - COALESCE((SELECT SUM(ret.return_quantity) FROM goods_returns ret WHERE ret.po_id = po.po_id), 0)) AS total_received,
+                    (SELECT MAX(gr.received_date) FROM goods_received gr WHERE gr.po_id = po.po_id) AS last_received_date,
                     CASE
                         WHEN po.status = 'COMPLETED' THEN 'CLOSED'
                         WHEN po.status = 'CANCELLED' THEN 'CANCELLED'

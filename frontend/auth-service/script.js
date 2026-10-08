@@ -24,12 +24,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Check if user is already authenticated and redirect
     const existingToken = localStorage.getItem("auth_token");
-    if (existingToken) {
+    const existingRefresh = localStorage.getItem("refresh_token");
+    if (existingToken || existingRefresh) {
         fetch("/verify", {
-            headers: { "Authorization": `Bearer ${existingToken}` },
+            headers: existingToken ? { "Authorization": `Bearer ${existingToken}` } : {},
             credentials: "include"
         })
-        .then(res => res.json())
+        .then(async res => {
+            if (res.ok) return res.json();
+            // If verify failed with 401, try refreshing
+            const refreshRes = await fetch("/refresh", {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: existingRefresh ? JSON.stringify({ refresh_token: existingRefresh }) : undefined
+            });
+            if (refreshRes.ok) {
+                const refreshed = await refreshRes.json();
+                if (refreshed.token) {
+                    localStorage.setItem("auth_token", refreshed.token);
+                    if (refreshed.refreshToken) localStorage.setItem("refresh_token", refreshed.refreshToken);
+                    return { authenticated: true, role: refreshed.user?.role };
+                }
+            }
+            return { authenticated: false };
+        })
         .then(data => {
             if (data && data.authenticated) {
                 const target = data.role === "ADMIN" ? "/admin" :
@@ -37,11 +56,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.location.replace(target);
             } else {
                 localStorage.removeItem("auth_token");
+                localStorage.removeItem("refresh_token");
                 localStorage.removeItem("auth_user");
             }
         })
         .catch(() => {
             localStorage.removeItem("auth_token");
+            localStorage.removeItem("refresh_token");
             localStorage.removeItem("auth_user");
         });
     }
@@ -169,6 +190,9 @@ document.addEventListener("DOMContentLoaded", () => {
             // Store token / session
             if (data.token) {
                 localStorage.setItem("auth_token", data.token);
+                if (data.refreshToken) {
+                    localStorage.setItem("refresh_token", data.refreshToken);
+                }
                 if (data.user) {
                     localStorage.setItem("auth_user", JSON.stringify(data.user));
                 }

@@ -24,11 +24,11 @@ async function create({ username, passwordHash, role }) {
 }
 
 async function updatePassword(userId, passwordHash) {
-    return db.execute("UPDATE users SET password_hash = ? WHERE user_id = ?", [passwordHash, userId]);
+    return db.execute("UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE user_id = ?", [passwordHash, userId]);
 }
 
 async function updateAccess(userId, isActive) {
-    return db.execute("UPDATE users SET is_active = ? WHERE user_id = ?", [isActive, userId]);
+    return db.execute("UPDATE users SET is_active = ?, token_version = token_version + 1 WHERE user_id = ?", [isActive, userId]);
 }
 
 module.exports = {

@@ -5,67 +5,194 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin – ProcureIQ</title>
     <script src="/shared/js/auth-guard.js" data-allowed-roles="ADMIN"></script>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/admin/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header class="topbar">
-        <div class="project-name">Procure<span>IQ</span></div>
-        <img src="/logo" alt="Company Logo" class="company-logo">
+        <div class="topbar-left">
+            <div class="project-name">Procure<span class="iq-highlight">IQ</span></div>
+        </div>
+        <div class="topbar-right">
+            <div class="user-profile-menu" id="userProfileMenu">
+                <span class="user-avatar">A</span>
+                <span class="user-role-name">Admin</span>
+                <svg class="chevron-down" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+                <div class="user-dropdown hidden" id="userDropdown">
+                    <div class="user-dropdown-header">
+                        <strong id="dropdownUsername">Admin</strong>
+                        <span id="dropdownRole">Administrator</span>
+                    </div>
+                    <div class="user-dropdown-divider"></div>
+                    <button type="button" class="user-dropdown-item" id="dropdownLogoutBtn">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
     </header>
 
     <div class="layout">
         <aside class="sidebar">
 
-            <!-- Admin-only section -->
+            <!-- Admin-only section: Users -->
             <div class="menu-section">
-                <button class="main-menu active" data-section="users">Users</button>
-                <div class="submenu open" id="users">
-                    <button class="submenu-item active" data-page="manage-access">Manage Access</button>
+                <button class="main-menu" data-section="users">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>Users</span>
+                </button>
+                <div class="submenu" id="users">
+                    <button class="submenu-item" data-page="manage-access">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <polyline points="17 11 19 13 23 9"></polyline>
+                        </svg>
+                        <span>Manage Access</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- Workspace (all enabled) -->
+            <!-- Workspace -->
             <div class="menu-section">
-                <button class="main-menu" data-section="workspace">Workspace</button>
-                <div class="submenu" id="workspace">
-                    <button class="submenu-item" data-page="purchase-requests">Purchase Requests</button>
-                    <button class="submenu-item" data-page="vendor-inquiries">Vendor Inquiries</button>
-                    <button class="submenu-item" data-page="quotation-comparisons">Quotation &amp; Comparisons</button>
-                    <button class="submenu-item" data-page="purchase-orders">Purchase Orders</button>
-                    <button class="submenu-item" data-page="order-tracking">Order Tracking</button>
-                    <button class="submenu-item" data-page="goods-received">Goods Received</button>
+                <button class="main-menu active" data-section="workspace">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    <span>Workspace</span>
+                </button>
+                <div class="submenu open" id="workspace">
+                    <button class="submenu-item" data-page="purchase-requests">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9 11 12 14 22 4"></polyline>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                        <span>Purchase Requests</span>
+                    </button>
+                    <button class="submenu-item" data-page="vendor-inquiries">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        <span>Vendor Inquiries</span>
+                    </button>
+                    <button class="submenu-item" data-page="quotation-comparisons">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                            <line x1="9" y1="21" x2="9" y2="9"></line>
+                        </svg>
+                        <span>Quotation &amp; Comparisons</span>
+                    </button>
+                    <button class="submenu-item" data-page="purchase-orders">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        <span>Purchase Orders</span>
+                    </button>
+                    <button class="submenu-item" data-page="order-tracking">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+                        </svg>
+                        <span>Order Tracking</span>
+                    </button>
+                    <button class="submenu-item" data-page="goods-received">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="1" y="3" width="15" height="13"></rect>
+                            <polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon>
+                            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                        </svg>
+                        <span>Goods Received</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- Vendors (all enabled) -->
+            <!-- Vendors -->
             <div class="menu-section">
-                <button class="main-menu" data-section="vendors">Vendors</button>
+                <button class="main-menu" data-section="vendors">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>Vendors</span>
+                </button>
                 <div class="submenu" id="vendors">
-                    <button class="submenu-item" data-page="vendor-masters">Vendor/OEM Masters</button>
-                    <button class="submenu-item" data-page="vendor-performance">Vendor Performance</button>
-                    <button class="submenu-item" data-page="edit-vendor">Edit Vendor</button>
+                    <button class="submenu-item" data-page="vendor-masters">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        <span>Vendor/OEM Masters</span>
+                    </button>
+                    <button class="submenu-item" data-page="vendor-performance">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                        <span>Vendor Performance</span>
+                    </button>
+                    <button class="submenu-item" data-page="edit-vendor">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        <span>Edit Vendor</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- Intelligence (all enabled) -->
+            <!-- Intelligence -->
             <div class="menu-section">
-                <button class="main-menu" data-section="intelligence">Intelligence</button>
+                <button class="main-menu" data-section="intelligence">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    <span>Intelligence</span>
+                </button>
                 <div class="submenu" id="intelligence">
-                    <button class="submenu-item" data-page="past-price-reference">Past Price Reference</button>
+                    <button class="submenu-item" data-page="past-price-reference">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+                        <span>Past Price Reference</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- Management (all enabled) -->
+            <!-- Management -->
             <div class="menu-section">
-                <button class="main-menu" data-section="management">Management</button>
+                <button class="main-menu" data-section="management">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    <span>Management</span>
+                </button>
                 <div class="submenu" id="management">
-                    <button class="submenu-item" data-page="management-insights">Management Insights</button>
-                    <button class="submenu-item" data-page="reports-audits">Reports &amp; Audits</button>
+                    <button class="submenu-item" data-page="management-insights">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                        <span>Management Insights</span>
+                    </button>
+                    <button class="submenu-item" data-page="reports-audits">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        <span>Reports &amp; Audits</span>
+                    </button>
                 </div>
             </div>
 
-            <button id="logoutButton" class="logout-button">Logout</button>
+            <div class="sidebar-footer-brand">
+                <span class="sidebar-developed-by">Developed by</span>
+                <img src="/logo" alt="NIMIT" class="sidebar-nimit-logo" onerror="this.onerror=null; this.src='nimit-brand-logo.png';">
+            </div>
         </aside>
 
         <main class="content">
@@ -175,12 +302,18 @@
                     <div class="excel-upload">
                         <label for="excelFile" class="file-label">Choose Excel File</label>
                         <input type="file" id="excelFile" accept=".xlsx,.xls">
-                        <span id="excelFileName" class="file-name">No file chosen</span>
+                        <div class="file-chosen-container">
+                            <span id="excelFileName" class="file-name">No file chosen</span>
+                            <button type="button" id="clearExcelFileBtn" class="clear-file-btn hidden" title="Remove selected file" aria-label="Remove selected file">✕</button>
+                        </div>
                         <button id="importButton" class="primary-button">Import Excel</button>
                     </div>
 
                     <div id="excelPreview" class="preview-container hidden">
-                        <h2>Imported Rows</h2>
+                        <div class="preview-header">
+                            <h2>Imported Rows</h2>
+                            <button type="button" id="closePrPreviewBtn" class="btn-cancel-import" title="Close and discard imported data">✕ Discard / Close</button>
+                        </div>
                         <div class="table-container">
                             <table>
                                 <thead>
@@ -189,12 +322,16 @@
                                         <th>Territory</th><th>Product Category</th><th>Item Name</th>
                                         <th>Product Remarks</th><th>Make</th><th>Model</th>
                                         <th>Qty</th><th>Unit</th><th>Sales Rate</th><th>Taxable Value</th>
+                                        <th style="text-align: center;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="previewBody"></tbody>
                             </table>
                         </div>
-                        <button id="saveImportedButton" class="primary-button">Save Purchase Requests</button>
+                        <div class="preview-actions">
+                            <button id="saveImportedButton" class="primary-button">Save Purchase Requests</button>
+                            <button type="button" id="cancelImportedButton" class="btn-cancel-import">Cancel / Discard</button>
+                        </div>
                     </div>
                 </section>
 
@@ -500,12 +637,18 @@
                     <div class="excel-upload">
                         <label for="vendorExcelFile" class="file-label">Choose Excel File</label>
                         <input type="file" id="vendorExcelFile" accept=".xlsx,.xls">
-                        <span id="vendorExcelFileName" class="file-name">No file chosen</span>
+                        <div class="file-chosen-container">
+                            <span id="vendorExcelFileName" class="file-name">No file chosen</span>
+                            <button type="button" id="clearVendorExcelFileBtn" class="clear-file-btn hidden" title="Remove selected file" aria-label="Remove selected file">✕</button>
+                        </div>
                         <button id="vendorImportButton" class="primary-button">Import Excel</button>
                     </div>
 
                     <div id="vendorExcelPreview" class="preview-container hidden">
-                        <h2>Vendor Preview</h2>
+                        <div class="preview-header">
+                            <h2>Vendor Preview</h2>
+                            <button type="button" id="closeVendorPreviewBtn" class="btn-cancel-import" title="Close and discard imported vendor">✕ Discard / Close</button>
+                        </div>
                         <div id="vendorPreviewForm" class="vendor-preview-sections"></div>
                         <div class="form-section">
                             <h3 class="form-section-title">Documents</h3>
@@ -518,7 +661,10 @@
                                 <div class="form-group"><label>Third Last Year ITR</label><input type="file" id="excel_itr_third_last_year_document"></div>
                             </div>
                         </div>
-                        <button id="saveVendorExcelButton" class="primary-button">Save Vendor</button>
+                        <div class="preview-actions">
+                            <button id="saveVendorExcelButton" class="primary-button">Save Vendor</button>
+                            <button type="button" id="cancelVendorExcelButton" class="btn-cancel-import">Cancel / Discard</button>
+                        </div>
                     </div>
                 </section>
 
@@ -1437,12 +1583,12 @@
                 </div>
                 <div style="display: flex; gap: 12px; justify-content: flex-end;">
                     <button id="cancelSelectVendorBtn" type="button" class="option-button" style="padding: 9px 18px;">Cancel</button>
-                    <button id="confirmSelectVendorBtn" type="button" class="primary-button" style="padding: 9px 20px; background: #2563eb; color: #fff;">Confirm Selection</button>
+                    <button id="confirmSelectVendorBtn" type="button" class="primary-button" style="padding: 9px 20px; background: #0B57A4; color: #fff;">Confirm Selection</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="/admin/script.js"></script>
 </body>
 </html>

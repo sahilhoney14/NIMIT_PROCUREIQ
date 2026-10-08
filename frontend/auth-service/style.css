@@ -1,22 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    --primary: #2563eb;
-    --primary-hover: #1d4ed8;
-    --primary-light: #dbeafe;
-    --primary-subtle: #eff6ff;
+    --primary: #0B57A4;
+    --primary-hover: #084482;
+    --primary-light: #e0ecf8;
+    --primary-subtle: #f0f6fc;
     --dark: #0f172a;
     --slate: #1e293b;
     --text-main: #0f172a;
     --text-muted: #64748b;
     --text-label: #334155;
     --border-color: #e2e8f0;
-    --border-focus: #2563eb;
+    --border-focus: #0B57A4;
     --bg-page: #f8fafc;
     --white: #ffffff;
     --shadow-card: 0 20px 45px -12px rgba(15, 23, 42, 0.08), 0 0 1px 1px rgba(226, 232, 240, 0.6);
-    --shadow-btn: 0 4px 14px rgba(37, 99, 235, 0.35);
-    --shadow-btn-hover: 0 6px 20px rgba(37, 99, 235, 0.45);
+    --shadow-btn: 0 4px 14px rgba(11, 87, 164, 0.35);
+    --shadow-btn-hover: 0 6px 20px rgba(11, 87, 164, 0.45);
 }
 
 * {
@@ -150,8 +150,8 @@ body {
 }
 
 .pill-icon.blue-icon {
-    background: #dbeafe;
-    color: #2563eb;
+    background: #e0ecf8;
+    color: #0B57A4;
 }
 
 .pill-icon.slate-icon {
@@ -295,7 +295,7 @@ body {
 
 .input-wrapper input:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3.5px rgba(37, 99, 235, 0.15);
+    box-shadow: 0 0 0 3.5px rgba(11, 87, 164, 0.18);
 }
 
 .input-wrapper:focus-within .input-icon {
@@ -382,7 +382,7 @@ body {
 .btn-login {
     width: 100%;
     height: 50px;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: #0B57A4;
     color: var(--white);
     border: none;
     border-radius: 10px;
@@ -399,14 +399,15 @@ body {
 }
 
 .btn-login:hover {
-    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    background: #084482;
     box-shadow: var(--shadow-btn-hover);
     transform: translateY(-1.5px);
 }
 
 .btn-login:active {
+    background: #063768;
     transform: translateY(0);
-    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+    box-shadow: 0 2px 6px rgba(11, 87, 164, 0.25);
 }
 
 .btn-login:disabled {
@@ -560,7 +561,7 @@ body {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: #dbeafe;
+    background: #e0ecf8;
     display: flex;
     align-items: center;
     justify-content: center;
