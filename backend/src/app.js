@@ -14,7 +14,7 @@ const PDFDocument = require("pdfkit");
 const ExcelJS = require("exceljs");
 const env = require("./config/env");
 const authController = require("./modules/auth/auth.controller");
-const { generateAccessToken, generateRefreshToken, generateToken, verifyToken, verifyRefreshToken, extractToken, resolveAuthUser } = require("./services/jwt.service");
+const { generateAccessToken, generateRefreshToken, generateToken, verifyToken, verifyRefreshToken, extractToken, resolveAuthUser, invalidateUserCache } = require("./services/jwt.service");
 
 const app = express();
 const PORT = env.PORT || 3000;
@@ -82,10 +82,10 @@ app.use(session({
     secret: env.SESSION_SECRET || "procureiq_secure_session_secret_key_2026",
     resave: false,
     saveUninitialized: false,
-    rolling: false,
+    rolling: true,
     cookie: {
         httpOnly: true,
-        secure: false,
+        secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: SESSION_MAX_AGE
     }
@@ -105,61 +105,76 @@ function isDashboardPageRequest(req) {
     return acceptsHtml && (p === "/admin" || p === "/procurement-manager" || p === "/procurement");
 }
 
-function verifyAdmin(req, res, next) {
-    const authUser = resolveAuthUser(req);
-    if (!authUser) {
-        if (!isDashboardPageRequest(req)) {
-            return res.status(401).json({ success: false, message: "Unauthenticated" });
+async function verifyAdmin(req, res, next) {
+    try {
+        const authUser = await resolveAuthUser(req);
+        if (!authUser) {
+            if (!isDashboardPageRequest(req)) {
+                return res.status(401).json({ success: false, message: "Unauthenticated" });
+            }
+            return res.redirect("/?reason=unauthenticated");
         }
-        return res.redirect("/");
-    }
-    if (authUser.role !== "ADMIN") {
-        if (!isDashboardPageRequest(req)) {
-            return res.status(403).json({ success: false, message: "Forbidden: ADMIN access required" });
+        if (authUser.role !== "ADMIN") {
+            if (!isDashboardPageRequest(req)) {
+                return res.status(403).json({ success: false, message: "Forbidden: ADMIN access required" });
+            }
+            if (authUser.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
+            if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
+            return res.redirect("/");
         }
-        if (authUser.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
-        if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
-        return res.redirect("/");
+        req.user = authUser;
+        next();
+    } catch (err) {
+        log(`verifyAdmin error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
-    req.user = authUser;
-    next();
 }
 
-function verifyManager(req, res, next) {
-    const authUser = resolveAuthUser(req);
-    if (!authUser) {
-        if (!isDashboardPageRequest(req)) {
-            return res.status(401).json({ success: false, message: "Unauthenticated" });
+async function verifyManager(req, res, next) {
+    try {
+        const authUser = await resolveAuthUser(req);
+        if (!authUser) {
+            if (!isDashboardPageRequest(req)) {
+                return res.status(401).json({ success: false, message: "Unauthenticated" });
+            }
+            return res.redirect("/?reason=unauthenticated");
         }
-        return res.redirect("/");
-    }
-    if (!["ADMIN", "PROCUREMENT_MANAGER"].includes(authUser.role)) {
-        if (!isDashboardPageRequest(req)) {
-            return res.status(403).json({ success: false, message: "Forbidden: Manager access required" });
+        if (!["ADMIN", "PROCUREMENT_MANAGER"].includes(authUser.role)) {
+            if (!isDashboardPageRequest(req)) {
+                return res.status(403).json({ success: false, message: "Forbidden: Manager access required" });
+            }
+            if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
+            return res.redirect("/");
         }
-        if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
-        return res.redirect("/");
+        req.user = authUser;
+        next();
+    } catch (err) {
+        log(`verifyManager error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
-    req.user = authUser;
-    next();
 }
 
-function verifyProcurement(req, res, next) {
-    const authUser = resolveAuthUser(req);
-    if (!authUser) {
-        if (!isDashboardPageRequest(req)) {
-            return res.status(401).json({ success: false, message: "Unauthenticated" });
+async function verifyProcurement(req, res, next) {
+    try {
+        const authUser = await resolveAuthUser(req);
+        if (!authUser) {
+            if (!isDashboardPageRequest(req)) {
+                return res.status(401).json({ success: false, message: "Unauthenticated" });
+            }
+            return res.redirect("/?reason=unauthenticated");
         }
-        return res.redirect("/");
-    }
-    if (!["ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT"].includes(authUser.role)) {
-        if (!isDashboardPageRequest(req)) {
-            return res.status(403).json({ success: false, message: "Forbidden: Procurement access required" });
+        if (!["ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT"].includes(authUser.role)) {
+            if (!isDashboardPageRequest(req)) {
+                return res.status(403).json({ success: false, message: "Forbidden: Procurement access required" });
+            }
+            return res.redirect("/");
         }
-        return res.redirect("/");
+        req.user = authUser;
+        next();
+    } catch (err) {
+        log(`verifyProcurement error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
-    req.user = authUser;
-    next();
 }
 
 /* ==========================================================================
@@ -171,7 +186,9 @@ const ACTOR_CACHE_TTL_MS = 5 * 60 * 1000;
 
 // Resolves the username performing the current request (from req.user, JWT token, or session)
 async function getActor(req) {
-    return req.user?.username || resolveAuthUser(req)?.username || "SYSTEM";
+    if (req.user?.username) return req.user.username;
+    const authUser = await resolveAuthUser(req);
+    return authUser?.username || "SYSTEM";
 }
 
 // Writes one business-activity entry to report_logs. Never throws, so a logging failure can never break a business action.
@@ -1154,8 +1171,19 @@ app.use("/procurement-manager", verifyManager, express.static(path.resolve(__dir
 app.use("/procurement", verifyProcurement, express.static(path.resolve(__dirname, "../../frontend/procurement"), { index: false }));
 
 // Root and Authentication Gateway Routes
-app.get("/", (req, res) => {
-    const user = resolveAuthUser(req);
+app.get("/", async (req, res) => {
+    if (req.query.reason) {
+        res.clearCookie("jwt_token");
+        res.clearCookie("access_token");
+        res.clearCookie("refresh_token");
+        res.clearCookie("auth_token");
+        res.clearCookie("login_session");
+        if (req.session) {
+            req.session.destroy(() => {});
+        }
+        return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
+    }
+    const user = await resolveAuthUser(req);
     if (!user) {
         return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
     }
@@ -1164,8 +1192,19 @@ app.get("/", (req, res) => {
     return res.redirect("/procurement");
 });
 
-app.get("/login", (req, res) => {
-    const user = resolveAuthUser(req);
+app.get("/login", async (req, res) => {
+    if (req.query.reason) {
+        res.clearCookie("jwt_token");
+        res.clearCookie("access_token");
+        res.clearCookie("refresh_token");
+        res.clearCookie("auth_token");
+        res.clearCookie("login_session");
+        if (req.session) {
+            req.session.destroy(() => {});
+        }
+        return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
+    }
+    const user = await resolveAuthUser(req);
     if (user) {
         if (user.role === "ADMIN") return res.redirect("/admin");
         if (user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
@@ -1242,6 +1281,7 @@ app.put("/users/:user_id/password",verifyAdmin,async(req,res)=>{
         if(!userRows.length)return res.status(404).json({success:false,message:"User not found"});
         const passwordHash=await bcrypt.hash(password,10);
         await db.execute(`UPDATE users SET password_hash=?, token_version = token_version + 1 WHERE user_id=?`,[passwordHash,userId]);
+        invalidateUserCache(userId);
         await writeReportLog(req,"USER_PASSWORD_CHANGED",
             `Password changed for user ID ${userId}. Username: "${userRows[0].username}", Role: ${userRows[0].role}.`
         );
@@ -1271,6 +1311,7 @@ app.put("/users/:user_id/access",verifyAdmin,async(req,res)=>{
         if(!userRows.length)return res.status(404).json({success:false,message:"User not found"});
         const user=userRows[0];
         await db.execute(`UPDATE users SET is_active=?, token_version = token_version + 1 WHERE user_id=?`,[is_active,userId]);
+        invalidateUserCache(userId);
         const action=is_active?"USER_ACCESS_GRANTED":"USER_ACCESS_REVOKED";
         await writeReportLog(req,action,
             `User access changed. User ID: ${userId}, Username: "${user.username}", Role: ${user.role}, Previous active status: ${user.is_active}, New active status: ${is_active}.`

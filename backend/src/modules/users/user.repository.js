@@ -23,11 +23,15 @@ async function create({ username, passwordHash, role }) {
     return result.insertId;
 }
 
+const { invalidateUserCache } = require("../../services/jwt.service");
+
 async function updatePassword(userId, passwordHash) {
+    invalidateUserCache(userId);
     return db.execute("UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE user_id = ?", [passwordHash, userId]);
 }
 
 async function updateAccess(userId, isActive) {
+    invalidateUserCache(userId);
     return db.execute("UPDATE users SET is_active = ?, token_version = token_version + 1 WHERE user_id = ?", [isActive, userId]);
 }
 

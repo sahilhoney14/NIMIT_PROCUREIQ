@@ -17,12 +17,25 @@ const roleUrls = {
     PROCUREMENT: "/procurement"
 };
 
+const { invalidateUserCache } = require("../../services/jwt.service");
+
 function getRoleUrl(role) {
     return roleUrls[role] || "/";
 }
 
 async function renderLogin(req, res) {
-    const user = resolveAuthUser(req);
+    if (req.query.reason) {
+        res.clearCookie("jwt_token");
+        res.clearCookie("access_token");
+        res.clearCookie("refresh_token");
+        res.clearCookie("auth_token");
+        res.clearCookie("login_session");
+        if (req.session) {
+            req.session.destroy(() => {});
+        }
+        return res.sendFile(path.resolve(__dirname, "../../../../frontend/auth-service/index.html"));
+    }
+    const user = await resolveAuthUser(req);
     if (user) {
         return res.redirect(getRoleUrl(user.role));
     }
@@ -72,12 +85,14 @@ async function login(req, res) {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
+            path: "/",
             maxAge: COOKIE_MAX_AGE
         });
         res.cookie("access_token", accessToken, {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
+            path: "/",
             maxAge: COOKIE_MAX_AGE
         });
 
@@ -92,6 +107,7 @@ async function login(req, res) {
 
         if (req.session) {
             req.session.user = tokenPayload;
+            await new Promise(resolve => req.session.save(resolve));
         }
 
         const redirectUrl = getRoleUrl(user.role);
@@ -122,6 +138,9 @@ async function refresh(req, res) {
             res.clearCookie("jwt_token");
             res.clearCookie("access_token");
             res.clearCookie("refresh_token");
+            res.clearCookie("auth_token");
+            res.clearCookie("login_session");
+            if (req.session) req.session.destroy(() => {});
             return res.status(401).json({ success: false, message: "Invalid or expired refresh token" });
         }
 
@@ -130,6 +149,9 @@ async function refresh(req, res) {
             res.clearCookie("jwt_token");
             res.clearCookie("access_token");
             res.clearCookie("refresh_token");
+            res.clearCookie("auth_token");
+            res.clearCookie("login_session");
+            if (req.session) req.session.destroy(() => {});
             return res.status(403).json({ success: false, message: "Session revoked or account deactivated" });
         }
 
@@ -148,12 +170,14 @@ async function refresh(req, res) {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
+            path: "/",
             maxAge: COOKIE_MAX_AGE
         });
         res.cookie("access_token", newAccessToken, {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
+            path: "/",
             maxAge: COOKIE_MAX_AGE
         });
         res.cookie("refresh_token", newRefreshToken, {
@@ -163,6 +187,11 @@ async function refresh(req, res) {
             path: "/",
             maxAge: COOKIE_MAX_AGE
         });
+
+        if (req.session) {
+            req.session.user = tokenPayload;
+            await new Promise(resolve => req.session.save(resolve));
+        }
 
         log(`Token refreshed successfully for user: ${user.username}`);
         return res.json({
@@ -178,19 +207,15 @@ async function refresh(req, res) {
 }
 
 async function verify(req, res) {
-    const user = resolveAuthUser(req);
+    const user = await resolveAuthUser(req);
     if (!user) {
-        return res.status(401).json({ success: false, authenticated: false });
-    }
-
-    if (user.user_id && user.token_version) {
-        const dbUser = await authService.findUserById(user.user_id);
-        if (!dbUser || !dbUser.is_active || dbUser.token_version !== user.token_version) {
-            res.clearCookie("jwt_token");
-            res.clearCookie("access_token");
-            res.clearCookie("refresh_token");
-            return res.status(401).json({ success: false, authenticated: false, message: "Session revoked" });
-        }
+        res.clearCookie("jwt_token");
+        res.clearCookie("access_token");
+        res.clearCookie("refresh_token");
+        res.clearCookie("auth_token");
+        res.clearCookie("login_session");
+        if (req.session) req.session.destroy(() => {});
+        return res.status(401).json({ success: false, authenticated: false, message: "Session revoked or expired" });
     }
 
     return res.json({
@@ -203,13 +228,15 @@ async function verify(req, res) {
 }
 
 async function logout(req, res) {
-    const authUser = resolveAuthUser(req);
+    const authUser = await resolveAuthUser(req);
+    const userId = authUser?.user_id || req.session?.user?.user_id;
     const username = authUser?.username || req.session?.user?.username || "Anonymous";
 
-    if (authUser?.user_id) {
+    if (userId) {
         try {
-            await authService.incrementTokenVersion(authUser.user_id);
-            log(`Revoked all tokens for user: ${username} (ID: ${authUser.user_id})`);
+            await authService.incrementTokenVersion(userId);
+            invalidateUserCache(userId);
+            log(`Revoked all tokens for user: ${username} (ID: ${userId})`);
         } catch (e) {
             log(`Warning: Failed to increment token version: ${e.message}`);
         }
@@ -221,17 +248,21 @@ async function logout(req, res) {
     res.clearCookie("auth_token");
     res.clearCookie("login_session");
 
+    const isHtml = req.headers.accept?.includes("text/html") || req.method === "GET";
+
     if (req.session) {
         req.session.destroy(err => {
             if (err) {
                 log(`Logout error: ${err.message}`);
-                return res.status(500).json({ success: false, message: "Logout failed" });
+                if (!isHtml) return res.status(500).json({ success: false, message: "Logout failed" });
             }
             log(`Logout successful for: ${username}`);
+            if (isHtml) return res.redirect("/");
             return res.json({ success: true, redirect_url: "/" });
         });
     } else {
         log(`Logout successful for: ${username}`);
+        if (isHtml) return res.redirect("/");
         return res.json({ success: true, redirect_url: "/" });
     }
 }

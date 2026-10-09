@@ -45,6 +45,7 @@
 
     function redirectToLogin(reason) {
         localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
         localStorage.removeItem("auth_user");
         const currentPath = window.location.pathname;
         let target = "/";

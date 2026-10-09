@@ -17,7 +17,10 @@ async function findUserById(userId) {
     return rows[0] || null;
 }
 
+const { invalidateUserCache } = require("../../services/jwt.service");
+
 async function incrementTokenVersion(userId) {
+    invalidateUserCache(userId);
     return db.execute("UPDATE users SET token_version = token_version + 1 WHERE user_id = ?", [userId]);
 }
 

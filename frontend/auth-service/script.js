@@ -18,14 +18,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const reason = urlParams.get("reason");
     if (reason === "session_expired") {
         showMessage("Your session has expired. Please sign in again.", "info");
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("auth_user");
     } else if (reason === "unauthenticated") {
         showMessage("Please sign in to access the protected dashboard.", "info");
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("auth_user");
+    } else if (reason === "logout") {
+        showMessage("You have been signed out successfully.", "info");
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("auth_user");
     }
 
-    // Check if user is already authenticated and redirect
+    // Check if user is already authenticated and redirect (only when not explicitly redirected to login)
     const existingToken = localStorage.getItem("auth_token");
     const existingRefresh = localStorage.getItem("refresh_token");
-    if (existingToken || existingRefresh) {
+    if (!reason && (existingToken || existingRefresh)) {
         fetch("/verify", {
             headers: existingToken ? { "Authorization": `Bearer ${existingToken}` } : {},
             credentials: "include"
