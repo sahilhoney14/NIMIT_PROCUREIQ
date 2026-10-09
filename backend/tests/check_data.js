@@ -20,10 +20,10 @@ async function run() {
         const [pos] = await db.execute("SELECT po_id, po_number, status, total_price, vendor_id FROM purchase_orders");
         console.log("POs in DB:", pos);
 
-        const [prs] = await db.execute("SELECT id, pr_number, status, party_name FROM purchase_requests");
+        const [prs] = await db.execute("SELECT id, pr_number, party_name FROM purchase_requests LIMIT 5");
         console.log("PRs in DB:", prs);
 
-        const [grn] = await db.execute("SELECT gr_id, po_id, received_date FROM goods_received");
+        const [grn] = await db.execute("SELECT receipt_id, po_id, received_date FROM goods_received");
         console.log("GRNs in DB:", grn);
 
         const [rl] = await logDb.execute("SELECT report_log_id, username, action FROM report_logs LIMIT 5");

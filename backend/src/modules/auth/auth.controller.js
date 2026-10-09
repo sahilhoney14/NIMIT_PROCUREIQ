@@ -8,6 +8,8 @@ const {
     verifyRefreshToken,
     resolveAuthUser 
 } = require("../../services/jwt.service");
+const { SESSION_MAX_AGE } = require("../../config/env");
+const COOKIE_MAX_AGE = SESSION_MAX_AGE || (12 * 60 * 60 * 1000); // 12 hours
 
 const roleUrls = {
     ADMIN: "/admin",
@@ -65,27 +67,27 @@ async function login(req, res) {
 
         const isProduction = process.env.NODE_ENV === "production";
 
-        // Access token cookies (short-lived: 15 minutes)
+        // Access token cookies (12 hours)
         res.cookie("jwt_token", accessToken, {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
-            maxAge: 15 * 60 * 1000
+            maxAge: COOKIE_MAX_AGE
         });
         res.cookie("access_token", accessToken, {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
-            maxAge: 15 * 60 * 1000
+            maxAge: COOKIE_MAX_AGE
         });
 
-        // Refresh token cookie (long-lived: 7 days)
+        // Refresh token cookie (12 hours)
         res.cookie("refresh_token", refreshToken, {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
             path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000
+            maxAge: COOKIE_MAX_AGE
         });
 
         if (req.session) {
@@ -146,20 +148,20 @@ async function refresh(req, res) {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
-            maxAge: 15 * 60 * 1000
+            maxAge: COOKIE_MAX_AGE
         });
         res.cookie("access_token", newAccessToken, {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
-            maxAge: 15 * 60 * 1000
+            maxAge: COOKIE_MAX_AGE
         });
         res.cookie("refresh_token", newRefreshToken, {
             httpOnly: true,
             secure: isProduction,
             sameSite: "lax",
             path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000
+            maxAge: COOKIE_MAX_AGE
         });
 
         log(`Token refreshed successfully for user: ${user.username}`);

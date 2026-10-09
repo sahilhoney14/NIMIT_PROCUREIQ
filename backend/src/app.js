@@ -75,17 +75,19 @@ app.use(express.json());
 app.use(express.urlencoded({extended:false}));
 app.use(cookieParser());
 
+const SESSION_MAX_AGE = env.SESSION_MAX_AGE || (12 * 60 * 60 * 1000); // 12 hours
+
 app.use(session({
     name: "login_session",
-    secret: process.env.SESSION_SECRET || "procureiq_secure_session_secret_key_2026",
+    secret: env.SESSION_SECRET || "procureiq_secure_session_secret_key_2026",
     resave: false,
     saveUninitialized: false,
-    rolling: true,
+    rolling: false,
     cookie: {
         httpOnly: true,
         secure: false,
         sameSite: "lax",
-        maxAge: 60 * 60 * 1000
+        maxAge: SESSION_MAX_AGE
     }
 }));
 
@@ -182,6 +184,30 @@ async function writeReportLog(req, action, report) {
         );
     } catch (error) {
         log(`ERROR writing report log (${action}): ${error.message}`);
+    }
+}
+
+// Writes batch business-activity entries to report_logs in a single query (or 50-item chunks).
+async function writeReportLogs(req, items) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    try {
+        const username = await getActor(req);
+        const safeUser = String(username).slice(0, 100);
+        const chunkSize = 50;
+        for (let i = 0; i < items.length; i += chunkSize) {
+            const chunk = items.slice(i, i + chunkSize);
+            const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
+            const params = [];
+            chunk.forEach(item => {
+                params.push(safeUser, String(item.action).slice(0, 100), String(item.report));
+            });
+            await logDb.execute(
+                `INSERT INTO report_logs (username, action, report) VALUES ${placeholders}`,
+                params
+            );
+        }
+    } catch (error) {
+        log(`ERROR writing batch report logs: ${error.message}`);
     }
 }
 
@@ -284,6 +310,32 @@ async function generatePrNumber(connection) {
     const [rows] = await connection.execute(`SELECT LAST_INSERT_ID() AS sequence_number`);
     const sequenceNumber = rows[0].sequence_number;
     return `NEE/${financialYear}/PR/${String(sequenceNumber).padStart(4, "0")}`;
+}
+
+// Generates multiple sequential PR numbers in batch inside the caller's transaction in O(1) DB calls
+async function generatePrNumbers(connection, count) {
+    if (count <= 0) return [];
+    const financialYear = getFinancialYear();
+    await connection.execute(
+        `INSERT INTO pr_sequences (financial_year, last_number)
+         VALUES (?, 0)
+         ON DUPLICATE KEY UPDATE financial_year = financial_year`,
+        [financialYear]
+    );
+    await connection.execute(
+        `UPDATE pr_sequences
+         SET last_number = LAST_INSERT_ID(last_number + ?)
+         WHERE financial_year = ?`,
+        [count, financialYear]
+    );
+    const [rows] = await connection.execute(`SELECT LAST_INSERT_ID() AS end_sequence`);
+    const endSequence = Number(rows[0].end_sequence);
+    const startSequence = endSequence - count + 1;
+    const prNumbers = [];
+    for (let i = startSequence; i <= endSequence; i++) {
+        prNumbers.push(`NEE/${financialYear}/PR/${String(i).padStart(4, "0")}`);
+    }
+    return prNumbers;
 }
 
 // Normalizes an Excel header into a snake_case key
@@ -1065,25 +1117,34 @@ app.use("/backend/vendor", verifyProcurement, express.static(vendorFolder));
 app.use("/backend/proforma-invoice", verifyProcurement, express.static(piFolder));
 app.use("/storage", verifyProcurement, express.static(path.resolve(__dirname, "../storage")));
 
+// In-memory HTML template cache to eliminate repeated synchronous disk I/O
+const portalHtmlCache = new Map();
+function getPortalHtml(filePath) {
+    if (!portalHtmlCache.has(filePath)) {
+        portalHtmlCache.set(filePath, fs.readFileSync(filePath, "utf8"));
+    }
+    return portalHtmlCache.get(filePath);
+}
+
 // Portal Dashboard Routes (Enforce auth, role verification, and inject credentials)
 app.get(["/admin", "/admin/", "/admin/index.html"], verifyAdmin, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/admin/index.html");
-    let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
+    const template = getPortalHtml(htmlPath);
+    const html = template.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
     return res.send(html);
 });
 
 app.get(["/procurement-manager", "/procurement-manager/", "/procurement-manager/index.html"], verifyManager, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/procurement-manager/index.html");
-    let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
+    const template = getPortalHtml(htmlPath);
+    const html = template.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
     return res.send(html);
 });
 
 app.get(["/procurement", "/procurement/", "/procurement/index.html"], verifyProcurement, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/procurement/index.html");
-    let html = fs.readFileSync(htmlPath, "utf8");
-    html = html.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
+    const template = getPortalHtml(htmlPath);
+    const html = template.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
     return res.send(html);
 });
 
@@ -1445,8 +1506,10 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
         await connection.beginTransaction();
         const insertedRows = [];
         const reportItems = [];
-        for (const row of rows) {
-            const pr_number = await generatePrNumber(connection);
+        const prNumbers = await generatePrNumbers(connection, rows.length);
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const pr_number = prNumbers[i];
             const qty = Number(row.qty || 0);
             const sales_rate = Number(row.sales_rate || 0);
             const taxable_value = qty * sales_rate;
@@ -1502,16 +1565,20 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
         }
         await connection.commit();
         log(`Purchase Requests imported successfully - ${insertedRows.length} rows`);
+        const logEntries = [];
         for (const item of reportItems) {
-            await writeReportLog(req, "PR_CREATED",
-                `Purchase request raised through Excel import. ${describePr(item.pr)}`
-            );
-            await writeReportLog(req, "VENDOR_INQUIRY_CREATED",
-                `Vendor inquiry (inquiry ID ${item.inquiry_id}) opened for ${item.pr.pr_number} through Excel import. ` +
-                `Item: ${orDash(item.pr.item_name)}, make: ${orDash(item.pr.make)}, model: ${orDash(item.pr.model)}, ` +
-                `quantity: ${item.pr.qty} ${orDash(item.pr.unit)}. Status: OPEN, awaiting vendor quotations.`
-            );
+            logEntries.push({
+                action: "PR_CREATED",
+                report: `Purchase request raised through Excel import. ${describePr(item.pr)}`
+            });
+            logEntries.push({
+                action: "VENDOR_INQUIRY_CREATED",
+                report: `Vendor inquiry (inquiry ID ${item.inquiry_id}) opened for ${item.pr.pr_number} through Excel import. ` +
+                    `Item: ${orDash(item.pr.item_name)}, make: ${orDash(item.pr.make)}, model: ${orDash(item.pr.model)}, ` +
+                    `quantity: ${item.pr.qty} ${orDash(item.pr.unit)}. Status: OPEN, awaiting vendor quotations.`
+            });
         }
+        await writeReportLogs(req, logEntries);
         return res.json({
             success: true,
             message: "Purchase Requests imported successfully",
@@ -1621,17 +1688,34 @@ app.get("/order-tracking", verifyProcurement, async (req, res) => {
             ${whereSql}
         `;
 
-        const [countRows] = await db.query(
-            `SELECT COUNT(*) AS total ${baseFromSql}`,
-            params
-        );
+        const countFromSql = `
+            FROM (
+                SELECT
+                    pr.id AS pr_id,
+                    pr.pr_number,
+                    pr.pr_date,
+                    pr.created_at,
+                    pr.party_name,
+                    pr.item_name,
+                    po.po_number,
+                    CASE
+                        WHEN po.status = 'COMPLETED' THEN 'CLOSED'
+                        WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
+                        ELSE vi.status
+                    END AS status
+                FROM purchase_requests pr
+                LEFT JOIN vendor_inquiries vi ON vi.pr_id = pr.id
+                LEFT JOIN purchase_orders po ON po.pr_id = pr.id
+            ) t
+            ${whereSql}
+        `;
+
+        const [[countRows], [rows]] = await Promise.all([
+            db.query(`SELECT COUNT(*) AS total ${countFromSql}`, params),
+            db.query(`SELECT * ${baseFromSql} ORDER BY pr_id DESC LIMIT ${limit} OFFSET ${offset}`, params)
+        ]);
         const total = countRows[0]?.total || 0;
         const totalPages = Math.max(1, Math.ceil(total / limit));
-
-        const [rows] = await db.query(
-            `SELECT * ${baseFromSql} ORDER BY pr_id DESC LIMIT ${limit} OFFSET ${offset}`,
-            params
-        );
 
         return res.json({
             success: true,
@@ -1756,7 +1840,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         });
 
         // 1. Title Banner
-        sheet.mergeCells("A1:Q1");
+        sheet.mergeCells("A1:R1");
         const titleCell = sheet.getCell("A1");
         titleCell.value = "NIMIT — PROCUREIQ ORDER TRACKING SUMMARY";
         titleCell.font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
@@ -1769,7 +1853,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         sheet.getRow(1).height = 36;
 
         // 2. Metadata / Filter Bar Subtitle
-        sheet.mergeCells("A2:Q2");
+        sheet.mergeCells("A2:R2");
         const metaCell = sheet.getCell("A2");
         const now = new Date();
         const dateTag = now.toISOString().slice(0, 10);
@@ -1905,9 +1989,9 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
 
                 if (colIdx === 0) {
                     cell.alignment = { vertical: "middle", horizontal: "center" };
-                } else if (colIdx === 1 || colIdx === 2 || colIdx === 3) {
+                } else if (colIdx >= 1 && colIdx <= 4) {
                     cell.alignment = { vertical: "middle", horizontal: "center" };
-                } else if (colIdx === 4) {
+                } else if (colIdx === 5) {
                     cell.alignment = { vertical: "middle", horizontal: "center" };
                     if (rawStatus === "OPEN") {
                         cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FF1D4ED8" } };
@@ -1922,15 +2006,15 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
                         cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFB91C1C" } };
                         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF2F2" } };
                     }
-                } else if (colIdx === 12) {
+                } else if (colIdx === 13) {
                     cell.alignment = { vertical: "middle", horizontal: "right" };
                     cell.numFmt = "#,##0";
-                } else if (colIdx === 13) {
-                    cell.alignment = { vertical: "middle", horizontal: "center" };
                 } else if (colIdx === 14) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                } else if (colIdx === 15) {
                     cell.alignment = { vertical: "middle", horizontal: "right" };
                     cell.numFmt = "₹#,##0.00";
-                } else if (colIdx === 15) {
+                } else if (colIdx === 16) {
                     cell.alignment = { vertical: "middle", horizontal: "right" };
                     cell.numFmt = "₹#,##0.00";
                 } else {
@@ -1944,14 +2028,14 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         // 5. Total Row
         const totalRow = sheet.getRow(currentRowIdx);
         totalRow.height = 26;
-        sheet.mergeCells(`A${currentRowIdx}:L${currentRowIdx}`);
+        sheet.mergeCells(`A${currentRowIdx}:M${currentRowIdx}`);
         const totalLabelCell = totalRow.getCell(1);
         totalLabelCell.value = "TOTAL SUMMARY";
         totalLabelCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
         totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
 
-        for (let c = 1; c <= 17; c++) {
+        for (let c = 1; c <= 18; c++) {
             const cell = totalRow.getCell(c);
             cell.border = {
                 top: { style: "medium", color: { argb: "FF0F172A" } },
@@ -1959,18 +2043,18 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
                 left: { style: "thin", color: { argb: "FFE2E8F0" } },
                 right: { style: "thin", color: { argb: "FFE2E8F0" } }
             };
-            if (c > 12) {
+            if (c > 13) {
                 cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
             }
         }
 
-        const qtyTotalCell = totalRow.getCell(13);
+        const qtyTotalCell = totalRow.getCell(14);
         qtyTotalCell.value = totalQty;
         qtyTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         qtyTotalCell.alignment = { vertical: "middle", horizontal: "right" };
         qtyTotalCell.numFmt = "#,##0";
 
-        const taxableTotalCell = totalRow.getCell(16);
+        const taxableTotalCell = totalRow.getCell(17);
         taxableTotalCell.value = totalTaxableValue;
         taxableTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         taxableTotalCell.alignment = { vertical: "middle", horizontal: "right" };
@@ -1978,7 +2062,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
 
         // Auto filter on table headers
         if (currentRowIdx > 5) {
-            sheet.autoFilter = `A4:Q${currentRowIdx - 1}`;
+            sheet.autoFilter = `A4:R${currentRowIdx - 1}`;
         }
 
         const statusSuffix = (statusParam && statusParam !== "ALL") ? `_${statusParam}` : "";
@@ -3831,21 +3915,20 @@ app.get("/goods-received", verifyProcurement, async (req, res) => {
                 po.vendor_address,
                 po.expected_delivery_date,
                 po.status AS po_status,
-                COALESCE(SUM(gr.received_quantity), 0) AS received_quantity,
-                COALESCE((
-                    SELECT SUM(ret.return_quantity)
-                    FROM goods_returns ret
-                    WHERE ret.po_id = po.po_id
-                ), 0) AS returned_quantity
+                COALESCE(gr_sum.received_quantity, 0) AS received_quantity,
+                COALESCE(ret_sum.returned_quantity, 0) AS returned_quantity
             FROM purchase_orders po
-            LEFT JOIN goods_received gr ON gr.po_id = po.po_id
+            LEFT JOIN (
+                SELECT po_id, SUM(received_quantity) AS received_quantity
+                FROM goods_received
+                GROUP BY po_id
+            ) gr_sum ON gr_sum.po_id = po.po_id
+            LEFT JOIN (
+                SELECT po_id, SUM(return_quantity) AS returned_quantity
+                FROM goods_returns
+                GROUP BY po_id
+            ) ret_sum ON ret_sum.po_id = po.po_id
             WHERE po.status IN ('ISSUED', 'COMPLETED')
-            GROUP BY
-                po.po_id, po.po_number, po.po_date, po.pr_number, po.pr_date,
-                po.party_name, po.location, po.territory, po.product_category,
-                po.item_name, po.product_remarks, po.make, po.model, po.qty,
-                po.unit, po.vendor_code, po.vendor_name, po.vendor_address,
-                po.expected_delivery_date, po.status
             ORDER BY po.po_id DESC
         `);
         const result = rows.map(row => {
@@ -4981,19 +5064,21 @@ app.get("/report-logs", verifyManager, async (req, res) => {
     if (to)       { conditions.push("log_timestamp <= ?"); params.push(`${to} 23:59:59`); }
     const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-        const [[{ total }]] = await logDb.execute(
-            `SELECT COUNT(*) AS total FROM report_logs ${whereClause}`,
-            params
-        );
+        const [[[{ total }]], [rows]] = await Promise.all([
+            logDb.execute(
+                `SELECT COUNT(*) AS total FROM report_logs ${whereClause}`,
+                params
+            ),
+            logDb.query(
+                `SELECT report_log_id, log_timestamp, username, action, report
+                FROM report_logs
+                ${whereClause}
+                ORDER BY log_timestamp DESC, report_log_id DESC
+                LIMIT ${limit} OFFSET ${offset}`,
+                params
+            )
+        ]);
         const totalPages = Math.max(1, Math.ceil(total / limit));
-        const [rows] = await logDb.query(
-            `SELECT report_log_id, log_timestamp, username, action, report
-            FROM report_logs
-            ${whereClause}
-            ORDER BY log_timestamp DESC, report_log_id DESC
-            LIMIT ${limit} OFFSET ${offset}`,
-            params
-        );
         return res.json({
             success: true,
             rows,
@@ -5033,19 +5118,21 @@ app.get("/audit-logs", verifyAdmin, async (req, res) => {
     if (to)       { conditions.push("log_timestamp <= ?"); params.push(`${to} 23:59:59`); }
     const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
     try {
-        const [[{ total }]] = await logDb.execute(
-            `SELECT COUNT(*) AS total FROM audit_logs ${whereClause}`,
-            params
-        );
+        const [[[{ total }]], [rows]] = await Promise.all([
+            logDb.execute(
+                `SELECT COUNT(*) AS total FROM audit_logs ${whereClause}`,
+                params
+            ),
+            logDb.query(
+                `SELECT audit_log_id, log_timestamp, username, action, old_value, new_value
+                FROM audit_logs
+                ${whereClause}
+                ORDER BY log_timestamp DESC, audit_log_id DESC
+                LIMIT ${limit} OFFSET ${offset}`,
+                params
+            )
+        ]);
         const totalPages = Math.max(1, Math.ceil(total / limit));
-        const [rows] = await logDb.query(
-            `SELECT audit_log_id, log_timestamp, username, action, old_value, new_value
-            FROM audit_logs
-            ${whereClause}
-            ORDER BY log_timestamp DESC, audit_log_id DESC
-            LIMIT ${limit} OFFSET ${offset}`,
-            params
-        );
         return res.json({
             success: true,
             rows,
@@ -5088,29 +5175,30 @@ app.get("/login-logs", verifyAdmin, async (req, res) => {
     const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
     try {
-        const [[{ total }]] = await db.execute(
-            `SELECT COUNT(*) AS total
-             FROM login_logs ll
-             INNER JOIN users u ON u.user_id = ll.user_id
-             ${whereClause}`,
-            params
-        );
+        const [[[{ total }]], [rows]] = await Promise.all([
+            db.execute(
+                `SELECT COUNT(*) AS total
+                 FROM login_logs ll
+                 INNER JOIN users u ON u.user_id = ll.user_id
+                 ${whereClause}`,
+                params
+            ),
+            db.query(
+                `SELECT
+                    ll.login_log_id,
+                    ll.login_time,
+                    u.username,
+                    ll.login_status
+                 FROM login_logs ll
+                 INNER JOIN users u ON u.user_id = ll.user_id
+                 ${whereClause}
+                 ORDER BY ll.login_time DESC, ll.login_log_id DESC
+                 LIMIT ${limit} OFFSET ${offset}`,
+                params
+            )
+        ]);
 
         const totalPages = Math.max(1, Math.ceil(total / limit));
-
-        const [rows] = await db.query(
-            `SELECT
-                ll.login_log_id,
-                ll.login_time,
-                u.username,
-                ll.login_status
-             FROM login_logs ll
-             INNER JOIN users u ON u.user_id = ll.user_id
-             ${whereClause}
-             ORDER BY ll.login_time DESC, ll.login_log_id DESC
-             LIMIT ${limit} OFFSET ${offset}`,
-            params
-        );
 
         return res.json({
             success: true,

@@ -8,10 +8,11 @@ module.exports = {
     DB_NAME: process.env.DB_NAME || "ProcureIQ",
     DB2_NAME: process.env.DB2_NAME || "ProcureIQ_Logs",
     SESSION_SECRET: process.env.SESSION_SECRET || "procureiq_secure_session_secret_key_2026",
+    SESSION_MAX_AGE: Number(process.env.SESSION_MAX_AGE) || (12 * 60 * 60 * 1000), // 12 hours
     JWT_SECRET: process.env.JWT_SECRET || "procureiq_jwt_super_secure_secret_token_2026",
-    JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "8h",
-    JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
+    JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "12h",
+    JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "12h",
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || "procureiq_refresh_jwt_super_secure_key_2026",
-    JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
+    JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "12h",
     NODE_ENV: process.env.NODE_ENV || "development"
 };

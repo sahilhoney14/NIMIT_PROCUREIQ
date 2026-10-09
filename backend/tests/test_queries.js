@@ -69,7 +69,10 @@ async function test() {
         // Test 3: Past Price Reference models query
         console.log("Testing /past-price-reference/models query...");
         const [models] = await db.execute(`
-            SELECT DISTINCT model_name FROM past_price_references ORDER BY model_name ASC
+            SELECT DISTINCT model, make, item_name, product_category
+            FROM purchase_orders
+            WHERE model IS NOT NULL AND model != ''
+            ORDER BY model ASC
         `);
         console.log("/past-price-reference/models query SUCCESS! Rows:", models.length);
 
@@ -78,7 +81,7 @@ async function test() {
         const from = "2026-10-01";
         const to = "2026-10-31";
         const [prStats] = await db.execute(`
-            SELECT COUNT(*) AS total_prs, COALESCE(SUM(estimated_cost), 0) AS total_pr_cost
+            SELECT COUNT(*) AS total_prs, COALESCE(SUM(taxable_value), 0) AS total_pr_cost
             FROM purchase_requests
             WHERE pr_date BETWEEN ? AND ?
         `, [from, to]);
@@ -88,7 +91,7 @@ async function test() {
         console.log("Testing report logs query in audit db...");
         const { logDb } = require("../src/config/database");
         const [logs] = await logDb.execute(`
-            SELECT report_log_id, log_timestamp, username, action, report_text
+            SELECT report_log_id, log_timestamp, username, action, report
             FROM report_logs
             ORDER BY log_timestamp DESC
             LIMIT 20

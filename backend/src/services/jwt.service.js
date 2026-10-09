@@ -23,14 +23,14 @@ function generateAccessToken(payload, options = {}) {
         token_version: payload.token_version || 1
     };
     return jwt.sign(data, JWT_SECRET, {
-        expiresIn: options.expiresIn || JWT_ACCESS_EXPIRES_IN || "15m",
+        expiresIn: options.expiresIn || JWT_ACCESS_EXPIRES_IN || "12h",
         issuer: "ProcureIQ",
         audience: "ProcureIQ-App"
     });
 }
 
 /**
- * Generates a signed Refresh Token (long-lived, 7d default).
+ * Generates a signed Refresh Token (12h default).
  * @param {Object} payload { user_id, token_version }
  * @param {Object} options optional jwt options
  * @returns {string} Refresh token string
@@ -43,7 +43,7 @@ function generateRefreshToken(payload, options = {}) {
         jti: crypto.randomUUID()
     };
     return jwt.sign(data, JWT_REFRESH_SECRET, {
-        expiresIn: options.expiresIn || JWT_REFRESH_EXPIRES_IN || "7d",
+        expiresIn: options.expiresIn || JWT_REFRESH_EXPIRES_IN || "12h",
         issuer: "ProcureIQ",
         audience: "ProcureIQ-App"
     });
