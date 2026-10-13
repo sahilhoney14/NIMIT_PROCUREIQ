@@ -1948,7 +1948,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         workbook.modified = new Date();
 
         const sheet = workbook.addWorksheet("Order Summary", {
-            views: [{ showGridLines: true }],
+            views: [{ state: "frozen", ySplit: 4, showGridLines: true }],
             properties: { defaultRowHeight: 22 }
         });
 
@@ -1962,7 +1962,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
             pattern: "solid",
             fgColor: { argb: "FF0F172A" }
         };
-        titleCell.alignment = { vertical: "middle", horizontal: "center" };
+        titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
         sheet.getRow(1).height = 36;
 
         // 2. Metadata / Filter Bar Subtitle
@@ -1980,7 +1980,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
             pattern: "solid",
             fgColor: { argb: "FFF1F5F9" }
         };
-        metaCell.alignment = { vertical: "middle", horizontal: "center" };
+        metaCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
         sheet.getRow(2).height = 24;
 
         // Blank spacer row
@@ -2450,7 +2450,7 @@ app.get(["/vendors/export/excel", "/api/vendors/export/excel"], verifyProcuremen
         workbook.created = new Date();
 
         const sheet = workbook.addWorksheet("Vendor Master", {
-            views: [{ showGridLines: true }]
+            views: [{ state: "frozen", ySplit: 4, showGridLines: true }]
         });
 
         // 1. Title Banner
@@ -2463,7 +2463,7 @@ app.get(["/vendors/export/excel", "/api/vendors/export/excel"], verifyProcuremen
             pattern: "solid",
             fgColor: { argb: "FF0F172A" }
         };
-        titleCell.alignment = { vertical: "middle", horizontal: "center" };
+        titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
         sheet.getRow(1).height = 36;
 
         // 2. Subtitle Banner
@@ -2481,7 +2481,7 @@ app.get(["/vendors/export/excel", "/api/vendors/export/excel"], verifyProcuremen
             pattern: "solid",
             fgColor: { argb: "FFF1F5F9" }
         };
-        metaCell.alignment = { vertical: "middle", horizontal: "center" };
+        metaCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
         sheet.getRow(2).height = 24;
 
         sheet.getRow(3).height = 10; // blank row
