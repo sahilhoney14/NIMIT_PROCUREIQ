@@ -64,8 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .then(data => {
             if (data && data.authenticated) {
-                const target = data.role === "ADMIN" ? "/admin" :
-                              (data.role === "PROCUREMENT_MANAGER" ? "/procurement-manager" : "/procurement");
+                const target = data.role === "ADMIN" ? "/admin" : "/procurement";
                 window.location.replace(target);
             } else {
                 localStorage.removeItem("auth_token");

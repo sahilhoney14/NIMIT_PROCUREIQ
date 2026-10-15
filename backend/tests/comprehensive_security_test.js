@@ -94,12 +94,7 @@ async function runSuite() {
     assert("Auth cookies contain HttpOnly flag", hasHttpOnly);
     assert("Auth cookies contain SameSite=Lax flag", hasSameSite);
 
-    // 1.5 Manager Login
-    const managerLogin = await request({ hostname: "localhost", port: 3000, path: "/login", method: "POST" }, { username: "manager", password: "Password@123" });
-    assert("POST /login as PROCUREMENT_MANAGER returns 200", managerLogin.status === 200 && managerLogin.data.role === "PROCUREMENT_MANAGER");
-    const managerToken = managerLogin.data.token;
-
-    // 1.6 Procurement Login
+    // 1.5 Procurement Login
     const procLogin = await request({ hostname: "localhost", port: 3000, path: "/login", method: "POST" }, { username: "procurement", password: "Password@123" });
     assert("POST /login as PROCUREMENT returns 200", procLogin.status === 200 && procLogin.data.role === "PROCUREMENT");
     const procToken = procLogin.data.token;
@@ -149,7 +144,9 @@ async function runSuite() {
         "/users",
         "/vendors/all",
         "/audit-logs",
-        "/login-logs"
+        "/login-logs",
+        "/management-insights",
+        "/report-logs"
     ];
 
     for (const route of procOnAdminRoutes) {
@@ -160,53 +157,6 @@ async function runSuite() {
         );
         assert(`PROCUREMENT role accessing ADMIN route ${route} returns 403 Forbidden`, res.status === 403, `got ${res.status}`);
     }
-
-    // Procurement user trying to access MANAGER routes (expect 403 Forbidden)
-    const procOnManagerRoutes = [
-        "/management-insights",
-        "/report-logs"
-    ];
-
-    for (const route of procOnManagerRoutes) {
-        const res = await request(
-            { hostname: "localhost", port: 3000, path: route, method: "GET" },
-            null,
-            { "Authorization": `Bearer ${procToken}` }
-        );
-        assert(`PROCUREMENT role accessing MANAGER route ${route} returns 403 Forbidden`, res.status === 403, `got ${res.status}`);
-    }
-
-    // Manager user trying to access ADMIN routes (expect 403 Forbidden)
-    const mgrOnAdminRoutes = [
-        "/users",
-        "/vendors/all",
-        "/audit-logs",
-        "/login-logs"
-    ];
-
-    for (const route of mgrOnAdminRoutes) {
-        const res = await request(
-            { hostname: "localhost", port: 3000, path: route, method: "GET" },
-            null,
-            { "Authorization": `Bearer ${managerToken}` }
-        );
-        assert(`MANAGER role accessing ADMIN route ${route} returns 403 Forbidden`, res.status === 403, `got ${res.status}`);
-    }
-
-    // Authorized Manager Access (expect 200 OK)
-    const mgrInsights = await request(
-        { hostname: "localhost", port: 3000, path: "/management-insights", method: "GET" },
-        null,
-        { "Authorization": `Bearer ${managerToken}` }
-    );
-    assert("MANAGER role accessing /management-insights returns 200 OK", mgrInsights.status === 200 && mgrInsights.data.success === true);
-
-    const mgrReportLogs = await request(
-        { hostname: "localhost", port: 3000, path: "/report-logs", method: "GET" },
-        null,
-        { "Authorization": `Bearer ${managerToken}` }
-    );
-    assert("MANAGER role accessing /report-logs returns 200 OK", mgrReportLogs.status === 200 && mgrReportLogs.data.success === true);
 
     // Authorized Admin Access (expect 200 OK across all portals and sensitive routes)
     const adminUsers = await request(

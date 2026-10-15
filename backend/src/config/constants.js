@@ -1,7 +1,6 @@
 module.exports = {
     ROLES: {
         ADMIN: "ADMIN",
-        PROCUREMENT_MANAGER: "PROCUREMENT_MANAGER",
         PROCUREMENT: "PROCUREMENT"
     },
     PO_STATUS: {

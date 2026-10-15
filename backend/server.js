@@ -30,6 +30,5 @@ app.listen(PORT, async () => {
     log(`Server running at http://localhost:${PORT}`);
     log(`Auth / Login: http://localhost:${PORT}/`);
     log(`Admin Portal: http://localhost:${PORT}/admin`);
-    log(`Procurement Manager Portal: http://localhost:${PORT}/procurement-manager`);
     log(`Procurement Portal: http://localhost:${PORT}/procurement`);
 });

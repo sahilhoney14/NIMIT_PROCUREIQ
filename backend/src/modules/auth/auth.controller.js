@@ -13,7 +13,6 @@ const COOKIE_MAX_AGE = SESSION_MAX_AGE || (12 * 60 * 60 * 1000); // 12 hours
 
 const roleUrls = {
     ADMIN: "/admin",
-    PROCUREMENT_MANAGER: "/procurement-manager",
     PROCUREMENT: "/procurement"
 };
 

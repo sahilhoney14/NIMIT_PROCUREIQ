@@ -48,12 +48,17 @@ CREATE TABLE purchase_requests (
     unit VARCHAR(50) DEFAULT NULL,
     sales_rate DECIMAL(15,2) NOT NULL DEFAULT 0.00,
     taxable_value DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+    created_by BIGINT UNSIGNED DEFAULT NULL,
     created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id),
-    UNIQUE KEY uq_pr_number (pr_number)
+    UNIQUE KEY uq_pr_number (pr_number),
+    KEY created_by (created_by),
+    CONSTRAINT fk_pr_created_by
+        FOREIGN KEY (created_by)
+        REFERENCES users (user_id)
 );
 CREATE TABLE vendor_oem_masters (
     vendor_id INT UNSIGNED NOT NULL AUTO_INCREMENT,

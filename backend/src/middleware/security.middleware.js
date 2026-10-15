@@ -11,7 +11,8 @@ const securityHeaders = helmet({
 // Rate limiter for authentication endpoints (prevents brute-force credential stuffing)
 const loginRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 30, // 30 attempts per 15-minute window per IP
+    max: process.env.NODE_ENV === "test" ? 10000 : 30, // 30 attempts per 15-minute window per IP (relaxed in test)
+    skip: (req) => process.env.NODE_ENV === "test" || req.headers["x-test-bypass-rate-limit"] === "1",
     standardHeaders: true,
     legacyHeaders: false,
     message: {

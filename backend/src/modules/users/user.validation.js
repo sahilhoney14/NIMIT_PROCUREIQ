@@ -3,7 +3,7 @@ function validateCreateUser(req, res, next) {
     if (!username || !password || !role) {
         return res.status(400).json({ success: false, message: "Username, password and role are required" });
     }
-    if (!["ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT"].includes(role)) {
+    if (!["ADMIN", "PROCUREMENT"].includes(role)) {
         return res.status(400).json({ success: false, message: "Invalid role" });
     }
     next();

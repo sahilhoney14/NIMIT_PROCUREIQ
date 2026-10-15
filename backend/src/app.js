@@ -98,7 +98,7 @@ app.use("/api", apiRouter);
 function isDashboardPageRequest(req) {
     const p = (req.path || "").replace(/\/+$/, "") || "/";
     const acceptsHtml = req.headers.accept?.includes("text/html");
-    return acceptsHtml && (p === "/admin" || p === "/procurement-manager" || p === "/procurement");
+    return acceptsHtml && (p === "/admin" || p === "/procurement");
 }
 
 async function verifyAdmin(req, res, next) {
@@ -114,7 +114,6 @@ async function verifyAdmin(req, res, next) {
             if (!isDashboardPageRequest(req)) {
                 return res.status(403).json({ success: false, message: "Forbidden: ADMIN access required" });
             }
-            if (authUser.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
             if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
             return res.redirect("/");
         }
@@ -135,9 +134,9 @@ async function verifyManager(req, res, next) {
             }
             return res.redirect("/?reason=unauthenticated");
         }
-        if (!["ADMIN", "PROCUREMENT_MANAGER"].includes(authUser.role)) {
+        if (authUser.role !== "ADMIN") {
             if (!isDashboardPageRequest(req)) {
-                return res.status(403).json({ success: false, message: "Forbidden: Manager access required" });
+                return res.status(403).json({ success: false, message: "Forbidden: ADMIN access required" });
             }
             if (authUser.role === "PROCUREMENT") return res.redirect("/procurement");
             return res.redirect("/");
@@ -159,7 +158,7 @@ async function verifyProcurement(req, res, next) {
             }
             return res.redirect("/?reason=unauthenticated");
         }
-        if (!["ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT"].includes(authUser.role)) {
+        if (!["ADMIN", "PROCUREMENT", "USER"].includes(authUser.role)) {
             if (!isDashboardPageRequest(req)) {
                 return res.status(403).json({ success: false, message: "Forbidden: Procurement access required" });
             }
@@ -1170,11 +1169,12 @@ app.get(["/admin", "/admin/", "/admin/index.html"], verifyAdmin, (req, res) => {
     return res.send(html);
 });
 
-app.get(["/procurement-manager", "/procurement-manager/", "/procurement-manager/index.html"], verifyManager, (req, res) => {
-    const htmlPath = path.resolve(__dirname, "../../frontend/procurement-manager/index.html");
-    const template = getPortalHtml(htmlPath);
-    const html = template.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
-    return res.send(html);
+// Automatically redirect any legacy procurement-manager navigation to procurement or admin
+app.use("/procurement-manager", async (req, res) => {
+    const user = await resolveAuthUser(req);
+    if (!user) return res.redirect("/?reason=unauthenticated");
+    if (user.role === "ADMIN") return res.redirect("/admin");
+    return res.redirect("/procurement");
 });
 
 app.get(["/procurement", "/procurement/", "/procurement/index.html"], verifyProcurement, (req, res) => {
@@ -1186,7 +1186,6 @@ app.get(["/procurement", "/procurement/", "/procurement/index.html"], verifyProc
 
 // Protect portal asset folders (css, js, images) so unauthorized requests cannot access them directly
 app.use("/admin", verifyAdmin, express.static(path.resolve(__dirname, "../../frontend/admin"), { index: false }));
-app.use("/procurement-manager", verifyManager, express.static(path.resolve(__dirname, "../../frontend/procurement-manager"), { index: false }));
 app.use("/procurement", verifyProcurement, express.static(path.resolve(__dirname, "../../frontend/procurement"), { index: false }));
 
 // Root and Authentication Gateway Routes
@@ -1207,7 +1206,6 @@ app.get("/", async (req, res) => {
         return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
     }
     if (user.role === "ADMIN") return res.redirect("/admin");
-    if (user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
     return res.redirect("/procurement");
 });
 
@@ -1226,7 +1224,6 @@ app.get("/login", async (req, res) => {
     const user = await resolveAuthUser(req);
     if (user) {
         if (user.role === "ADMIN") return res.redirect("/admin");
-        if (user.role === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
         return res.redirect("/procurement");
     }
     return res.sendFile(path.resolve(__dirname, "../../frontend/auth-service/index.html"));
@@ -1263,7 +1260,7 @@ app.post("/users",verifyAdmin,async(req,res)=>{
     try{
         const{username,password,role}=req.body;
         if(!username||!password||!role)return res.status(400).json({success:false,message:"Username, password and role are required"});
-        if(!["ADMIN","PROCUREMENT_MANAGER","PROCUREMENT"].includes(role))return res.status(400).json({success:false,message:"Invalid role"});
+        if(!["ADMIN","PROCUREMENT"].includes(role))return res.status(400).json({success:false,message:"Invalid role"});
         const passwordHash=await bcrypt.hash(password,10);
         const[result]=await db.execute(
             `INSERT INTO users (username,password_hash,role,is_active) VALUES (?,?,?,TRUE)`,
@@ -1351,6 +1348,231 @@ app.put("/users/:user_id/access",verifyAdmin,async(req,res)=>{
 });
 
 /* ==========================================================================
+   TAB: WORKSPACE DASHBOARD
+   ========================================================================== */
+
+// GET /workspace/dashboard - Workspace activity metrics and lists
+// Admins see company-wide activity by default (or can filter by user), while non-admins strictly see only their own PRs and Goods Received
+app.get(["/workspace/dashboard", "/api/workspace/dashboard"], verifyProcurement, async (req, res) => {
+    try {
+        const currentUser = req.user;
+        const isAdmin = currentUser.role === "ADMIN";
+
+        let targetUserId = null;
+        if (isAdmin) {
+            const requestedUserId = req.query.user_id;
+            if (requestedUserId && requestedUserId !== "all" && requestedUserId !== "") {
+                targetUserId = Number(requestedUserId);
+            }
+        } else {
+            // Strictly enforce logged-in user's user_id for non-admins
+            targetUserId = currentUser.user_id;
+        }
+
+        // Available users for Admin filtering
+        let availableUsers = [];
+        if (isAdmin) {
+            const [userRows] = await db.query(
+                `SELECT user_id, username, role FROM users WHERE is_active = 1 ORDER BY username ASC`
+            );
+            availableUsers = userRows;
+        }
+
+        // Build conditions for PRs and GRs
+        const prConditions = [];
+        const prParams = [];
+        if (targetUserId) {
+            prConditions.push("pr.created_by = ?");
+            prParams.push(targetUserId);
+        }
+        const prWhere = prConditions.length ? `WHERE ${prConditions.join(" AND ")}` : "";
+
+        const grConditions = [];
+        const grParams = [];
+        if (targetUserId) {
+            grConditions.push("gr.received_by = ?");
+            grParams.push(targetUserId);
+        }
+        const grWhere = grConditions.length ? `WHERE ${grConditions.join(" AND ")}` : "";
+
+        // Query PR metrics
+        const [prMetricsRows] = await db.execute(
+            `SELECT 
+                COUNT(*) AS total_prs,
+                COALESCE(SUM(pr.taxable_value), 0) AS total_pr_value
+             FROM purchase_requests pr
+             ${prWhere}`,
+            prParams
+        );
+
+        // Query PO pipeline metrics
+        const poConditions = [];
+        const poParams = [];
+        if (targetUserId) {
+            poConditions.push("pr.created_by = ?");
+            poParams.push(targetUserId);
+        }
+        const poWhere = poConditions.length ? `WHERE ${poConditions.join(" AND ")}` : "";
+
+        const [poMetricsRows] = await db.execute(
+            `SELECT 
+                COUNT(po.po_id) AS total_pos,
+                COALESCE(SUM(po.status = 'DRAFT'), 0) AS draft_pos,
+                COALESCE(SUM(po.status = 'ISSUED'), 0) AS issued_pos,
+                COALESCE(SUM(po.status = 'COMPLETED'), 0) AS completed_pos,
+                COALESCE(SUM(po.status = 'CANCELLED'), 0) AS cancelled_pos
+             FROM purchase_orders po
+             LEFT JOIN purchase_requests pr ON po.pr_id = pr.id
+             ${poWhere}`,
+            poParams
+        );
+
+        // Query GR metrics
+        const [grMetricsRows] = await db.execute(
+            `SELECT 
+                COUNT(*) AS total_grn_receipts,
+                COALESCE(SUM(gr.received_quantity), 0) AS total_received_quantity,
+                COALESCE(SUM(gr.defective_quantity), 0) AS total_defective_quantity
+             FROM goods_received gr
+             ${grWhere}`,
+            grParams
+        );
+
+        // Query PR List (Recent 100 with status)
+        const [prRows] = await db.query(
+            `SELECT 
+                pr.id,
+                pr.pr_number,
+                pr.pr_date,
+                pr.party_name,
+                pr.location,
+                pr.territory,
+                pr.product_category,
+                pr.item_name,
+                pr.make,
+                pr.model,
+                pr.qty,
+                pr.unit,
+                pr.sales_rate,
+                pr.taxable_value,
+                pr.created_by,
+                COALESCE(u.username, 'admin') AS creator_username,
+                COALESCE(u.role, 'ADMIN') AS creator_role,
+                CASE
+                    WHEN po.status = 'COMPLETED' THEN 'CLOSED'
+                    WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
+                    WHEN vi.status IS NOT NULL THEN vi.status
+                    ELSE 'OPEN'
+                END AS status
+             FROM purchase_requests pr
+             LEFT JOIN users u ON pr.created_by = u.user_id
+             LEFT JOIN vendor_inquiries vi ON vi.pr_id = pr.id
+             LEFT JOIN purchase_orders po ON po.pr_id = pr.id
+             ${prWhere}
+             ORDER BY pr.id DESC
+             LIMIT 100`,
+            prParams
+        );
+
+        // Query Goods Received List (Recent 100)
+        const [grRows] = await db.query(
+            `SELECT 
+                gr.receipt_id,
+                gr.po_id,
+                COALESCE(po.po_number, '-') AS po_number,
+                COALESCE(po.vendor_name, '-') AS vendor_name,
+                COALESCE(po.item_name, '-') AS item_name,
+                COALESCE(po.make, '-') AS make,
+                COALESCE(po.model, '-') AS model,
+                COALESCE(po.unit, 'units') AS unit,
+                gr.received_quantity,
+                gr.defective_quantity,
+                gr.received_date,
+                gr.received_by,
+                gr.remarks,
+                gr.created_at,
+                COALESCE(u.username, 'admin') AS receiver_username,
+                COALESCE(u.role, 'ADMIN') AS receiver_role
+             FROM goods_received gr
+             LEFT JOIN purchase_orders po ON gr.po_id = po.po_id
+             LEFT JOIN users u ON gr.received_by = u.user_id
+             ${grWhere}
+             ORDER BY gr.receipt_id DESC
+             LIMIT 100`,
+            grParams
+        );
+
+        // For Admin: User Procurement Activity Breakdown
+        let userSummary = [];
+        if (isAdmin) {
+            const [summaryRows] = await db.query(`
+                SELECT 
+                    u.user_id,
+                    u.username,
+                    u.role,
+                    COALESCE(pr_agg.pr_count, 0) AS pr_count,
+                    COALESCE(pr_agg.total_pr_val, 0) AS total_pr_value,
+                    COALESCE(gr_agg.gr_count, 0) AS gr_count,
+                    COALESCE(gr_agg.total_received_qty, 0) AS total_received_qty
+                FROM users u
+                LEFT JOIN (
+                    SELECT created_by, COUNT(*) AS pr_count, SUM(taxable_value) AS total_pr_val
+                    FROM purchase_requests
+                    WHERE created_by IS NOT NULL
+                    GROUP BY created_by
+                ) pr_agg ON pr_agg.created_by = u.user_id
+                LEFT JOIN (
+                    SELECT received_by, COUNT(*) AS gr_count, SUM(received_quantity) AS total_received_qty
+                    FROM goods_received
+                    GROUP BY received_by
+                ) gr_agg ON gr_agg.received_by = u.user_id
+                WHERE u.is_active = 1
+                ORDER BY pr_count DESC, gr_count DESC, u.username ASC
+            `);
+            userSummary = summaryRows;
+        }
+
+        const metrics = {
+            total_prs: Number(prMetricsRows[0]?.total_prs || 0),
+            total_pr_value: Number(prMetricsRows[0]?.total_pr_value || 0),
+            total_pos: Number(poMetricsRows[0]?.total_pos || 0),
+            draft_pos: Number(poMetricsRows[0]?.draft_pos || 0),
+            issued_pos: Number(poMetricsRows[0]?.issued_pos || 0),
+            completed_pos: Number(poMetricsRows[0]?.completed_pos || 0),
+            cancelled_pos: Number(poMetricsRows[0]?.cancelled_pos || 0),
+            total_grn_receipts: Number(grMetricsRows[0]?.total_grn_receipts || 0),
+            total_received_quantity: Number(grMetricsRows[0]?.total_received_quantity || 0),
+            total_defective_quantity: Number(grMetricsRows[0]?.total_defective_quantity || 0),
+            active_users_count: isAdmin ? availableUsers.length : 1
+        };
+
+        return res.json({
+            success: true,
+            is_admin: isAdmin,
+            current_user: {
+                user_id: currentUser.user_id,
+                username: currentUser.username,
+                role: currentUser.role
+            },
+            filter_user_id: targetUserId,
+            available_users: availableUsers,
+            metrics,
+            purchase_requests: prRows,
+            goods_received: grRows,
+            user_summary: userSummary
+        });
+
+    } catch (error) {
+        log(`Workspace Dashboard fetch failed - ${error.message}`);
+        console.error(error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to load workspace dashboard data"
+        });
+    }
+});
+
+/* ==========================================================================
    TAB: PURCHASE REQUESTS
    ========================================================================== */
 
@@ -1408,6 +1630,7 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
     try {
         await connection.beginTransaction();
         const pr_number = await generatePrNumber(connection);
+        const createdBy = req.user?.user_id || req.session?.user?.user_id || 1;
         const [result] = await connection.execute(
             `INSERT INTO purchase_requests
             (
@@ -1424,9 +1647,10 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
                 qty,
                 unit,
                 sales_rate,
-                taxable_value
+                taxable_value,
+                created_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 pr_number,
                 pr_date_final,
@@ -1441,7 +1665,8 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
                 qty,
                 unit,
                 sales_rate,
-                taxable_value
+                taxable_value,
+                createdBy
             ]
         );
         const [inquiryResult] = await connection.execute(
@@ -1567,6 +1792,7 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
         const insertedRows = [];
         const reportItems = [];
         const prNumbers = await generatePrNumbers(connection, rows.length);
+        const createdBy = req.user?.user_id || req.session?.user?.user_id || 1;
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
             const pr_number = prNumbers[i];
@@ -1577,8 +1803,8 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
                 `INSERT INTO purchase_requests
                 (pr_number, pr_date, party_name, location, territory,
                  product_category, item_name, product_remarks, make, model,
-                 qty, unit, sales_rate, taxable_value)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 qty, unit, sales_rate, taxable_value, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     pr_number,
                     row.pr_date || null,
@@ -1593,7 +1819,8 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
                     qty,
                     row.unit || null,
                     sales_rate,
-                    taxable_value
+                    taxable_value,
+                    createdBy
                 ]
             );
             const prId = result.insertId;
@@ -4050,7 +4277,7 @@ app.get("/purchase-orders", verifyProcurement, async (req, res) => {
 });
 
 // POST /purchase-orders/:po_id/issue - Issues a DRAFT purchase order: generates the PDF, marks it ISSUED and returns the PDF as a download
-app.post("/purchase-orders/:po_id/issue", verifyManager, async (req, res) => {
+app.post("/purchase-orders/:po_id/issue", verifyProcurement, async (req, res) => {
     const poId = Number(req.params.po_id);
     const connection = await db.getConnection();
     try {
@@ -5299,8 +5526,8 @@ app.get("/past-price-reference/models", verifyProcurement, async (req, res) => {
                 item_name,
                 product_category
             FROM purchase_orders
-            WHERE model IS NOT NULL AND model != ''
-            ORDER BY model ASC
+            WHERE model IS NOT NULL AND model != '' AND status IN ('ISSUED', 'COMPLETED')
+            ORDER BY item_name ASC, make ASC, model ASC
         `);
         return res.json({ success: true, models: rows });
     } catch (error) {
@@ -5310,13 +5537,39 @@ app.get("/past-price-reference/models", verifyProcurement, async (req, res) => {
     }
 });
 
-// GET /past-price-reference - Purchase price history of one model: all purchases, the last three, and purchases grouped by vendor
+// GET /past-price-reference - Purchase price history of one model/make/item: all purchases, the last three, and purchases grouped by vendor
 app.get("/past-price-reference", verifyProcurement, async (req, res) => {
     const model = cleanValue(req.query.model);
-    if (!model)return res.status(400).json({ success: false, message: "Model name is required" });
+    const make = cleanValue(req.query.make);
+    const itemName = cleanValue(req.query.item_name);
+
+    if (!model && !itemName) return res.status(400).json({ success: false, message: "Model or item name is required" });
+
     try {
+        const conditions = [];
+        const params = [];
+
+        if (model) {
+            conditions.push("po.model = ?");
+            params.push(model);
+        }
+        if (make) {
+            conditions.push("po.make = ?");
+            params.push(make);
+        }
+        if (itemName) {
+            conditions.push("po.item_name = ?");
+            params.push(itemName);
+        }
+
+        // Only valid purchase orders (issued or completed)
+        conditions.push("po.status IN ('ISSUED', 'COMPLETED')");
+
+        const whereClause = `WHERE ${conditions.join(" AND ")}`;
+
         const [purchases] = await db.execute(`
             SELECT
+                po.po_id,
                 po.po_number,
                 po.po_date,
                 po.item_name,
@@ -5327,14 +5580,27 @@ app.get("/past-price-reference", verifyProcurement, async (req, res) => {
                 po.unit,
                 po.price_per_unit,
                 po.total_price,
-                po.vendor_code,
-                po.vendor_name,
+                COALESCE(vom.vendor_code, po.vendor_code) AS vendor_code,
+                COALESCE(vom.vendor_name, po.vendor_name) AS vendor_name,
                 po.status
             FROM purchase_orders po
-            WHERE po.model = ?
+            LEFT JOIN vendor_oem_masters vom ON po.vendor_id = vom.vendor_id
+            ${whereClause}
             ORDER BY po.po_date DESC, po.po_id DESC
-        `, [model]);
-        if (!purchases.length)return res.json({ success: true, model, purchases: [], summary: [] });
+        `, params);
+
+        if (!purchases.length) {
+            return res.json({
+                success: true,
+                model: model || itemName,
+                item_name: itemName || "",
+                make: make || "",
+                purchases: [],
+                last3: [],
+                byVendor: []
+            });
+        }
+
         const last3 = purchases.slice(0, 3);
         const vendorMap = {};
         purchases.forEach(p => {
@@ -5349,11 +5615,12 @@ app.get("/past-price-reference", verifyProcurement, async (req, res) => {
             vendorMap[key].purchases.push(p);
         });
         const byVendor = Object.values(vendorMap);
+
         return res.json({
             success:   true,
-            model,
-            item_name: purchases[0].item_name,
-            make:      purchases[0].make,
+            model:     model || purchases[0].model,
+            item_name: itemName || purchases[0].item_name,
+            make:      make || purchases[0].make,
             purchases,
             last3,
             byVendor

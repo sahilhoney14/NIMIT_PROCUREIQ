@@ -29,17 +29,14 @@
         const path = window.location.pathname.toLowerCase();
         if (path.includes("/admin")) {
             allowedRoles = ["ADMIN"];
-        } else if (path.includes("/procurement-manager")) {
-            allowedRoles = ["ADMIN", "PROCUREMENT_MANAGER"];
         } else if (path.includes("/procurement")) {
-            allowedRoles = ["ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT"];
+            allowedRoles = ["ADMIN", "PROCUREMENT"];
         }
     }
 
     // Role portal redirect destinations
     const ROLE_HOME = {
         ADMIN: "/admin",
-        PROCUREMENT_MANAGER: "/procurement-manager",
         PROCUREMENT: "/procurement"
     };
 

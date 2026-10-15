@@ -25,7 +25,6 @@ graph TD
     subgraph Frontend [Client Dashboards]
         UnifiedServer --> AuthUI[Auth Portal /]
         UnifiedServer --> AdminUI[Admin Portal /admin]
-        UnifiedServer --> MgrUI[Manager Portal /procurement-manager]
         UnifiedServer --> ProcUI[Procurement Portal /procurement]
     end
 
@@ -119,7 +118,6 @@ All portals run under a unified server on **Port 3000**:
 | :--- | :--- | :--- |
 | **Login Gateway** | [http://localhost:3000/](http://localhost:3000/) | Public / All Users |
 | **Admin Portal** | [http://localhost:3000/admin](http://localhost:3000/admin) | `ADMIN` |
-| **Procurement Manager** | [http://localhost:3000/procurement-manager](http://localhost:3000/procurement-manager) | `PROCUREMENT_MANAGER` |
 | **Procurement Portal** | [http://localhost:3000/procurement](http://localhost:3000/procurement) | `PROCUREMENT` |
 
 ---
@@ -129,6 +127,5 @@ All portals run under a unified server on **Port 3000**:
 | Username | Role | Password |
 | :--- | :--- | :--- |
 | `admin` | `ADMIN` | `Password@123` |
-| `manager` | `PROCUREMENT_MANAGER` | `Password@123` |
 | `procurement` | `PROCUREMENT` | `Password@123` |
 | `admin2` | `ADMIN` | `admin2` |

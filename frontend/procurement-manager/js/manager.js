@@ -4225,8 +4225,8 @@ function onPPRInput() {
     }
 
     const matches = pprModelList.filter(m =>
-        (m.model     || "").toLowerCase().includes(query) ||
         (m.item_name || "").toLowerCase().includes(query) ||
+        (m.model     || "").toLowerCase().includes(query) ||
         (m.make      || "").toLowerCase().includes(query)
     );
 
@@ -4239,14 +4239,17 @@ function onPPRInput() {
     dropdown.innerHTML = matches.slice(0, 30).map(m => `
         <div
             class="ppr-dropdown-item"
-            data-model="${escapeHtml(m.model)}"
-        >
-            <span class="ppr-dropdown-model">${escapeHtml(m.model)}</span>
-            <span class="ppr-dropdown-meta">
-                ${escapeHtml(m.item_name || "")}
-                ${m.make ? `· ${escapeHtml(m.make)}` : ""}
-                ${m.product_category ? `· ${escapeHtml(m.product_category)}` : ""}
-            </span>
+            data-model="${escapeHtml(m.model || "")}"
+            data-make="${escapeHtml(m.make || "")}"
+            data-item-name="${escapeHtml(m.item_name || "")}">
+            <div class="ppr-dropdown-item-header">
+                <span class="ppr-dropdown-model">${escapeHtml(m.item_name || "-")}</span>
+                ${m.make ? `<span class="ppr-dropdown-pill-make">${escapeHtml(m.make)}</span>` : ""}
+            </div>
+            <div class="ppr-dropdown-meta">
+                ${m.model ? `<span><strong>Model:</strong> ${escapeHtml(m.model)}</span>` : ""}
+                ${m.product_category ? `<span>· ${escapeHtml(m.product_category)}</span>` : ""}
+            </div>
         </div>
     `).join("");
 
@@ -4254,10 +4257,26 @@ function onPPRInput() {
 
     dropdown.querySelectorAll(".ppr-dropdown-item").forEach(item => {
         item.addEventListener("click", () => {
-            const model = item.dataset.model;
-            document.getElementById("pprSearchInput").value = model;
+            const model    = item.dataset.model || "";
+            const make     = item.dataset.make || "";
+            const itemName = item.dataset.itemName || "";
+
+            let label = itemName;
+            if (make && model) {
+                label += ` — ${make} (Model: ${model})`;
+            } else if (model) {
+                label += ` (Model: ${model})`;
+            } else if (make) {
+                label += ` (${make})`;
+            }
+            document.getElementById("pprSearchInput").value = label;
             dropdown.classList.add("hidden");
-            loadPPRDetail(model);
+
+            if (model || itemName) {
+                loadPPRDetail(model, make, itemName);
+            } else {
+                document.getElementById("pprMessage").textContent = "This item has no model or item name on record.";
+            }
         });
     });
 }
@@ -4270,17 +4289,22 @@ function onPPROutsideClick(e) {
     }
 }
 
-async function loadPPRDetail(model) {
+async function loadPPRDetail(model, make, itemName) {
     const results = document.getElementById("pprResults");
     const msg     = document.getElementById("pprMessage");
     const label   = document.getElementById("pprSelectedLabel");
 
     results.innerHTML = "";
-    msg.textContent   = "Loading...";
+    msg.textContent   = "Loading past price reference...";
     label.classList.add("hidden");
 
     try {
-        const response = await apiFetch(`/past-price-reference?model=${encodeURIComponent(model)}`);
+        const params = new URLSearchParams();
+        if (model) params.set("model", model);
+        if (make) params.set("make", make);
+        if (itemName) params.set("item_name", itemName);
+
+        const response = await apiFetch(`/past-price-reference?${params.toString()}`);
         if (!response) return;
         const result   = await response.json();
 
@@ -4291,12 +4315,43 @@ async function loadPPRDetail(model) {
 
         msg.textContent = "";
 
-        if (!result.purchases.length) {
-            msg.textContent = "No purchase history found for this model";
+        if (!result.purchases?.length) {
+            msg.innerHTML = `
+                <div class="ppr-empty-state">
+                    <div class="ppr-empty-icon">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    </div>
+                    <div class="ppr-empty-title">No Purchase History Found</div>
+                    <div class="ppr-empty-desc">No issued or completed purchase orders exist for this specification yet.</div>
+                </div>
+            `;
             return;
         }
 
-        label.textContent = `Showing results for: ${result.model}${result.item_name ? ` — ${result.item_name}` : ""}${result.make ? ` (${result.make})` : ""}`;
+        label.innerHTML = `
+            <div class="ppr-header-box">
+                <div class="ppr-header-info">
+                    <div class="ppr-header-title-row">
+                        <span class="ppr-header-item-name">${escapeHtml(result.item_name || result.model || "Product")}</span>
+                        ${result.make ? `<span class="ppr-badge ppr-badge-make">Make: ${escapeHtml(result.make)}</span>` : ""}
+                        ${result.model ? `<span class="ppr-badge ppr-badge-model">Model: ${escapeHtml(result.model)}</span>` : ""}
+                    </div>
+                    <div class="ppr-header-sub">
+                        <span>Verified purchase orders (Issued / Completed) for this specification</span>
+                    </div>
+                </div>
+                <div class="ppr-header-stats">
+                    <div class="ppr-stat-chip">
+                        <span class="ppr-stat-count">${result.purchases.length}</span>
+                        <span class="ppr-stat-label">Total Order${result.purchases.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div class="ppr-stat-chip">
+                        <span class="ppr-stat-count">${result.byVendor.length}</span>
+                        <span class="ppr-stat-label">Vendor${result.byVendor.length !== 1 ? "s" : ""}</span>
+                    </div>
+                </div>
+            </div>
+        `;
         label.classList.remove("hidden");
 
         renderPPRResults(result);
@@ -4307,90 +4362,179 @@ async function loadPPRDetail(model) {
 }
 
 function renderPPRResults({ last3, byVendor }) {
-
     const results = document.getElementById("pprResults");
+
+    const cardsHtml = last3.map((p, i) => {
+        const rankLabels = [
+            { text: "#1 · Most Recent Purchase", cls: "ppr-rank-recent" },
+            { text: "#2 · Previous Purchase", cls: "ppr-rank-prev" },
+            { text: "#3 · Earlier Purchase", cls: "ppr-rank-earlier" }
+        ];
+        const rankInfo = rankLabels[i] || { text: `#${i + 1} · Purchase`, cls: "ppr-rank-earlier" };
+        const statusLower = (p.status || "").toLowerCase();
+        const initial = (p.vendor_name || "V").charAt(0).toUpperCase();
+
+        return `
+            <div class="ppr-summary-card ${i === 0 ? "ppr-card-highlighted" : ""}">
+                <div class="ppr-card-top">
+                    <span class="ppr-rank-badge ${rankInfo.cls}">
+                        ${i === 0 ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>` : ""}
+                        ${rankInfo.text}
+                    </span>
+                    <span class="ppr-status-badge status-${statusLower}">
+                        <span class="ppr-status-dot"></span>${escapeHtml(p.status || "-")}
+                    </span>
+                </div>
+
+                <div class="ppr-price-hero">
+                    <span class="ppr-price-label">PURCHASE UNIT RATE</span>
+                    <div class="ppr-price-val-wrap">
+                        <span class="ppr-price-val">₹${formatCurrency(p.price_per_unit)}</span>
+                        <span class="ppr-price-per">/ ${escapeHtml(p.unit || "unit")}</span>
+                    </div>
+                </div>
+
+                <div class="ppr-card-details-grid">
+                    <div class="ppr-detail-item">
+                        <span class="ppr-detail-k">PO NUMBER</span>
+                        <span class="ppr-detail-v ppr-po-mono">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            ${escapeHtml(p.po_number)}
+                        </span>
+                    </div>
+                    <div class="ppr-detail-item">
+                        <span class="ppr-detail-k">PO DATE</span>
+                        <span class="ppr-detail-v">${formatDate(p.po_date)}</span>
+                    </div>
+                    <div class="ppr-detail-item">
+                        <span class="ppr-detail-k">ORDER QTY</span>
+                        <span class="ppr-detail-v">${p.qty} ${escapeHtml(p.unit || "")}</span>
+                    </div>
+                    <div class="ppr-detail-item">
+                        <span class="ppr-detail-k">TOTAL VALUE</span>
+                        <span class="ppr-detail-v ppr-val-bold">₹${formatCurrency(p.total_price)}</span>
+                    </div>
+                </div>
+
+                <div class="ppr-card-vendor-footer">
+                    <div class="ppr-vendor-avatar">${escapeHtml(initial)}</div>
+                    <div class="ppr-vendor-info">
+                        <span class="ppr-vendor-name-line" title="${escapeHtml(p.vendor_name)}">${escapeHtml(p.vendor_name)}</span>
+                        ${p.vendor_code ? `<span class="ppr-vendor-code-pill">${escapeHtml(p.vendor_code)}</span>` : ""}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    let placeholdersHtml = "";
+    if (last3.length === 1) {
+        placeholdersHtml = `
+            <div class="ppr-summary-card ppr-placeholder-card">
+                <div class="ppr-placeholder-inner">
+                    <div class="ppr-placeholder-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                    </div>
+                    <span class="ppr-placeholder-title">No Previous Purchase (#2)</span>
+                    <span class="ppr-placeholder-desc">Only 1 purchase recorded for this exact specification. Future completed orders will appear here.</span>
+                </div>
+            </div>
+            <div class="ppr-summary-card ppr-placeholder-card">
+                <div class="ppr-placeholder-inner">
+                    <div class="ppr-placeholder-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                    </div>
+                    <span class="ppr-placeholder-title">No Earlier Purchase (#3)</span>
+                    <span class="ppr-placeholder-desc">Earlier purchase price reference slot will be populated when 3 or more orders exist.</span>
+                </div>
+            </div>
+        `;
+    } else if (last3.length === 2) {
+        placeholdersHtml = `
+            <div class="ppr-summary-card ppr-placeholder-card">
+                <div class="ppr-placeholder-inner">
+                    <div class="ppr-placeholder-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+                    </div>
+                    <span class="ppr-placeholder-title">No Earlier Purchase (#3)</span>
+                    <span class="ppr-placeholder-desc">2 purchases recorded. Earlier purchase price reference slot will be populated on the next PO.</span>
+                </div>
+            </div>
+        `;
+    }
 
     const summaryHtml = `
         <div class="ppr-section">
-            <h3 class="ppr-section-title">Last 3 Purchases Summary</h3>
+            <div class="ppr-section-header">
+                <h3 class="ppr-section-title">Last 3 Purchases Summary</h3>
+                <p class="ppr-section-sub">Chronological price comparison of the most recent purchase orders</p>
+            </div>
             <div class="ppr-summary-strip">
-                ${last3.map((p, i) => `
-                    <div class="ppr-summary-card">
-                        <div class="ppr-summary-rank">#${i + 1}</div>
-                        <div class="ppr-summary-field">
-                            <span class="ppr-summary-label">Date</span>
-                            <span class="ppr-summary-value">${formatDate(p.po_date)}</span>
-                        </div>
-                        <div class="ppr-summary-field">
-                            <span class="ppr-summary-label">Vendor</span>
-                            <span class="ppr-summary-value">${escapeHtml(p.vendor_name)}</span>
-                        </div>
-                        <div class="ppr-summary-field">
-                            <span class="ppr-summary-label">Qty</span>
-                            <span class="ppr-summary-value">${p.qty} ${escapeHtml(p.unit || "")}</span>
-                        </div>
-                        <div class="ppr-summary-field">
-                            <span class="ppr-summary-label">Unit Rate</span>
-                            <span class="ppr-summary-value ppr-rate">₹${formatCurrency(p.price_per_unit)}</span>
-                        </div>
-                        <div class="ppr-summary-field">
-                            <span class="ppr-summary-label">PO Number</span>
-                            <span class="ppr-summary-value">${escapeHtml(p.po_number)}</span>
-                        </div>
-                    </div>
-                `).join("")}
+                ${cardsHtml}
+                ${placeholdersHtml}
             </div>
         </div>
     `;
 
-    const vendorSections = byVendor.map(v => `
-        <div class="ppr-vendor-block">
-            <div class="ppr-vendor-header">
-                <span class="ppr-vendor-name">${escapeHtml(v.vendor_name)}</span>
-                ${v.vendor_code
-                    ? `<span class="ppr-vendor-code">${escapeHtml(v.vendor_code)}</span>`
-                    : ""
-                }
-                <span class="ppr-vendor-count">${v.purchases.length} order${v.purchases.length !== 1 ? "s" : ""}</span>
-            </div>
-            <div class="table-container">
-                <table class="inquiry-vendor-table">
-                    <thead>
-                        <tr>
-                            <th>PO Number</th>
-                            <th>Date</th>
-                            <th>Qty</th>
-                            <th>Unit</th>
-                            <th>Unit Rate</th>
-                            <th>Total Price</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${v.purchases.map(p => `
+    const vendorSections = byVendor.map(v => {
+        const initial = (v.vendor_name || "V").charAt(0).toUpperCase();
+        return `
+            <div class="ppr-vendor-block">
+                <div class="ppr-vendor-header">
+                    <div class="ppr-vendor-title-wrap">
+                        <div class="ppr-vendor-avatar">${escapeHtml(initial)}</div>
+                        <span class="ppr-vendor-name">${escapeHtml(v.vendor_name)}</span>
+                        ${v.vendor_code ? `<span class="ppr-vendor-code">${escapeHtml(v.vendor_code)}</span>` : ""}
+                    </div>
+                    <span class="ppr-vendor-count">${v.purchases.length} order${v.purchases.length !== 1 ? "s" : ""}</span>
+                </div>
+                <div class="table-container">
+                    <table class="inquiry-vendor-table">
+                        <thead>
                             <tr>
-                                <td>${escapeHtml(p.po_number)}</td>
-                                <td>${formatDate(p.po_date)}</td>
-                                <td>${p.qty}</td>
-                                <td>${escapeHtml(p.unit || "-")}</td>
-                                <td class="ppr-rate-cell">₹${formatCurrency(p.price_per_unit)}</td>
-                                <td>₹${formatCurrency(p.total_price)}</td>
-                                <td>
-                                    <span class="inquiry-status status-${(p.status || "").toLowerCase()}">
-                                        ${escapeHtml(p.status || "-")}
-                                    </span>
-                                </td>
+                                <th>PO NUMBER</th>
+                                <th>DATE</th>
+                                <th>QTY</th>
+                                <th>UNIT</th>
+                                <th>UNIT RATE</th>
+                                <th>TOTAL PRICE</th>
+                                <th>STATUS</th>
                             </tr>
-                        `).join("")}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            ${v.purchases.map(p => `
+                                <tr>
+                                    <td>
+                                        <span class="ppr-po-mono">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                            ${escapeHtml(p.po_number)}
+                                        </span>
+                                    </td>
+                                    <td>${formatDate(p.po_date)}</td>
+                                    <td>${p.qty}</td>
+                                    <td>${escapeHtml(p.unit || "-")}</td>
+                                    <td class="ppr-rate-cell">₹${formatCurrency(p.price_per_unit)}</td>
+                                    <td><strong>₹${formatCurrency(p.total_price)}</strong></td>
+                                    <td>
+                                        <span class="inquiry-status status-${(p.status || "").toLowerCase()}">
+                                            ${escapeHtml(p.status || "-")}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join("")}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-    `).join("");
+        `;
+    }).join("");
 
     results.innerHTML = summaryHtml + `
         <div class="ppr-section">
-            <h3 class="ppr-section-title">Full History by Vendor</h3>
+            <div class="ppr-section-header">
+                <h3 class="ppr-section-title">Full History by Vendor</h3>
+                <p class="ppr-section-sub">All historical purchase orders grouped by vendor</p>
+            </div>
             ${vendorSections}
         </div>
     `;

@@ -4,7 +4,7 @@ const { resolveAuthUser } = require("../services/jwt.service");
 function isDashboardPageRequest(req) {
     const p = (req.path || "").replace(/\/+$/, "") || "/";
     const acceptsHtml = req.headers.accept?.includes("text/html");
-    return acceptsHtml && (p === "/admin" || p === "/procurement-manager" || p === "/procurement");
+    return acceptsHtml && (p === "/admin" || p === "/procurement");
 }
 
 async function requireAuth(req, res, next) {
@@ -45,7 +45,6 @@ function requireRole(...allowedRoles) {
                     return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to perform this action" });
                 }
                 if (userRole === "ADMIN") return res.redirect("/admin");
-                if (userRole === "PROCUREMENT_MANAGER") return res.redirect("/procurement-manager");
                 if (userRole === "PROCUREMENT") return res.redirect("/procurement");
                 return res.redirect("/");
             }
@@ -59,8 +58,8 @@ function requireRole(...allowedRoles) {
 }
 
 const verifyAdmin = requireRole("ADMIN");
-const verifyManager = requireRole("ADMIN", "PROCUREMENT_MANAGER");
-const verifyProcurement = requireRole("ADMIN", "PROCUREMENT_MANAGER", "PROCUREMENT");
+const verifyManager = requireRole("ADMIN");
+const verifyProcurement = requireRole("ADMIN", "PROCUREMENT", "USER");
 
 module.exports = {
     requireAuth,

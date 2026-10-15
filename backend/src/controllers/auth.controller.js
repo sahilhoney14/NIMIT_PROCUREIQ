@@ -5,7 +5,6 @@ const { log } = require("../utils/logger");
 
 const roleUrls = {
     ADMIN: "/admin",
-    PROCUREMENT_MANAGER: "/procurement-manager",
     PROCUREMENT: "/procurement"
 };
 

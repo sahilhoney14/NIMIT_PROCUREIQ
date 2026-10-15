@@ -147,18 +147,17 @@ async function runTests() {
         throw new Error("Test 5 Failed: Revoked refresh token was not rejected!");
     }
 
-    // Test 6: Manager and User Roles
-    console.log("\n[Test 6] Login as procurement manager...");
-    const managerLogin = await request({
+    // Test 6: Verify legacy /procurement-manager redirect
+    console.log("\n[Test 6] Verify /procurement-manager redirects...");
+    const pmRedirect = await request({
         hostname: "localhost",
         port: 3000,
-        path: "/login",
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-    }, { username: "manager", password: "Password@123" });
-    console.log(`Manager Login: Status ${managerLogin.status}, Role: ${managerLogin.data.role}, Redirect: ${managerLogin.data.redirect_url}`);
-    if (managerLogin.data.role !== "PROCUREMENT_MANAGER" || managerLogin.data.redirect_url !== "/procurement-manager") {
-        throw new Error("Test 6 Failed: Manager role/redirect mismatch");
+        path: "/procurement-manager",
+        method: "GET"
+    });
+    console.log(`Legacy /procurement-manager redirect: Status ${pmRedirect.status}`);
+    if (pmRedirect.status !== 302) {
+        throw new Error("Test 6 Failed: /procurement-manager did not redirect");
     }
 
     console.log("\n[Test 7] Login as procurement user...");

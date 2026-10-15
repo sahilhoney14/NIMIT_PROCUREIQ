@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Procurement</title>
-    <script src="/shared/js/auth-guard.js" data-allowed-roles="PROCUREMENT,PROCUREMENT_MANAGER,ADMIN"></script>
-    <link rel="stylesheet" href="/procurement/style.css">
+    <script src="/shared/js/auth-guard.js" data-allowed-roles="PROCUREMENT,ADMIN"></script>
+    <link rel="stylesheet" href="/procurement/style.css?v=2.1">
+    <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=2.1">
 </head>
 <body>
     <header class="topbar">
@@ -47,7 +48,16 @@
                     <span>Workspace</span>
                 </button>
                 <div class="submenu open" id="workspace">
-                    <button class="submenu-item active" data-page="purchase-requests">
+                    <button class="submenu-item active" data-page="workspace-dashboard">
+                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                        <span>Workspace Dashboard</span>
+                    </button>
+                    <button class="submenu-item" data-page="purchase-requests">
                         <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="9 11 12 14 22 4"></polyline>
                             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
@@ -147,7 +157,187 @@
         </aside>
 
         <main class="content">
-            <div id="purchaseRequestsPage" class="page">
+
+            <!-- ── Workspace Dashboard ─────────────────────────────── -->
+            <div id="workspaceDashboardPage" class="page">
+                <div class="workspace-dashboard-header">
+                    <div class="wd-title-block">
+                        <h1 class="wd-main-title" id="wdTitle">My Workspace Dashboard</h1>
+                        <p class="wd-subtitle" id="wdSubtitle">Review and manage your personal purchase requests and goods received activity.</p>
+                    </div>
+
+                    <div class="wd-header-actions">
+                        <button id="wdNewPrBtn" type="button" class="primary-button wd-action-btn">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span>New Purchase Request</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="wd-metrics-grid">
+                    <div class="pipeline-card">
+                        <div class="pipeline-icon-circle bg-blue-subtle text-blue">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>
+                        </div>
+                        <div class="pipeline-metric-block">
+                            <strong id="wdTotalPrs">0</strong>
+                            <span class="pipeline-title">Requisitions</span>
+                            <span class="pipeline-desc">Total PRs</span>
+                        </div>
+                    </div>
+
+                    <div class="pipeline-card">
+                        <div class="pipeline-icon-circle bg-purple-subtle text-purple">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        </div>
+                        <div class="pipeline-metric-block">
+                            <strong id="wdTotalPos">0</strong>
+                            <span class="pipeline-title">Purchase Orders</span>
+                            <span class="pipeline-desc">Created Orders</span>
+                        </div>
+                    </div>
+
+                    <div class="pipeline-card">
+                        <div class="pipeline-icon-circle bg-amber-subtle text-amber">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        </div>
+                        <div class="pipeline-metric-block">
+                            <strong id="wdDraftPos">0</strong>
+                            <span class="pipeline-title">Draft POs</span>
+                            <span class="pipeline-desc">Pending Review</span>
+                        </div>
+                    </div>
+
+                    <div class="pipeline-card">
+                        <div class="pipeline-icon-circle bg-sky-subtle text-sky">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        </div>
+                        <div class="pipeline-metric-block">
+                            <strong id="wdIssuedPos">0</strong>
+                            <span class="pipeline-title">Issued POs</span>
+                            <span class="pipeline-desc">Active with Vendor</span>
+                        </div>
+                    </div>
+
+                    <div class="pipeline-card">
+                        <div class="pipeline-icon-circle bg-emerald-subtle text-emerald">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                        <div class="pipeline-metric-block">
+                            <strong id="wdCompletedPos">0</strong>
+                            <span class="pipeline-title">Completed POs</span>
+                            <span class="pipeline-desc">Fulfilled &amp; Received</span>
+                        </div>
+                    </div>
+
+                    <div class="pipeline-card">
+                        <div class="pipeline-icon-circle bg-rose-subtle text-rose">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                        </div>
+                        <div class="pipeline-metric-block">
+                            <strong id="wdCancelledPos">0</strong>
+                            <span class="pipeline-title">Cancelled POs</span>
+                            <span class="pipeline-desc">Voided / Revoked</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wd-tabs-nav">
+                    <button class="wd-tab-btn active" data-wd-tab="prs">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                        <span>My Purchase Requests</span>
+                        <span class="wd-tab-count" id="wdPrBadge">0</span>
+                    </button>
+                    <button class="wd-tab-btn" data-wd-tab="grn">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                        <span>My Goods Received Activity</span>
+                        <span class="wd-tab-count" id="wdGrBadge">0</span>
+                    </button>
+                </div>
+
+                <div id="wdTabPrs" class="wd-tab-content active">
+                    <div class="wd-table-toolbar">
+                        <div class="wd-search-wrap">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input type="text" id="wdPrSearch" placeholder="Search your PRs by number, item, party name..." class="wd-search-input">
+                        </div>
+                        <div class="wd-filter-pills" id="wdPrStatusFilter">
+                            <button class="wd-filter-pill active" data-status="ALL">All Status</button>
+                            <button class="wd-filter-pill" data-status="OPEN">Open</button>
+                            <button class="wd-filter-pill" data-status="VENDOR_SELECTED">Vendor Selected</button>
+                            <button class="wd-filter-pill" data-status="CLOSED">Closed</button>
+                            <button class="wd-filter-pill" data-status="CANCELLED">Cancelled</button>
+                        </div>
+                    </div>
+
+                    <div class="wd-table-card">
+                        <div class="table-container">
+                            <table class="data-table wd-table">
+                                <thead>
+                                    <tr>
+                                        <th>PR Number</th>
+                                        <th>Date</th>
+                                        <th>Party Name</th>
+                                        <th>Item & Make / Model</th>
+                                        <th>Quantity</th>
+                                        <th style="text-align: right;">Taxable Value</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wdPrTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="wdPrEmptyState" class="wd-empty-state hidden">
+                            <div class="wd-empty-icon">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                            </div>
+                            <h3>No Purchase Requests Found</h3>
+                            <p id="wdPrEmptyText">You have not raised any purchase requests yet. Click "New Purchase Request" above to create one.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="wdTabGrn" class="wd-tab-content">
+                    <div class="wd-table-toolbar">
+                        <div class="wd-search-wrap">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <input type="text" id="wdGrSearch" placeholder="Search your receipts by PO number, item, vendor..." class="wd-search-input">
+                        </div>
+                    </div>
+
+                    <div class="wd-table-card">
+                        <div class="table-container">
+                            <table class="data-table wd-table">
+                                <thead>
+                                    <tr>
+                                        <th>Receipt ID</th>
+                                        <th>Received Date</th>
+                                        <th>PO Number</th>
+                                        <th>Vendor</th>
+                                        <th>Item & Make / Model</th>
+                                        <th>Received Qty</th>
+                                        <th style="text-align: center;">Defective</th>
+                                        <th>Remarks</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="wdGrTableBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="wdGrEmptyState" class="wd-empty-state hidden">
+                            <div class="wd-empty-icon">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                            </div>
+                            <h3>No Goods Received Activity Found</h3>
+                            <p id="wdGrEmptyText">You have not recorded any goods received activity yet.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="purchaseRequestsPage" class="page hidden">
                 <h1>Purchase Requests</h1>
 
                 <div class="pr-options">
@@ -275,9 +465,7 @@
                         </div>
 
                         <div class="preview-actions">
-                            <button id="saveImportedButton" class="primary-button">
-                                Save Purchase Requests
-                            </button>
+                            <button type="button" id="saveImportedButton" class="primary-button">Save Purchase Requests</button>
                             <button type="button" id="cancelImportedButton" class="btn-cancel-import">Cancel / Discard</button>
                         </div>
                     </div>
@@ -657,7 +845,7 @@
                                 </div>
                             </div>
                         <div class="preview-actions">
-                            <button id="saveVendorExcelButton" class="primary-button">Save Vendor</button>
+                            <button type="button" id="saveVendorExcelButton" class="primary-button">Save Vendor</button>
                             <button type="button" id="cancelVendorExcelButton" class="btn-cancel-import">Cancel / Discard</button>
                         </div>
                     </div>
@@ -945,6 +1133,7 @@
         </main>
     </div>
 
+    <script src="/shared/js/workspace-dashboard.js"></script>
     <script src="/procurement/script.js"></script>
 </body>
 </html>
