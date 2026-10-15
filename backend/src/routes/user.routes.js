@@ -7,5 +7,6 @@ router.get("/users", verifyAdmin, userController.getUsers);
 router.post("/users", verifyAdmin, userController.createUser);
 router.put("/users/:user_id/password", verifyAdmin, userController.updatePassword);
 router.put("/users/:user_id/access", verifyAdmin, userController.updateAccess);
+router.delete("/users/:user_id", verifyAdmin, userController.deleteUser);
 
 module.exports = router;

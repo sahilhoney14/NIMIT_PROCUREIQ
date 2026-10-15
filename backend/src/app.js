@@ -1347,6 +1347,57 @@ app.put("/users/:user_id/access",verifyAdmin,async(req,res)=>{
     }
 });
 
+// DELETE /users/:user_id - Deletes a user account.
+app.delete(["/users/:user_id", "/api/users/:user_id"], verifyAdmin, async (req, res) => {
+    const userId = Number(req.params.user_id);
+    log(`DELETE /users/${userId} - Delete User request`);
+    if (!Number.isInteger(userId) || userId <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+    if (req.user && req.user.user_id === userId) {
+        return res.status(400).json({ success: false, message: "You cannot delete your own admin account" });
+    }
+    try {
+        const [userRows] = await db.execute(
+            `SELECT username, role, is_active FROM users WHERE user_id = ? LIMIT 1`,
+            [userId]
+        );
+        if (!userRows.length) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        const user = userRows[0];
+        if (user.username.toLowerCase() === "admin") {
+            return res.status(400).json({ success: false, message: "The primary admin account cannot be deleted" });
+        }
+
+        const actingAdminId = req.user?.user_id || 1;
+
+        // Clean up or reassign references before deletion
+        await db.execute(`DELETE FROM login_logs WHERE user_id = ?`, [userId]);
+        await db.execute(`UPDATE purchase_requests SET created_by = NULL WHERE created_by = ?`, [userId]);
+        await db.execute(`UPDATE goods_received SET received_by = ? WHERE received_by = ?`, [actingAdminId, userId]);
+        await db.execute(`UPDATE goods_returns SET returned_by = ? WHERE returned_by = ?`, [actingAdminId, userId]);
+
+        // Delete user record
+        await db.execute(`DELETE FROM users WHERE user_id = ?`, [userId]);
+        invalidateUserCache(userId);
+
+        await writeReportLog(req, "USER_DELETED",
+            `User deleted. Username: "${user.username}", Role: ${user.role}, User ID: ${userId}.`
+        );
+        await writeAuditLog(req, "USER_DELETED",
+            JSON.stringify({ user_id: userId, username: user.username, role: user.role, is_active: Boolean(user.is_active) }),
+            null
+        );
+
+        log(`User deleted successfully: ${user.username} (ID: ${userId})`);
+        res.json({ success: true, message: `User "${user.username}" deleted successfully` });
+    } catch (error) {
+        log(`ERROR deleting user: ${error.message}`);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+});
+
 /* ==========================================================================
    TAB: WORKSPACE DASHBOARD
    ========================================================================== */

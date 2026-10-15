@@ -119,9 +119,52 @@ async function updateAccess(req, res) {
     }
 }
 
+async function deleteUser(req, res) {
+    const userId = Number(req.params.user_id);
+    log(`DELETE /users/${userId} - Delete User request`);
+    if (!Number.isInteger(userId) || userId <= 0) {
+        return res.status(400).json({ success: false, message: "Invalid user ID" });
+    }
+    if (req.user && req.user.user_id === userId) {
+        return res.status(400).json({ success: false, message: "You cannot delete your own admin account" });
+    }
+
+    try {
+        const user = await userService.getUserById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        if (user.username.toLowerCase() === "admin") {
+            return res.status(400).json({ success: false, message: "The primary admin account cannot be deleted" });
+        }
+
+        const actingAdminId = req.user?.user_id || 1;
+        await userService.deleteUser(userId, actingAdminId);
+
+        await writeReportLog(
+            req,
+            "USER_DELETED",
+            `User deleted. Username: "${user.username}", Role: ${user.role}, User ID: ${userId}.`
+        );
+        await writeAuditLog(
+            req,
+            "USER_DELETED",
+            JSON.stringify({ user_id: userId, username: user.username, role: user.role }),
+            null
+        );
+
+        log(`User deleted: ${user.username} (ID: ${userId})`);
+        res.json({ success: true, message: `User "${user.username}" deleted successfully` });
+    } catch (error) {
+        log(`ERROR deleting user: ${error.message}`);
+        res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
 module.exports = {
     getUsers,
     createUser,
     updatePassword,
-    updateAccess
+    updateAccess,
+    deleteUser
 };

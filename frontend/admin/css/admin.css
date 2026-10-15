@@ -3640,6 +3640,30 @@ td input.taxable-input {
     color: #991b1b;
 }
 
+.delete-button {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    vertical-align: middle;
+}
+
+.delete-button:hover:not(:disabled) {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #f87171;
+}
+
+.delete-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #f1f5f9;
+    color: #94a3b8;
+    border-color: #e2e8f0;
+}
+
 /* ── Modals ── */
 
 .modal {

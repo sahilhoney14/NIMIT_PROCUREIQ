@@ -23,10 +23,15 @@ async function changeAccess(userId, isActive) {
     return userRepo.updateAccess(userId, isActive);
 }
 
+async function deleteUser(userId, actingAdminId) {
+    return userRepo.deleteById(userId, actingAdminId);
+}
+
 module.exports = {
     listUsers,
     getUserById,
     createUser,
     changePassword,
-    changeAccess
+    changeAccess,
+    deleteUser
 };

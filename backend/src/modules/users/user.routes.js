@@ -8,5 +8,6 @@ router.get("/users", verifyAdmin, userController.getUsers);
 router.post("/users", verifyAdmin, validateCreateUser, userController.createUser);
 router.put("/users/:user_id/password", verifyAdmin, validateChangePassword, userController.updatePassword);
 router.put("/users/:user_id/access", verifyAdmin, validateChangeAccess, userController.updateAccess);
+router.delete("/users/:user_id", verifyAdmin, userController.deleteUser);
 
 module.exports = router;

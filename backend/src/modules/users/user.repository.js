@@ -35,10 +35,21 @@ async function updateAccess(userId, isActive) {
     return db.execute("UPDATE users SET is_active = ?, token_version = token_version + 1 WHERE user_id = ?", [isActive, userId]);
 }
 
+async function deleteById(userId, actingAdminId = 1) {
+    invalidateUserCache(userId);
+    await db.execute("DELETE FROM login_logs WHERE user_id = ?", [userId]);
+    await db.execute("UPDATE purchase_requests SET created_by = NULL WHERE created_by = ?", [userId]);
+    await db.execute("UPDATE goods_received SET received_by = ? WHERE received_by = ?", [actingAdminId, userId]);
+    await db.execute("UPDATE goods_returns SET returned_by = ? WHERE returned_by = ?", [actingAdminId, userId]);
+    const [result] = await db.execute("DELETE FROM users WHERE user_id = ?", [userId]);
+    return result.affectedRows > 0;
+}
+
 module.exports = {
     findAll,
     findById,
     create,
     updatePassword,
-    updateAccess
+    updateAccess,
+    deleteById
 };

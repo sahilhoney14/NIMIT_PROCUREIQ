@@ -452,8 +452,17 @@ async function loadUsers() {
 
         usersTableBody.innerHTML = "";
 
+        const loggedInUser = (window.ProcureAuth && window.ProcureAuth.getUser()) ||
+                             JSON.parse(localStorage.getItem("auth_user") || "null");
+        const currentUserId = loggedInUser?.user_id;
+        const currentUsername = loggedInUser?.username;
+
         data.users.forEach(user => {
             const row = document.createElement("tr");
+            const isSelf = Boolean((currentUserId && user.user_id === currentUserId) ||
+                                   (currentUsername && user.username.toLowerCase() === currentUsername.toLowerCase()));
+            const isPrimaryAdmin = user.username.toLowerCase() === "admin";
+            const canDelete = !isSelf && !isPrimaryAdmin;
 
             row.innerHTML = `
                 <td>${escapeHtml(user.username)}</td>
@@ -466,6 +475,23 @@ async function loadUsers() {
                     <button class="action-button ${user.is_active ? "revoke-button" : "grant-button"}" onclick="changeAccess(${user.user_id}, ${!user.is_active})">
                         ${user.is_active ? "Revoke Access" : "Grant Access"}
                     </button>
+                    ${canDelete ? `
+                    <button class="action-button delete-button" onclick="deleteUser(${user.user_id}, '${escapeHtml(user.username)}')" title="Delete User">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 3px;">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>Delete
+                    </button>` : `
+                    <button class="action-button delete-button" disabled title="${isSelf ? "Cannot delete active logged-in account" : "Primary admin cannot be deleted"}">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: text-bottom; margin-right: 3px;">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>Delete
+                    </button>`}
                 </td>
             `;
 
@@ -498,6 +524,32 @@ async function changeAccess(userId, isActive) {
     } catch (error) {
         console.error(error);
         showUsersMessage("Unable to change access");
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!userId) return;
+    const ok = confirm(`Are you sure you want to permanently delete user "${username}"?\nThis action cannot be undone.`);
+    if (!ok) return;
+
+    try {
+        const response = await apiFetch(`/users/${userId}`, {
+            method: "DELETE"
+        });
+        if (!response) return;
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            showUsersMessage(data.message || "Failed to delete user");
+            return;
+        }
+
+        showUsersMessage(data.message || `User "${username}" deleted successfully`);
+        await loadUsers();
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        showUsersMessage("Unable to delete user");
     }
 }
 
@@ -6812,6 +6864,7 @@ window.selectVendorForEdit     = selectVendorForEdit;
 window.backToVendorList        = backToVendorList;
 window.openPasswordModal = openPasswordModal;
 window.changeAccess      = changeAccess;
+window.deleteUser        = deleteUser;
 window.completePO        = completePO;
 window.openReceiveForm   = openReceiveForm;
 window.openReturnForm    = openReturnForm;
