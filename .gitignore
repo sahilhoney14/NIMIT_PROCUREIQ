@@ -46,3 +46,4 @@ logs/
 
 # Legacy backup services
 legacy_services/
+database/backups/
