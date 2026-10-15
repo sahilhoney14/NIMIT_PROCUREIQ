@@ -3584,6 +3584,12 @@ td input.taxable-input {
     vertical-align: middle;
 }
 
+.users-table th:last-child,
+.users-table td:last-child,
+.user-actions-cell {
+    white-space: nowrap;
+}
+
 .access-granted {
     color: #15803d;
     font-weight: 700;
@@ -3596,15 +3602,37 @@ td input.taxable-input {
 
 /* ── Row action buttons ── */
 
+.user-actions-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    vertical-align: middle;
+}
+
 .action-button {
-    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 30px;
+    padding: 0 12px;
     border-radius: 6px;
-    padding: 6px 12px;
-    margin-right: 6px;
     font-size: 12px;
     font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
     cursor: pointer;
+    box-sizing: border-box;
     transition: all 0.15s ease-in-out;
+    vertical-align: middle;
+    margin: 0;
+}
+
+.action-button .action-btn-icon {
+    display: inline-block;
+    flex-shrink: 0;
+    margin-right: 4px;
+    vertical-align: middle;
 }
 
 .password-button {
@@ -3644,10 +3672,6 @@ td input.taxable-input {
     background: #fef2f2;
     color: #dc2626;
     border: 1px solid #fecaca;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    vertical-align: middle;
 }
 
 .delete-button:hover:not(:disabled) {
