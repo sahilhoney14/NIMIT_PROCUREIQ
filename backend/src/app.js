@@ -540,7 +540,7 @@ const VENDOR_DOCUMENT_FIELDS = [
     "itr_third_last_year_document"
 ];
 
-// Checks that all mandatory vendor fields and documents are present
+// Checks that all mandatory vendor fields are present (sales team, accounts team, turnover, and documents are optional)
 function validateVendorData(data, files) {
     const requiredFields = [
         "registration_date",
@@ -555,32 +555,17 @@ function validateVendorData(data, files) {
         "director_or_ceo_or_management_designation",
         "director_or_ceo_or_management_mobile_no",
         "director_or_ceo_or_management_email",
-        "sales_team_name",
-        "sales_team_contact",
-        "sales_team_email",
-        "accounts_team_name",
-        "accounts_team_contact",
-        "accounts_team_email",
         "gst_number",
         "pan_number",
         "bank_name",
         "bank_account_no",
         "bank_branch",
         "bank_account_type",
-        "bank_ifsc",
-        "branch_office_1_address",
-        "turnover_year_1",
-        "turnover_value_1",
-        "recommended_by",
-        "approved_by"
+        "bank_ifsc"
     ];
     const missingFields = requiredFields.filter(field => !cleanValue(data?.[field]));
-    const requiredDocuments = [
-        "gst_document",
-        "pan_document",
-        "itr_last_year_document"
-    ];
-    const missingDocuments = requiredDocuments.filter(field => !files?.[field]?.[0]);
+    const requiredDocuments = []; // All documents are optional
+    const missingDocuments = [];
 
     const invalidFields = [];
     if (data?.vendor_name) {
@@ -597,7 +582,8 @@ function validateVendorData(data, files) {
         "approved_by"
     ];
     for (const f of personNameFields) {
-        if (data?.[f] && /\d/.test(String(data[f]))) {
+        const val = cleanValue(data?.[f]);
+        if (val && /\d/.test(String(val))) {
             invalidFields.push(`${f.replace(/_/g, " ")} cannot contain numbers`);
         }
     }
@@ -608,8 +594,39 @@ function validateVendorData(data, files) {
         "accounts_team_contact"
     ];
     for (const f of phoneFields) {
-        if (data?.[f] && !/^\d{10}$/.test(String(data[f]).replace(/\s+/g, ""))) {
+        const val = cleanValue(data?.[f]);
+        if (val && !/^\d{10}$/.test(String(val).replace(/\s+/g, ""))) {
             invalidFields.push(`${f.replace(/_/g, " ")} must be a valid 10-digit number`);
+        }
+    }
+    const emailFields = [
+        "director_or_ceo_or_management_email",
+        "sales_team_email",
+        "accounts_team_email"
+    ];
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    for (const f of emailFields) {
+        const val = cleanValue(data?.[f]);
+        if (val && !emailRegex.test(String(val))) {
+            invalidFields.push(`${f.replace(/_/g, " ")} must be a valid email address`);
+        }
+    }
+    if (data?.gst_number) {
+        const gst = String(data.gst_number).trim();
+        if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gst)) {
+            invalidFields.push("GST number must be 15 alphanumeric characters (e.g. 22AAAAA0000A1Z5)");
+        }
+    }
+    if (data?.pan_number) {
+        const pan = String(data.pan_number).trim();
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(pan)) {
+            invalidFields.push("PAN number must be 10 characters (e.g. AAAAA0000A)");
+        }
+    }
+    if (data?.bank_ifsc) {
+        const ifsc = String(data.bank_ifsc).trim();
+        if (!/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(ifsc)) {
+            invalidFields.push("IFSC code must be 11 alphanumeric characters (e.g. SBIN0001234)");
         }
     }
     return { missingFields, missingDocuments, invalidFields };
@@ -825,31 +842,106 @@ function parseVendorForm(rows) {
     return vendor;
 }
 
-// Parses a one-row tabular vendor sheet (header row + one vendor row) into vendor fields
+// Header aliases for robust column mapping during vendor Excel import
+const VENDOR_HEADER_ALIASES = {
+    vendor_name: ["vendor_name", "vendor", "company_name", "firm_name", "supplier_name"],
+    registration_date: ["registration_date", "reg_date", "date"],
+    legal_entity: ["legal_entity", "entity", "entity_type", "type_of_entity"],
+    commercial_role: ["commercial_role", "role", "role_type", "business_type"],
+    year_of_incorporation: ["year_of_incorporation", "incorporation_year", "est_year", "established_year", "year"],
+    office_address: ["office_address", "reg_office_address", "registered_office_address", "address"],
+    office_contact_name: ["office_contact_name", "office_contact_person", "contact_person", "office_contact"],
+    office_contact_number: ["office_contact_number", "office_contact_phone", "office_phone", "contact_number", "phone_number", "mobile_number"],
+    factory_address: ["factory_address", "works_address", "plant_address"],
+    factory_contact_name: ["factory_contact_name", "factory_contact_person"],
+    factory_contact_number: ["factory_contact_number", "factory_phone"],
+    warehouse_address: ["warehouse_address", "godown_address"],
+    warehouse_contact_name: ["warehouse_contact_name", "warehouse_contact_person"],
+    warehouse_contact_number: ["warehouse_contact_number", "warehouse_phone"],
+    workshop_address: ["workshop_address"],
+    workshop_contact_name: ["workshop_contact_name", "workshop_contact_person"],
+    workshop_contact_number: ["workshop_contact_number", "workshop_phone"],
+    director_or_ceo_or_management_name: ["director_or_ceo_or_management_name", "management_name", "director_name", "ceo_name", "director_ceo_name", "director_ceo_management_name", "management_director_name", "director_or_ceo_name", "director_or_management_name"],
+    director_or_ceo_or_management_designation: ["director_or_ceo_or_management_designation", "designation", "management_designation", "director_designation", "ceo_designation"],
+    director_or_ceo_or_management_mobile_no: ["director_or_ceo_or_management_mobile_no", "management_mobile", "director_mobile", "director_phone", "management_contact", "management_mobile_no", "director_mobile_no", "management_phone"],
+    director_or_ceo_or_management_email: ["director_or_ceo_or_management_email", "management_email", "director_email", "ceo_email"],
+    director_or_ceo_or_management_web_address: ["director_or_ceo_or_management_web_address", "website", "web_address", "director_web_address"],
+    sales_team_name: ["sales_team_name", "sales_contact_name", "sales_name", "sales_person"],
+    sales_team_contact: ["sales_team_contact", "sales_contact_phone", "sales_contact", "sales_phone", "sales_mobile"],
+    sales_team_email: ["sales_team_email", "sales_email"],
+    accounts_team_name: ["accounts_team_name", "accounts_contact_name", "accounts_name", "accounts_person"],
+    accounts_team_contact: ["accounts_team_contact", "accounts_contact_phone", "accounts_contact", "accounts_phone", "accounts_mobile"],
+    accounts_team_email: ["accounts_team_email", "accounts_email"],
+    gst_number: ["gst_number", "gst_no", "gst", "gstin"],
+    pan_number: ["pan_number", "pan_no", "pan"],
+    msme_number: ["msme_number", "msme_no", "msme", "udyam_number", "udyam_registration"],
+    bank_name: ["bank_name", "bank"],
+    bank_account_no: ["bank_account_no", "bank_account_number", "account_no", "account_number", "bank_acc_no"],
+    bank_branch: ["bank_branch", "branch", "branch_name", "branch_details"],
+    bank_account_type: ["bank_account_type", "account_type", "type_of_account"],
+    bank_ifsc: ["bank_ifsc", "ifsc", "ifsc_code", "bank_ifsc_code", "rtgs_ifsc_code", "ifsc_rtgs_code"],
+    branch_office_1_address: ["branch_office_1_address", "branch_1_address"],
+    branch_office_1_contact_name: ["branch_office_1_contact_name", "branch_1_contact_name", "branch_1_contact"],
+    branch_office_1_contact_number: ["branch_office_1_contact_number", "branch_1_contact_number", "branch_1_phone"],
+    branch_office_2_address: ["branch_office_2_address", "branch_2_address"],
+    branch_office_2_contact_name: ["branch_office_2_contact_name", "branch_2_contact_name", "branch_2_contact"],
+    branch_office_2_contact_number: ["branch_office_2_contact_number", "branch_2_contact_number", "branch_2_phone"],
+    branch_office_3_address: ["branch_office_3_address", "branch_3_address"],
+    branch_office_3_contact_name: ["branch_office_3_contact_name", "branch_3_contact_name", "branch_3_contact"],
+    branch_office_3_contact_number: ["branch_office_3_contact_number", "branch_3_contact_number", "branch_3_phone"],
+    turnover_year_1: ["turnover_year_1", "year_1"],
+    turnover_value_1: ["turnover_value_1", "value_1", "turnover_1"],
+    turnover_year_2: ["turnover_year_2", "year_2"],
+    turnover_value_2: ["turnover_value_2", "value_2", "turnover_2"],
+    turnover_year_3: ["turnover_year_3", "year_3"],
+    turnover_value_3: ["turnover_value_3", "value_3", "turnover_3"],
+    recommended_by: ["recommended_by", "recommended"],
+    approved_by: ["approved_by", "approved"]
+};
+
+// Parses a tabular vendor sheet (header row + N vendor rows) into vendor field objects
 function parseVendorTable(excelRows) {
     const dataRows = excelRows.slice(1).filter(row => row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== ""));
-    if (dataRows.length !== 1) {
-        const error = new Error("Excel file must contain exactly one vendor");
+    if (dataRows.length === 0) {
+        const error = new Error("Excel file contains no vendor data");
         error.status = 400;
         throw error;
     }
     const headers = excelRows[0].map(normalizeHeader);
     const columnIndex = {};
     headers.forEach((header, index) => {
-        if (header) columnIndex[header] = index;
+        if (!header) return;
+        columnIndex[header] = index;
+        for (const [canonicalField, aliases] of Object.entries(VENDOR_HEADER_ALIASES)) {
+            if (aliases.includes(header) && columnIndex[canonicalField] === undefined) {
+                columnIndex[canonicalField] = index;
+            }
+        }
     });
-    const row = dataRows[0];
-    const getCell = field => {
-        if (columnIndex[field] === undefined) return null;
-        return cleanValue(row[columnIndex[field]]);
-    };
-    const vendor = {};
-    for (const field of VENDOR_FIELDS) {
-        const value = getCell(field);
-        vendor[field] = typeof value === "number" ? String(value) : value;
-    }
-    vendor.registration_date = formatDate(getCell("registration_date"));
-    return vendor;
+
+    const vendors = dataRows.map(row => {
+        const getCell = field => {
+            if (columnIndex[field] === undefined) {
+                const aliases = VENDOR_HEADER_ALIASES[field] || [];
+                for (const alias of aliases) {
+                    if (columnIndex[alias] !== undefined) {
+                        return cleanValue(row[columnIndex[alias]]);
+                    }
+                }
+                return null;
+            }
+            return cleanValue(row[columnIndex[field]]);
+        };
+        const vendor = {};
+        for (const field of VENDOR_FIELDS) {
+            const value = getCell(field);
+            vendor[field] = typeof value === "number" ? String(value) : value;
+        }
+        vendor.registration_date = formatDate(getCell("registration_date")) || new Date().toISOString().slice(0, 10);
+        return vendor;
+    });
+
+    return vendors;
 }
 
 /* ==========================================================================
@@ -2578,7 +2670,170 @@ app.get("/vendors/check-gst", verifyProcurement, async (req, res) => {
     }
 });
 
-// POST /vendors/import-preview - Reads an uploaded vendor Excel (registration form or one-row table) and returns the parsed vendor without saving
+// GET /vendors/template - Downloads an Excel (.xlsx) template with standard headers and sample data for bulk vendor import
+app.get(["/vendors/template", "/api/vendors/template", "/vendors/import-template"], verifyProcurement, async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "ProcureIQ";
+        workbook.created = new Date();
+
+        const sheet = workbook.addWorksheet("Vendor Import Template", {
+            views: [{ state: "frozen", ySplit: 2, showGridLines: true }]
+        });
+
+        const columns = [
+            { header: "Vendor Name *", key: "vendor_name", width: 30 },
+            { header: "Registration Date (YYYY-MM-DD)", key: "registration_date", width: 22 },
+            { header: "Legal Entity *", key: "legal_entity", width: 18 },
+            { header: "Commercial Role *", key: "commercial_role", width: 18 },
+            { header: "Year of Incorporation *", key: "year_of_incorporation", width: 20 },
+            { header: "GST Number *", key: "gst_number", width: 20 },
+            { header: "PAN Number *", key: "pan_number", width: 16 },
+            { header: "MSME Number", key: "msme_number", width: 20 },
+            { header: "Office Address *", key: "office_address", width: 36 },
+            { header: "Office Contact Name *", key: "office_contact_name", width: 22 },
+            { header: "Office Contact Number *", key: "office_contact_number", width: 22 },
+            { header: "Management / Director Name *", key: "director_or_ceo_or_management_name", width: 26 },
+            { header: "Management Designation *", key: "director_or_ceo_or_management_designation", width: 22 },
+            { header: "Management Mobile No *", key: "director_or_ceo_or_management_mobile_no", width: 22 },
+            { header: "Management Email *", key: "director_or_ceo_or_management_email", width: 26 },
+            { header: "Website", key: "director_or_ceo_or_management_web_address", width: 24 },
+            { header: "Bank Name *", key: "bank_name", width: 22 },
+            { header: "Bank Account No *", key: "bank_account_no", width: 22 },
+            { header: "Bank Branch *", key: "bank_branch", width: 22 },
+            { header: "Account Type *", key: "bank_account_type", width: 16 },
+            { header: "IFSC Code *", key: "bank_ifsc", width: 16 },
+            { header: "Sales Team Name", key: "sales_team_name", width: 20 },
+            { header: "Sales Team Contact", key: "sales_team_contact", width: 20 },
+            { header: "Sales Team Email", key: "sales_team_email", width: 24 },
+            { header: "Accounts Team Name", key: "accounts_team_name", width: 20 },
+            { header: "Accounts Team Contact", key: "accounts_team_contact", width: 20 },
+            { header: "Accounts Team Email", key: "accounts_team_email", width: 24 },
+            { header: "Factory Address", key: "factory_address", width: 28 },
+            { header: "Factory Contact Name", key: "factory_contact_name", width: 20 },
+            { header: "Factory Contact Number", key: "factory_contact_number", width: 20 },
+            { header: "Warehouse Address", key: "warehouse_address", width: 28 },
+            { header: "Warehouse Contact Name", key: "warehouse_contact_name", width: 20 },
+            { header: "Warehouse Contact Number", key: "warehouse_contact_number", width: 20 },
+            { header: "Workshop Address", key: "workshop_address", width: 28 },
+            { header: "Workshop Contact Name", key: "workshop_contact_name", width: 20 },
+            { header: "Workshop Contact Number", key: "workshop_contact_number", width: 20 },
+            { header: "Turnover Year 1", key: "turnover_year_1", width: 16 },
+            { header: "Turnover Value 1", key: "turnover_value_1", width: 18 },
+            { header: "Turnover Year 2", key: "turnover_year_2", width: 16 },
+            { header: "Turnover Value 2", key: "turnover_value_2", width: 18 },
+            { header: "Turnover Year 3", key: "turnover_year_3", width: 16 },
+            { header: "Turnover Value 3", key: "turnover_value_3", width: 18 },
+            { header: "Branch 1 Address", key: "branch_office_1_address", width: 26 },
+            { header: "Branch 1 Contact Name", key: "branch_office_1_contact_name", width: 20 },
+            { header: "Branch 1 Contact Number", key: "branch_office_1_contact_number", width: 20 },
+            { header: "Recommended By", key: "recommended_by", width: 18 },
+            { header: "Approved By", key: "approved_by", width: 18 }
+        ];
+
+        sheet.columns = columns.map(c => ({ header: c.header, key: c.key, width: c.width }));
+
+        // Style Header Row (Row 1)
+        const headerRow = sheet.getRow(1);
+        headerRow.height = 32;
+        headerRow.eachCell((cell) => {
+            cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FF0B57A4" }
+            };
+            cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+            cell.border = {
+                top: { style: "thin", color: { argb: "FF94A3B8" } },
+                left: { style: "thin", color: { argb: "FF94A3B8" } },
+                bottom: { style: "medium", color: { argb: "FF0F172A" } },
+                right: { style: "thin", color: { argb: "FF94A3B8" } }
+            };
+        });
+
+        // Sample Data Row (Row 2) to illustrate proper formatting
+        const sampleRow = sheet.addRow({
+            vendor_name: "Apex Engineering Technologies Pvt Ltd",
+            registration_date: new Date().toISOString().slice(0, 10),
+            legal_entity: "Private Limited",
+            commercial_role: "Manufacturer",
+            year_of_incorporation: "2018",
+            gst_number: "07AAAAA1234A1Z5",
+            pan_number: "AAAAA1234A",
+            msme_number: "UDYAM-DL-01-0012345",
+            office_address: "Plot 42, Phase-2, Okhla Industrial Area, New Delhi - 110020",
+            office_contact_name: "Rajesh Kumar",
+            office_contact_number: "9876543210",
+            director_or_ceo_or_management_name: "Amit Sharma",
+            director_or_ceo_or_management_designation: "Managing Director",
+            director_or_ceo_or_management_mobile_no: "9876543211",
+            director_or_ceo_or_management_email: "amit.sharma@apexeng.com",
+            director_or_ceo_or_management_web_address: "https://www.apexeng.com",
+            bank_name: "HDFC Bank",
+            bank_account_no: "50200012345678",
+            bank_branch: "Okhla Phase 2, New Delhi",
+            bank_account_type: "Current",
+            bank_ifsc: "HDFC0000123",
+            sales_team_name: "Vikas Gupta",
+            sales_team_contact: "9876543212",
+            sales_team_email: "sales@apexeng.com",
+            accounts_team_name: "Sanjay Verma",
+            accounts_team_contact: "9876543213",
+            accounts_team_email: "accounts@apexeng.com",
+            factory_address: "Sector 58, Industrial Area, Faridabad, Haryana",
+            factory_contact_name: "Ramesh Singh",
+            factory_contact_number: "9876543214",
+            warehouse_address: "",
+            warehouse_contact_name: "",
+            warehouse_contact_number: "",
+            workshop_address: "",
+            workshop_contact_name: "",
+            workshop_contact_number: "",
+            turnover_year_1: "2026-2027",
+            turnover_value_1: "5000000",
+            turnover_year_2: "2025-2026",
+            turnover_value_2: "4200000",
+            turnover_year_3: "2024-2025",
+            turnover_value_3: "3500000",
+            branch_office_1_address: "",
+            branch_office_1_contact_name: "",
+            branch_office_1_contact_number: "",
+            recommended_by: req.user?.username || "admin",
+            approved_by: req.user?.username || "admin"
+        });
+
+        sampleRow.height = 24;
+        sampleRow.eachCell((cell) => {
+            cell.font = { name: "Segoe UI", size: 9, italic: true, color: { argb: "FF475569" } };
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFF8FAFC" }
+            };
+            cell.alignment = { vertical: "middle", horizontal: "left" };
+            cell.border = {
+                top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                right: { style: "thin", color: { argb: "FFE2E8F0" } }
+            };
+        });
+
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", 'attachment; filename="Vendor_Import_Template.xlsx"');
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (error) {
+        log(`ERROR generating vendor import template: ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to generate vendor import template"
+        });
+    }
+});
+
+// POST /vendors/import-preview - Reads an uploaded vendor Excel (registration form or multi-row table) and returns the parsed vendors without saving
 app.post("/vendors/import-preview", verifyProcurement, excelUpload.single("file"), async (req, res) => {
     log("POST /vendors/import-preview - Vendor Excel preview requested");
     try {
@@ -2595,11 +2850,15 @@ app.post("/vendors/import-preview", verifyProcurement, excelUpload.single("file"
                 message: "Excel file contains no vendor data"
             });
         }
-        const vendor = isVendorForm(excelRows) ? parseVendorForm(excelRows) : parseVendorTable(excelRows);
-        log("Vendor Excel preview successful");
+        const isForm = isVendorForm(excelRows);
+        const vendors = isForm ? [parseVendorForm(excelRows)] : parseVendorTable(excelRows);
+        log(`Vendor Excel preview successful - parsed ${vendors.length} vendor(s)`);
         return res.json({
             success: true,
-            vendor
+            is_form: isForm,
+            count: vendors.length,
+            vendors,
+            vendor: vendors[0] // backwards-compatibility
         });
     } catch (error) {
         log(`ERROR creating vendor Excel preview: ${error.message}`);
@@ -2610,43 +2869,111 @@ app.post("/vendors/import-preview", verifyProcurement, excelUpload.single("file"
     }
 });
 
-// POST /vendors/import - Saves the reviewed vendor from an Excel import together with its uploaded documents
+// POST /vendors/import - Saves the reviewed vendor(s) from Excel import (supports single and bulk imports)
 app.post("/vendors/import", verifyProcurement, getVendorDocuments(), async (req, res) => {
-    log("POST /vendors/import - Saving imported vendor");
+    log("POST /vendors/import - Saving imported vendor(s)");
     const connection = await db.getConnection();
     try {
-        const data = parseVendorData(req);
-        const files = req.files || {};
-        const validation = validateVendorData(data, files);
-        if (validation.missingFields.length || validation.missingDocuments.length || (validation.invalidFields && validation.invalidFields.length)) {
-            const errorMsg = validation.invalidFields?.length
-                ? validation.invalidFields.join(". ")
-                : "Vendor data validation failed";
+        let rawData = null;
+        if (req.body.vendors) {
+            rawData = typeof req.body.vendors === "string" ? JSON.parse(req.body.vendors) : req.body.vendors;
+        } else if (req.body.vendor_data) {
+            rawData = typeof req.body.vendor_data === "string" ? JSON.parse(req.body.vendor_data) : req.body.vendor_data;
+        }
+
+        const isBulk = Array.isArray(rawData);
+        const vendorsList = isBulk ? rawData : (rawData ? [rawData] : []);
+
+        if (vendorsList.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: errorMsg,
-                missing_fields: validation.missingFields,
-                missing_documents: validation.missingDocuments,
-                invalid_fields: validation.invalidFields
+                message: "No vendor data provided for import"
             });
         }
+
+        if (vendorsList.length > 500) {
+            return res.status(400).json({
+                success: false,
+                message: "Maximum batch limit exceeded: Cannot import more than 500 vendors at once"
+            });
+        }
+
+        const files = req.files || {};
+        const currentUser = req.user?.username || req.session?.user?.username || "admin";
+
+        // Validate all vendors before starting transaction
+        const validationErrors = [];
+        const seenGstInBatch = new Set();
+
+        for (let i = 0; i < vendorsList.length; i++) {
+            const rowNumber = i + 1;
+            const v = vendorsList[i];
+            if (!v.registration_date) v.registration_date = new Date().toISOString().slice(0, 10);
+            if (!v.recommended_by) v.recommended_by = currentUser;
+            if (!v.approved_by) v.approved_by = currentUser;
+
+            // Only check uploaded files for single vendor imports
+            const rowFiles = isBulk ? {} : files;
+            const validation = validateVendorData(v, rowFiles);
+
+            if (validation.missingFields.length || validation.missingDocuments.length || (validation.invalidFields && validation.invalidFields.length)) {
+                const parts = [];
+                if (validation.missingFields.length) parts.push(`Missing: ${validation.missingFields.join(", ")}`);
+                if (validation.invalidFields?.length) parts.push(validation.invalidFields.join("; "));
+                validationErrors.push(`Row ${rowNumber} (${v.vendor_name || 'Unnamed'}): ${parts.join(" | ")}`);
+            }
+
+            const cleanGst = cleanValue(v.gst_number);
+            if (cleanGst) {
+                if (seenGstInBatch.has(cleanGst.toUpperCase())) {
+                    validationErrors.push(`Row ${rowNumber}: Duplicate GST number "${cleanGst}" found within the import file`);
+                }
+                seenGstInBatch.add(cleanGst.toUpperCase());
+            }
+        }
+
+        if (validationErrors.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Validation failed for ${validationErrors.length} vendor(s):\n` + validationErrors.slice(0, 5).join("\n") + (validationErrors.length > 5 ? `\n...and ${validationErrors.length - 5} more errors` : ""),
+                errors: validationErrors
+            });
+        }
+
         await connection.beginTransaction();
-        const result = await saveVendor(connection, data, files);
+        const savedVendors = [];
+
+        for (const v of vendorsList) {
+            const rowFiles = isBulk ? {} : files;
+            const result = await saveVendor(connection, v, rowFiles);
+            savedVendors.push({
+                vendor_id: result.vendorId,
+                vendor_code: result.vendorCode,
+                vendor_name: v.vendor_name
+            });
+            await writeReportLog(req, "VENDOR_IMPORTED", describeVendor(v, result, "through Excel import"));
+        }
+
         await connection.commit();
-        log(`Imported vendor saved successfully - ${result.vendorCode}`);
-        await writeReportLog(req, "VENDOR_IMPORTED", describeVendor(data, result, "through Excel import"));
+        log(`Successfully imported ${savedVendors.length} vendor(s)`);
+
         return res.status(201).json({
             success: true,
-            message: "Vendor imported successfully",
-            vendor_id: result.vendorId,
-            vendor_code: result.vendorCode
+            message: savedVendors.length === 1
+                ? `Vendor "${savedVendors[0].vendor_name}" imported successfully with code ${savedVendors[0].vendor_code}`
+                : `Successfully imported ${savedVendors.length} vendors!`,
+            count: savedVendors.length,
+            vendor_id: savedVendors[0]?.vendor_id,
+            vendor_code: savedVendors[0]?.vendor_code,
+            vendors: savedVendors
         });
+
     } catch (error) {
         await connection.rollback();
         log(`ERROR saving imported vendor: ${error.message}`);
         return res.status(error.message.includes("already exists") ? 409 : 500).json({
             success: false,
-            message: error.message.includes("already exists") ? error.message : "Failed to import vendor"
+            message: error.message.includes("already exists") ? error.message : "Failed to import vendor(s)"
         });
     } finally {
         connection.release();

@@ -75,34 +75,34 @@ CREATE TABLE vendor_oem_masters (
     director_or_ceo_or_management_email TEXT NOT NULL,
     director_or_ceo_or_management_web_address TEXT,
 
-    sales_team_name TEXT NOT NULL,
-    sales_team_contact TEXT NOT NULL,
-    sales_team_email TEXT NOT NULL,
+    sales_team_name TEXT DEFAULT NULL,
+    sales_team_contact TEXT DEFAULT NULL,
+    sales_team_email TEXT DEFAULT NULL,
 
-    accounts_team_name TEXT NOT NULL,
-    accounts_team_contact TEXT NOT NULL,
-    accounts_team_email TEXT NOT NULL,
+    accounts_team_name TEXT DEFAULT NULL,
+    accounts_team_contact TEXT DEFAULT NULL,
+    accounts_team_email TEXT DEFAULT NULL,
 
     gst_number TEXT NOT NULL,
     pan_number TEXT NOT NULL,
     msme_number TEXT,
 
-    turnover_year_1 VARCHAR(20) NOT NULL,
-    turnover_value_1 VARCHAR(100) NOT NULL,
+    turnover_year_1 VARCHAR(20) DEFAULT NULL,
+    turnover_value_1 VARCHAR(100) DEFAULT NULL,
     turnover_year_2 VARCHAR(20) DEFAULT NULL,
     turnover_value_2 VARCHAR(100) DEFAULT NULL,
     turnover_year_3 VARCHAR(20) DEFAULT NULL,
     turnover_value_3 VARCHAR(100) DEFAULT NULL,
 
-    gst_document TEXT NOT NULL,
-    pan_document TEXT NOT NULL,
+    gst_document TEXT DEFAULT NULL,
+    pan_document TEXT DEFAULT NULL,
     msme_document TEXT,
-    itr_last_year_document TEXT NOT NULL,
+    itr_last_year_document TEXT DEFAULT NULL,
     itr_second_last_year_document TEXT,
     itr_third_last_year_document TEXT,
 
-    recommended_by TEXT NOT NULL,
-    approved_by TEXT NOT NULL,
+    recommended_by TEXT DEFAULT NULL,
+    approved_by TEXT DEFAULT NULL,
     is_blacklisted TINYINT(1) NOT NULL DEFAULT 0,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -131,7 +131,7 @@ CREATE TABLE vendor_oem_masters (
     bank_account_type VARCHAR(30) NOT NULL,
     bank_ifsc VARCHAR(20) NOT NULL,
 
-    branch_office_1_address TEXT NOT NULL,
+    branch_office_1_address TEXT DEFAULT NULL,
     branch_office_1_contact_name VARCHAR(150),
     branch_office_1_contact_number VARCHAR(30),
 

@@ -634,15 +634,15 @@
                             <h3 class="form-section-title">Sales Team</h3>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label>Name <span class="required-star">*</span></label>
+                                    <label>Name</label>
                                     <input type="text" id="sales_name">
                                 </div>
                                 <div class="form-group">
-                                    <label>Contact <span class="required-star">*</span></label>
+                                    <label>Contact</label>
                                     <input type="text" id="sales_contact">
                                 </div>
                                 <div class="form-group">
-                                    <label>Email <span class="required-star">*</span></label>
+                                    <label>Email</label>
                                     <input type="text" id="sales_email">
                                 </div>
                             </div>
@@ -652,15 +652,15 @@
                             <h3 class="form-section-title">Accounts Team</h3>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label>Name <span class="required-star">*</span></label>
+                                    <label>Name</label>
                                     <input type="text" id="accounts_name">
                                 </div>
                                 <div class="form-group">
-                                    <label>Contact <span class="required-star">*</span></label>
+                                    <label>Contact</label>
                                     <input type="text" id="accounts_contact">
                                 </div>
                                 <div class="form-group">
-                                    <label>Email <span class="required-star">*</span></label>
+                                    <label>Email</label>
                                     <input type="text" id="accounts_email">
                                 </div>
                             </div>
@@ -714,7 +714,7 @@
                             <h3 class="form-section-title">Branch Offices</h3>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label>Branch 1 Address <span class="required-star">*</span></label>
+                                    <label>Branch 1 Address</label>
                                     <input type="text" id="branch1_address">
                                 </div>
                                 <div class="form-group">
@@ -758,7 +758,7 @@
                             <h3 class="form-section-title">Turnover of Last Three Years</h3>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label>26-27 Turnover <span class="required-star">*</span></label>
+                                    <label>26-27 Turnover</label>
                                     <input type="text" id="turnover_value_1">
                                 </div>
                                 <div class="form-group">
@@ -776,11 +776,11 @@
                             <h3 class="form-section-title">Documents</h3>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label>GST Document <span class="required-star">*</span></label>
+                                    <label>GST Document</label>
                                     <input type="file" id="gst_document">
                                 </div>
                                 <div class="form-group">
-                                    <label>PAN Document <span class="required-star">*</span></label>
+                                    <label>PAN Document</label>
                                     <input type="file" id="pan_document">
                                 </div>
                                 <div class="form-group">
@@ -788,7 +788,7 @@
                                     <input type="file" id="msme_document">
                                 </div>
                                 <div class="form-group">
-                                    <label>Last Year ITR <span class="required-star">*</span></label>
+                                    <label>Last Year ITR</label>
                                     <input type="file" id="itr_last_year_document">
                                 </div>
                                 <div class="form-group">
@@ -806,11 +806,11 @@
                             <h3 class="form-section-title">For Office Use Only</h3>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label>Recommended By <span class="required-star">*</span></label>
+                                    <label>Recommended By</label>
                                     <input type="text" id="recommended_by">
                                 </div>
                                 <div class="form-group">
-                                    <label>Approved By <span class="required-star">*</span></label>
+                                    <label>Approved By</label>
                                     <input type="text" id="approved_by">
                                 </div>
                             </div>
@@ -821,7 +821,7 @@
                 </section>
 
                 <section id="vendorExcelSection" class="entry-section hidden">
-                    <div class="excel-upload">
+                    <div class="excel-upload" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <label for="vendorExcelFile" class="file-label">Choose Excel File</label>
                         <input type="file" id="vendorExcelFile" accept=".xlsx,.xls">
                         <div class="file-chosen-container">
@@ -829,23 +829,56 @@
                             <button type="button" id="clearVendorExcelFileBtn" class="clear-file-btn hidden" title="Remove selected file" aria-label="Remove selected file">✕</button>
                         </div>
                         <button id="vendorImportButton" class="primary-button">Import Excel</button>
+                        <button type="button" id="downloadVendorTemplateBtn" class="option-button" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;" title="Download sample Excel format template for importing vendors">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Export Format / Template
+                        </button>
                     </div>
 
                     <div id="vendorExcelPreview" class="preview-container hidden">
                         <div class="preview-header">
-                            <h2>Vendor Preview</h2>
+                            <h2>Vendor Preview <span id="vendorPreviewCountBadge" style="font-size: 14px; font-weight: 500; color: #64748b; margin-left: 8px;"></span></h2>
                             <button type="button" id="closeVendorPreviewBtn" class="btn-cancel-import" title="Close and discard imported vendor">✕ Discard / Close</button>
                         </div>
-                        <div id="vendorPreviewForm" class="vendor-preview-sections"></div>
-                        <div class="form-section">
-                            <h3 class="form-section-title">Documents</h3>
+
+                        <!-- Bulk Table Preview Container -->
+                        <div id="vendorBulkPreviewTableContainer" class="table-container" style="max-height: 480px; overflow-y: auto; margin-bottom: 20px;">
+                            <table class="report-table" id="vendorBulkPreviewTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 45px; text-align: center;">#</th>
+                                        <th style="min-width: 180px;">Vendor Name *</th>
+                                        <th style="min-width: 140px;">Reg. Date</th>
+                                        <th style="min-width: 160px;">GST Number *</th>
+                                        <th style="min-width: 130px;">PAN Number *</th>
+                                        <th style="min-width: 140px;">Legal Entity *</th>
+                                        <th style="min-width: 140px;">Commercial Role *</th>
+                                        <th style="min-width: 200px;">Office Address *</th>
+                                        <th style="min-width: 150px;">Contact Person *</th>
+                                        <th style="min-width: 130px;">Contact Phone *</th>
+                                        <th style="min-width: 150px;">Director Name *</th>
+                                        <th style="min-width: 130px;">Director Mobile *</th>
+                                        <th style="min-width: 180px;">Director Email *</th>
+                                        <th style="min-width: 140px;">Bank Name *</th>
+                                        <th style="min-width: 150px;">Bank Account No *</th>
+                                        <th style="min-width: 130px;">IFSC Code *</th>
+                                        <th style="width: 60px; text-align: center;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vendorBulkPreviewTbody"></tbody>
+                            </table>
+                        </div>
+
+                        <div id="vendorPreviewForm" class="vendor-preview-sections hidden"></div>
+                        <div id="vendorPreviewDocsSection" class="form-section hidden">
+                            <h3 class="form-section-title">Documents (Optional)</h3>
                             <div class="vendor-documents">
                                 <div class="form-group">
-                                    <label>GST Document <span class="required-star">*</span></label>
+                                    <label>GST Document</label>
                                     <input type="file" id="excel_gst_document">
                                 </div>
                                 <div class="form-group">
-                                    <label>PAN Document <span class="required-star">*</span></label>
+                                    <label>PAN Document</label>
                                     <input type="file" id="excel_pan_document">
                                 </div>
                                 <div class="form-group">
@@ -853,7 +886,7 @@
                                     <input type="file" id="excel_msme_document">
                                 </div>
                                 <div class="form-group">
-                                    <label>Last Year ITR <span class="required-star">*</span></label>
+                                    <label>Last Year ITR</label>
                                     <input type="file" id="excel_itr_last_year_document">
                                 </div>
                                 <div class="form-group">
@@ -867,7 +900,7 @@
                             </div>
                         </div>
                         <div class="preview-actions">
-                            <button type="button" id="saveVendorExcelButton" class="primary-button">Save Vendor</button>
+                            <button type="button" id="saveVendorExcelButton" class="primary-button">Save All Vendors</button>
                             <button type="button" id="cancelVendorExcelButton" class="btn-cancel-import">Cancel / Discard</button>
                         </div>
                     </div>

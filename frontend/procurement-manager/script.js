@@ -30,6 +30,7 @@ const vendorExcelFile           = document.getElementById("vendorExcelFile");
 const vendorExcelFileName       = document.getElementById("vendorExcelFileName");
 const clearVendorExcelFileBtn   = document.getElementById("clearVendorExcelFileBtn");
 const vendorImportButton        = document.getElementById("vendorImportButton");
+const downloadVendorTemplateBtn = document.getElementById("downloadVendorTemplateBtn");
 const vendorExcelPreview        = document.getElementById("vendorExcelPreview");
 const closeVendorPreviewBtn     = document.getElementById("closeVendorPreviewBtn");
 const vendorPreviewForm         = document.getElementById("vendorPreviewForm");
@@ -286,11 +287,6 @@ document.querySelectorAll(".main-menu").forEach(button => {
 
         button.classList.add("active");
         if (section) section.classList.add("open");
-
-        if (sectionId === "workspace") {
-            const wsBtn = section?.querySelector('[data-page="workspace-dashboard"]');
-            if (wsBtn) wsBtn.click();
-        }
     });
 });
 
@@ -304,13 +300,6 @@ document.querySelectorAll(".submenu-item").forEach(button => {
         button.classList.add("active");
 
         const page = button.dataset.page;
-
-        if (page === "workspace-dashboard") {
-            document.getElementById("workspaceDashboardPage").classList.remove("hidden");
-            if (window.WorkspaceDashboard) {
-                window.WorkspaceDashboard.load();
-            }
-        }
 
         if (page === "purchase-requests") {
             document.getElementById("purchaseRequestsPage").classList.remove("hidden");
@@ -820,8 +809,15 @@ document.getElementById("gst_number").addEventListener("blur", async event => {
 
 // ─── Vendor Masters: Excel File Chosen & Clear ────────────────────────────────
 
+let importedVendorRows = [];
+
 function clearVendorExcel() {
     vendorExcelPreview?.classList.add("hidden");
+    const tbody = document.getElementById("vendorBulkPreviewTbody");
+    if (tbody) tbody.innerHTML = "";
+    const countBadge = document.getElementById("vendorPreviewCountBadge");
+    if (countBadge) countBadge.textContent = "";
+    importedVendorRows = [];
     if (vendorPreviewForm) vendorPreviewForm.innerHTML = "";
     if (vendorExcelFile) vendorExcelFile.value = "";
     if (vendorExcelFileName) vendorExcelFileName.textContent = "No file chosen";
@@ -870,20 +866,12 @@ const VENDOR_REQUIRED_INPUTS = {
     office_address: "Office address", office_name: "Office contact name", office_phone: "Office contact number",
     director_name: "Director name", director_designation: "Director designation",
     director_mobile: "Director mobile", director_email: "Director email",
-    sales_name: "Sales team name", sales_contact: "Sales team contact", sales_email: "Sales team email",
-    accounts_name: "Accounts team name", accounts_contact: "Accounts team contact", accounts_email: "Accounts team email",
     gst_number: "GST number", pan_number: "PAN number",
     bank_name: "Bank name", account_no: "Bank account number", bank_branch: "Bank branch",
-    account_type: "Account type", ifsc_rtgs: "IFSC code",
-    branch1_address: "Branch 1 address", turnover_value_1: "Latest year turnover",
-    recommended_by: "Recommended by", approved_by: "Approved by"
+    account_type: "Account type", ifsc_rtgs: "IFSC code"
 };
 
-const VENDOR_REQUIRED_DOCS = {
-    gst_document: "GST document",
-    pan_document: "PAN document",
-    itr_last_year_document: "Last year ITR"
-};
+const VENDOR_REQUIRED_DOCS = {};
 
 function validateVendorForm() {
     for (const [id, label] of Object.entries(VENDOR_REQUIRED_INPUTS)) {
@@ -916,8 +904,8 @@ function validateVendorForm() {
     const phones = [
         { id: "office_phone", label: "Office contact number", req: true },
         { id: "director_mobile", label: "Director mobile number", req: true },
-        { id: "sales_contact", label: "Sales team contact", req: true },
-        { id: "accounts_contact", label: "Accounts team contact", req: true },
+        { id: "sales_contact", label: "Sales team contact", req: false },
+        { id: "accounts_contact", label: "Accounts team contact", req: false },
         { id: "factory_phone", label: "Factory contact number", req: false },
         { id: "warehouse_phone", label: "Warehouse contact number", req: false },
         { id: "workshop_phone", label: "Workshop contact number", req: false },
@@ -932,9 +920,10 @@ function validateVendorForm() {
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    for (const [id, label] of [["director_email", "Director email"], ["sales_email", "Sales team email"], ["accounts_email", "Accounts team email"]]) {
+    for (const [id, label, req] of [["director_email", "Director email", true], ["sales_email", "Sales team email", false], ["accounts_email", "Accounts team email", false]]) {
         const val = String(document.getElementById(id)?.value ?? "").trim();
-        if (!emailRegex.test(val)) return `${label} must be a valid email address.`;
+        if (req && !val) return `${label} is required.`;
+        if (val && !emailRegex.test(val)) return `${label} must be a valid email address.`;
     }
 
     const yearVal = String(document.getElementById("year_of_incorporation")?.value ?? "").trim();
@@ -965,7 +954,7 @@ function validateVendorForm() {
     }
 
     const t1 = String(document.getElementById("turnover_value_1")?.value ?? "").trim().replace(/,/g, "");
-    if (isNaN(Number(t1)) || Number(t1) < 0) return "Latest year turnover must be a valid numeric amount.";
+    if (t1 && (isNaN(Number(t1)) || Number(t1) < 0)) return "Turnover must be a valid numeric amount.";
 
     for (const [id, label] of Object.entries(VENDOR_REQUIRED_DOCS)) {
         if (!document.getElementById(id)?.files?.length) return `${label} is required.`;
@@ -979,12 +968,8 @@ const VENDOR_REQUIRED_FIELDS = [
     "office_address", "office_contact_name", "office_contact_number",
     "director_or_ceo_or_management_name", "director_or_ceo_or_management_designation",
     "director_or_ceo_or_management_mobile_no", "director_or_ceo_or_management_email",
-    "sales_team_name", "sales_team_contact", "sales_team_email",
-    "accounts_team_name", "accounts_team_contact", "accounts_team_email",
     "gst_number", "pan_number",
-    "bank_name", "bank_account_no", "bank_branch", "bank_account_type", "bank_ifsc",
-    "branch_office_1_address", "turnover_year_1", "turnover_value_1",
-    "recommended_by", "approved_by"
+    "bank_name", "bank_account_no", "bank_branch", "bank_account_type", "bank_ifsc"
 ];
 
 function validateVendorPreviewData(data) {
@@ -1005,17 +990,17 @@ function validateVendorPreviewData(data) {
     }
 
     const pPhones = [
-        "office_contact_number", "director_or_ceo_or_management_mobile_no",
-        "sales_team_contact", "accounts_team_contact"
+        { f: "office_contact_number", req: true },
+        { f: "director_or_ceo_or_management_mobile_no", req: true },
+        { f: "sales_team_contact", req: false },
+        { f: "accounts_team_contact", req: false }
     ];
-    for (const f of pPhones) {
+    for (const { f, req } of pPhones) {
         const val = String(data[f] ?? "").trim().replace(/\s+/g, "");
+        if (req && !val) return `${formatVendorFieldName(f)} is required.`;
         if (val && !/^\d{10}$/.test(val)) return `${formatVendorFieldName(f)} must be a valid 10-digit number.`;
     }
 
-    for (const [id, label] of Object.entries(VENDOR_REQUIRED_DOCS)) {
-        if (!document.getElementById(`excel_${id}`)?.files?.length) return `${label} is required.`;
-    }
     return "";
 }
 
@@ -1152,9 +1137,39 @@ vendorManualForm.addEventListener("submit", async event => {
     }
 });
 
+// ─── Vendor Masters: Template Download ───────────────────────────────────────
+
+downloadVendorTemplateBtn?.addEventListener("click", async () => {
+    try {
+        downloadVendorTemplateBtn.disabled = true;
+        showVendorMessage("Downloading vendor import template...");
+
+        const response = await apiFetch("/vendors/template", { method: "GET" });
+        if (!response || !response.ok) {
+            window.location.href = "/vendors/template";
+            return;
+        }
+
+        const blob = await response.blob();
+        const url  = window.URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = "vendor_import_template.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showVendorMessage("Vendor import template downloaded.");
+    } catch {
+        window.location.href = "/vendors/template";
+    } finally {
+        downloadVendorTemplateBtn.disabled = false;
+    }
+});
+
 // ─── Vendor Masters: Excel Import Preview ─────────────────────────────────────
 
-vendorImportButton.addEventListener("click", async () => {
+vendorImportButton?.addEventListener("click", async () => {
     if (!vendorExcelFile.files.length) {
         showVendorMessage("Please select an Excel file");
         return;
@@ -1180,8 +1195,14 @@ vendorImportButton.addEventListener("click", async () => {
             return;
         }
 
-        await renderVendorPreview(result.vendor);
-        showVendorMessage("Vendor preview ready. Upload documents, then click Save Vendor.");
+        importedVendorRows = result.vendors || (result.vendor ? [result.vendor] : []);
+        if (!importedVendorRows.length) {
+            showVendorMessage("No vendor data found in the uploaded file");
+            return;
+        }
+
+        renderVendorBulkPreview(importedVendorRows);
+        showVendorMessage(`${importedVendorRows.length} vendor(s) ready for review. Review and edit fields if needed, then click Save All Vendors.`);
 
     } catch {
         showVendorMessage("Failed to connect to procurement manager service");
@@ -1190,243 +1211,154 @@ vendorImportButton.addEventListener("click", async () => {
     }
 });
 
-const VENDOR_SECTIONS = [
-    {
-        title: "Basic Details",
-        fields: [
-            ["registration_date", "Registration Date"],
-            ["vendor_name", "Vendor Name"],
-            ["legal_entity", "Legal Entity"],
-            ["commercial_role", "Commercial Role"],
-            ["year_of_incorporation", "Year of Incorporation"]
-        ]
-    },
-    {
-        title: "Address with Phone Numbers",
-        fields: [
-            ["office_address", "Office Address"],
-            ["office_contact_name", "Office Contact Name"],
-            ["office_contact_number", "Office Contact Number"],
-            ["factory_address", "Factory Address"],
-            ["factory_contact_name", "Factory Contact Name"],
-            ["factory_contact_number", "Factory Contact Number"],
-            ["warehouse_address", "Warehouse Address"],
-            ["warehouse_contact_name", "Warehouse Contact Name"],
-            ["warehouse_contact_number", "Warehouse Contact Number"],
-            ["workshop_address", "Workshop Address"],
-            ["workshop_contact_name", "Workshop Contact Name"],
-            ["workshop_contact_number", "Workshop Contact Number"]
-        ]
-    },
-    {
-        title: "Director / CEO / Management Team",
-        fields: [
-            ["director_or_ceo_or_management_name", "Name"],
-            ["director_or_ceo_or_management_designation", "Designation"],
-            ["director_or_ceo_or_management_mobile_no", "Mobile No."],
-            ["director_or_ceo_or_management_email", "Email"],
-            ["director_or_ceo_or_management_web_address", "Web Address"]
-        ]
-    },
-    {
-        title: "Sales Team",
-        fields: [
-            ["sales_team_name", "Name"],
-            ["sales_team_contact", "Contact"],
-            ["sales_team_email", "Email"]
-        ]
-    },
-    {
-        title: "Accounts Team",
-        fields: [
-            ["accounts_team_name", "Name"],
-            ["accounts_team_contact", "Contact"],
-            ["accounts_team_email", "Email"]
-        ]
-    },
-    {
-        title: "Tax & Registration",
-        fields: [
-            ["gst_number", "GST Number"],
-            ["pan_number", "PAN Number"],
-            ["msme_number", "MSME Number"]
-        ]
-    },
-    {
-        title: "Bank Details",
-        fields: [
-            ["bank_name", "Bank Name"],
-            ["bank_account_no", "Account No."],
-            ["bank_branch", "Branch Details"],
-            ["bank_account_type", "Type of Account"],
-            ["bank_ifsc", "IFSC/RTGS Code"]
-        ]
-    },
-    {
-        title: "Branch Offices",
-        fields: [
-            ["branch_office_1_address", "Branch 1 Address"],
-            ["branch_office_1_contact_name", "Branch 1 Contact Name"],
-            ["branch_office_1_contact_number", "Branch 1 Contact Number"],
-            ["branch_office_2_address", "Branch 2 Address"],
-            ["branch_office_2_contact_name", "Branch 2 Contact Name"],
-            ["branch_office_2_contact_number", "Branch 2 Contact Number"],
-            ["branch_office_3_address", "Branch 3 Address"],
-            ["branch_office_3_contact_name", "Branch 3 Contact Name"],
-            ["branch_office_3_contact_number", "Branch 3 Contact Number"]
-        ]
-    },
-    {
-        title: "Turnover of Last Three Years",
-        fields: [
-            ["turnover_year_1", "Year 1"],
-            ["turnover_value_1", "Value 1"],
-            ["turnover_year_2", "Year 2"],
-            ["turnover_value_2", "Value 2"],
-            ["turnover_year_3", "Year 3"],
-            ["turnover_value_3", "Value 3"]
-        ]
-    },
-    {
-        title: "For Office Use Only",
-        fields: [
-            ["recommended_by", "Recommended By"],
-            ["approved_by", "Approved By"]
-        ]
-    }
-];
+function renderVendorBulkPreview(rows) {
+    const tbody = document.getElementById("vendorBulkPreviewTbody");
+    const countBadge = document.getElementById("vendorPreviewCountBadge");
+    if (!tbody) return;
 
-async function renderVendorPreview(vendor) {
-    vendorPreviewForm.innerHTML = "";
+    if (countBadge) countBadge.textContent = `(${rows.length} vendor${rows.length === 1 ? '' : 's'})`;
+    tbody.innerHTML = "";
 
-    const used = new Set();
+    const legalEntityOptions = ["Private Limited", "Public Limited", "Partnership", "Proprietorship", "LLP", "Joint Venture", "Government", "Other"];
+    const commercialRoleOptions = ["Manufacturer", "Authorized Dealer", "Stockist / Distributor", "Trader", "Service Provider", "OEM", "Other"];
 
-    const buildSection = (title, fields) => {
-        const section = document.createElement("div");
-        section.className = "form-section";
+    rows.forEach((row, index) => {
+        const tr = document.createElement("tr");
 
-        const heading = document.createElement("h3");
-        heading.className = "form-section-title";
-        heading.textContent = title;
-        section.appendChild(heading);
+        const legalEntitySelect = `
+            <select data-index="${index}" data-field="legal_entity" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
+                ${legalEntityOptions.map(opt => `<option value="${opt}" ${(row.legal_entity || "").toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${opt}</option>`).join("")}
+            </select>
+        `;
 
-        const grid = document.createElement("div");
-        grid.className = "form-grid";
+        const commercialRoleSelect = `
+            <select data-index="${index}" data-field="commercial_role" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
+                ${commercialRoleOptions.map(opt => `<option value="${opt}" ${(row.commercial_role || "").toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${opt}</option>`).join("")}
+            </select>
+        `;
 
-        fields.forEach(([field, label]) => {
-            used.add(field);
+        tr.innerHTML = `
+            <td style="text-align: center; font-weight: 600; color: #64748b;">${index + 1}</td>
+            <td><input type="text" data-index="${index}" data-field="vendor_name" value="${escapeHtml(row.vendor_name || "")}" style="width: 100%; min-width: 170px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="date" data-index="${index}" data-field="registration_date" value="${escapeHtml(String(row.registration_date || todayISO()).slice(0, 10))}" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="gst_number" value="${escapeHtml(row.gst_number || "")}" maxlength="15" style="width: 100%; min-width: 150px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; text-transform: uppercase;"></td>
+            <td><input type="text" data-index="${index}" data-field="pan_number" value="${escapeHtml(row.pan_number || "")}" maxlength="10" style="width: 100%; min-width: 120px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; text-transform: uppercase;"></td>
+            <td>${legalEntitySelect}</td>
+            <td>${commercialRoleSelect}</td>
+            <td><input type="text" data-index="${index}" data-field="office_address" value="${escapeHtml(row.office_address || "")}" style="width: 100%; min-width: 190px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="office_contact_name" value="${escapeHtml(row.office_contact_name || "")}" style="width: 100%; min-width: 140px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="office_contact_number" value="${escapeHtml(row.office_contact_number || "")}" maxlength="10" style="width: 100%; min-width: 120px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="director_or_ceo_or_management_name" value="${escapeHtml(row.director_or_ceo_or_management_name || "")}" style="width: 100%; min-width: 140px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="director_or_ceo_or_management_mobile_no" value="${escapeHtml(row.director_or_ceo_or_management_mobile_no || "")}" maxlength="10" style="width: 100%; min-width: 120px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="email" data-index="${index}" data-field="director_or_ceo_or_management_email" value="${escapeHtml(row.director_or_ceo_or_management_email || "")}" style="width: 100%; min-width: 170px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="bank_name" value="${escapeHtml(row.bank_name || "")}" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="bank_account_no" value="${escapeHtml(row.bank_account_no || "")}" style="width: 100%; min-width: 150px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;"></td>
+            <td><input type="text" data-index="${index}" data-field="bank_ifsc" value="${escapeHtml(row.bank_ifsc || "")}" maxlength="11" style="width: 100%; min-width: 120px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; text-transform: uppercase;"></td>
+            <td style="text-align: center;">
+                <button type="button" class="row-delete-btn" data-delete-vendor-index="${index}" title="Remove vendor" style="background: none; border: 1px solid #ef4444; color: #ef4444; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;">✕</button>
+            </td>
+        `;
 
-            const isDate = field === "registration_date";
-            const value  = vendor[field];
-            const shown  = isDate ? (value || todayISO()) : (value || "");
-            const isReq  = VENDOR_REQUIRED_FIELDS.includes(field);
-
-            const group = document.createElement("div");
-            group.className = "form-group";
-            group.innerHTML = `
-                <label>${escapeHtml(label)}${isReq ? ' <span class="required-star">*</span>' : ''}</label>
-                <input id="preview_${field}" type="${isDate ? "date" : "text"}" value="${escapeHtml(shown)}">
-            `;
-            grid.appendChild(group);
-        });
-
-        section.appendChild(grid);
-        vendorPreviewForm.appendChild(section);
-    };
-
-    VENDOR_SECTIONS.forEach(section => buildSection(section.title, section.fields));
-
-    // Attach restrictions to preview inputs (prevent numbers in names, non-digits in phones)
-    const pNames = [
-        "office_contact_name", "director_or_ceo_or_management_name",
-        "sales_team_name", "accounts_team_name", "recommended_by", "approved_by"
-    ];
-    pNames.forEach(f => {
-        const el = document.getElementById(`preview_${f}`);
-        if (el) el.addEventListener("input", e => { e.target.value = e.target.value.replace(/[0-9]/g, ""); });
+        tbody.appendChild(tr);
     });
-    const pPhones = [
-        "office_contact_number", "director_or_ceo_or_management_mobile_no",
-        "sales_team_contact", "accounts_team_contact"
-    ];
-    pPhones.forEach(f => {
-        const el = document.getElementById(`preview_${f}`);
-        if (el) el.addEventListener("input", e => { e.target.value = e.target.value.replace(/[^0-9]/g, "").slice(0, 10); });
-    });
-
-    // Safety net: any field the backend returns that is not listed above
-    const extraFields = Object.keys(vendor)
-        .filter(field => !used.has(field))
-        .map(field => [field, formatVendorFieldName(field)]);
-
-    if (extraFields.length) buildSection("Other Details", extraFields);
-
-    const recommendedInput = document.getElementById("preview_recommended_by");
-    const approvedInput    = document.getElementById("preview_approved_by");
-
-    if (recommendedInput && !recommendedInput.value) recommendedInput.value = currentUser();
-    if (approvedInput    && !approvedInput.value)    approvedInput.value    = currentUser();
 
     vendorExcelPreview.classList.remove("hidden");
 
-    const gstInput = document.getElementById("preview_gst_number");
+    // Live update importedVendorRows on changes
+    tbody.querySelectorAll("[data-field]").forEach(input => {
+        const handler = e => {
+            const idx = Number(e.target.dataset.index);
+            const field = e.target.dataset.field;
+            if (importedVendorRows[idx]) {
+                importedVendorRows[idx][field] = e.target.value.trim();
+            }
+        };
+        input.addEventListener("input", handler);
+        input.addEventListener("change", handler);
+    });
 
-    if (gstInput) {
-        const gstValid = await checkVendorGST(gstInput.value);
-        saveVendorExcelButton.disabled = !gstValid;
+    // Row deletion
+    tbody.querySelectorAll("[data-delete-vendor-index]").forEach(btn => {
+        btn.addEventListener("click", e => {
+            const idx = Number(e.currentTarget.dataset.deleteVendorIndex);
+            importedVendorRows.splice(idx, 1);
+            if (importedVendorRows.length === 0) {
+                clearVendorExcel();
+                showVendorMessage("All imported vendors were discarded.");
+            } else {
+                renderVendorBulkPreview(importedVendorRows);
+                showVendorMessage(`${importedVendorRows.length} vendor(s) remaining.`);
+            }
+        });
+    });
+}
+
+// ─── Vendor Masters: Save Excel-Imported Vendors ──────────────────────────────
+
+saveVendorExcelButton?.addEventListener("click", async () => {
+    if (!importedVendorRows.length) {
+        showVendorMessage("No vendor rows available to import");
         return;
     }
 
-    saveVendorExcelButton.disabled = false;
-}
+    // Client-side validation for required fields on each row
+    const errors = [];
+    const seenGst = new Set();
 
-function formatVendorFieldName(field) {
-    return field
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, c => c.toUpperCase());
-}
+    importedVendorRows.forEach((v, i) => {
+        const rowNum = i + 1;
+        const name = (v.vendor_name || "").trim();
+        if (!name) errors.push(`Row ${rowNum}: Vendor Name is required.`);
+        if (name && /^\d+$/.test(name)) errors.push(`Row ${rowNum}: Vendor Name cannot be only numbers.`);
 
-// ─── Vendor Masters: Save Excel-Imported Vendor ────────────────────────────────
+        const gst = (v.gst_number || "").trim().toUpperCase();
+        if (!gst) errors.push(`Row ${rowNum}: GST Number is required.`);
+        else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gst)) {
+            errors.push(`Row ${rowNum}: Invalid GST format (${gst}).`);
+        } else if (seenGst.has(gst)) {
+            errors.push(`Row ${rowNum}: Duplicate GST (${gst}) within the sheet.`);
+        } else {
+            seenGst.add(gst);
+        }
 
-saveVendorExcelButton.addEventListener("click", async () => {
-    const gstInput = document.getElementById("preview_gst_number");
+        const pan = (v.pan_number || "").trim().toUpperCase();
+        if (!pan) errors.push(`Row ${rowNum}: PAN Number is required.`);
+        else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(pan)) {
+            errors.push(`Row ${rowNum}: Invalid PAN format (${pan}).`);
+        }
 
-    if (gstInput && !(await checkVendorGST(gstInput.value))) return;
+        if (!(v.office_address || "").trim()) errors.push(`Row ${rowNum}: Office Address is required.`);
+        if (!(v.office_contact_name || "").trim()) errors.push(`Row ${rowNum}: Office Contact Name is required.`);
 
-    const data = {};
-    vendorPreviewForm.querySelectorAll("input").forEach(input => {
-        data[input.id.replace("preview_", "")] = input.value;
+        const phone = (v.office_contact_number || "").trim().replace(/\s+/g, "");
+        if (!phone) errors.push(`Row ${rowNum}: Office Contact Number is required.`);
+        else if (!/^\d{10}$/.test(phone)) errors.push(`Row ${rowNum}: Office Contact Phone must be 10 digits.`);
+
+        if (!(v.bank_name || "").trim()) errors.push(`Row ${rowNum}: Bank Name is required.`);
+        if (!(v.bank_account_no || "").trim()) errors.push(`Row ${rowNum}: Bank Account No is required.`);
+
+        const ifsc = (v.bank_ifsc || "").trim().toUpperCase();
+        if (!ifsc) errors.push(`Row ${rowNum}: IFSC Code is required.`);
+        else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(ifsc)) {
+            errors.push(`Row ${rowNum}: Invalid IFSC code (${ifsc}).`);
+        }
     });
 
-    if (!data.registration_date) data.registration_date = todayISO();
-    if (!data.recommended_by)    data.recommended_by    = currentUser();
-    if (!data.approved_by)       data.approved_by       = currentUser();
-
-    const validationError = validateVendorPreviewData(data);
-    if (validationError) {
-        showVendorMessage(validationError);
+    if (errors.length > 0) {
+        alert("Please fix the following validation errors before importing:\n\n" + errors.slice(0, 10).join("\n") + (errors.length > 10 ? `\n...and ${errors.length - 10} more` : ""));
         return;
     }
-
-    const vendorName = data.vendor_name || "Vendor";
-
-    const formData = new FormData();
-    formData.append("vendor_data", JSON.stringify(data));
-
-    ["gst_document", "pan_document", "msme_document",
-     "itr_last_year_document", "itr_second_last_year_document", "itr_third_last_year_document"
-    ].forEach(docId => {
-        const file = document.getElementById(`excel_${docId}`)?.files[0];
-        if (file) formData.append(docId, file);
-    });
 
     try {
         saveVendorExcelButton.disabled = true;
-        showVendorMessage("Saving vendor...");
+        showVendorMessage(`Importing ${importedVendorRows.length} vendor(s)... Please wait.`);
 
         const response = await apiFetch("/vendors/import", {
             method: "POST",
-            body: formData
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ vendors: importedVendorRows })
         });
         if (!response) return;
 
@@ -1436,16 +1368,20 @@ saveVendorExcelButton.addEventListener("click", async () => {
             if (response.status === 409) {
                 alert(result.message);
             } else {
-                showVendorMessage(result.message || "Failed to save vendor");
+                showVendorMessage(result.message || "Failed to save vendors");
             }
             return;
         }
 
-        alert(`Vendor "${vendorName}" added successfully!\nVendor Code: ${result.vendor_code}`);
+        const msg = result.count
+            ? `Successfully imported ${result.count} vendor(s)!\nCode Range: ${result.imported_vendors?.[0]?.vendor_code || ""} - ${result.imported_vendors?.[result.imported_vendors.length - 1]?.vendor_code || ""}`
+            : (result.message || "Vendors imported successfully!");
+
+        alert(msg);
         clearVendorExcel();
 
     } catch {
-        showVendorMessage("Failed to connect to procurement service");
+        showVendorMessage("Failed to connect to procurement manager service");
     } finally {
         saveVendorExcelButton.disabled = false;
     }
@@ -5240,15 +5176,3 @@ window.saveGoodsReceipt = saveGoodsReceipt;
 window.saveGoodsReturn  = saveGoodsReturn;
 window.closeGoodsForm   = closeGoodsForm;
 window.viewGoodsHistory = viewGoodsHistory;
-
-// ─── Workspace Dashboard Init ──────────────────────────────────────────────────
-if (window.WorkspaceDashboard) {
-    window.WorkspaceDashboard.init({
-        isAdmin: false,
-        onNewPr: () => {
-            const prBtn = document.querySelector('[data-page="purchase-requests"]');
-            if (prBtn) prBtn.click();
-        }
-    });
-    window.WorkspaceDashboard.load();
-}
