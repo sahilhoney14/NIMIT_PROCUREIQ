@@ -374,10 +374,21 @@ function formatDate(value) {
 
 // Makes a company name safe to use as a folder name
 function sanitizeFolderName(name) {
-    return String(name)
+    if (!name) return "unnamed_vendor";
+    const clean = String(name)
         .trim()
         .replace(/[<>:"/\\|?*]/g, "_")
-        .replace(/\s+/g, " ").replace(/[.\s]+$/, "");
+        .replace(/\s+/g, " ")
+        .replace(/[.\s]+$/, "");
+    return clean || "unnamed_vendor";
+}
+
+// Sanitizes text values to prevent Excel Formula Injection (CWE-1236)
+function sanitizeExcelCellValue(val) {
+    if (typeof val === "string" && /^[=+\-@\t\r]/.test(val)) {
+        return `'${val}`;
+    }
+    return val;
 }
 
 // Returns the lower-case file extension of an upload, defaulting to .pdf
@@ -1165,7 +1176,9 @@ function getPortalHtml(filePath) {
 app.get(["/admin", "/admin/", "/admin/index.html"], verifyAdmin, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/admin/index.html");
     const template = getPortalHtml(htmlPath);
-    const html = template.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
+    const safeUser = JSON.stringify(req.user.username).replace(/</g, "\\u003c");
+    const safeRole = JSON.stringify(req.user.role).replace(/</g, "\\u003c");
+    const html = template.replace("<head>", `<head><script>window.currentUsername=${safeUser};window.currentUserRole=${safeRole};</script>`);
     return res.send(html);
 });
 
@@ -1180,7 +1193,9 @@ app.use("/procurement-manager", async (req, res) => {
 app.get(["/procurement", "/procurement/", "/procurement/index.html"], verifyProcurement, (req, res) => {
     const htmlPath = path.resolve(__dirname, "../../frontend/procurement/index.html");
     const template = getPortalHtml(htmlPath);
-    const html = template.replace("<head>", `<head><script>window.currentUsername=${JSON.stringify(req.user.username)};window.currentUserRole=${JSON.stringify(req.user.role)};</script>`);
+    const safeUser = JSON.stringify(req.user.username).replace(/</g, "\\u003c");
+    const safeRole = JSON.stringify(req.user.role).replace(/</g, "\\u003c");
+    const html = template.replace("<head>", `<head><script>window.currentUsername=${safeUser};window.currentUserRole=${safeRole};</script>`);
     return res.send(html);
 });
 
@@ -1260,6 +1275,7 @@ app.post("/users",verifyAdmin,async(req,res)=>{
     try{
         const{username,password,role}=req.body;
         if(!username||!password||!role)return res.status(400).json({success:false,message:"Username, password and role are required"});
+        if(String(password).length < 8)return res.status(400).json({success:false,message:"Password must be at least 8 characters long"});
         if(!["ADMIN","PROCUREMENT"].includes(role))return res.status(400).json({success:false,message:"Invalid role"});
         const passwordHash=await bcrypt.hash(password,10);
         const[result]=await db.execute(
@@ -1291,6 +1307,7 @@ app.put("/users/:user_id/password",verifyAdmin,async(req,res)=>{
     try{
         const{password}=req.body;
         if(!password)return res.status(400).json({success:false,message:"Password is required"});
+        if(String(password).length < 8)return res.status(400).json({success:false,message:"Password must be at least 8 characters long"});
         const[userRows]=await db.execute(
             `SELECT username,role FROM users WHERE user_id=? LIMIT 1`,[userId]
         );
@@ -1839,6 +1856,12 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
                 message: "No rows available for import"
             });
         }
+        if (rows.length > 1000) {
+            return res.status(400).json({
+                success: false,
+                message: "Maximum batch limit exceeded: Cannot import more than 1,000 rows at once"
+            });
+        }
         await connection.beginTransaction();
         const insertedRows = [];
         const reportItems = [];
@@ -2057,7 +2080,7 @@ app.get("/order-tracking", verifyProcurement, async (req, res) => {
 
         const [[countRows], [rows], [statusCountRows], [partyRows]] = await Promise.all([
             db.query(`SELECT COUNT(*) AS total ${countFromSql}`, params),
-            db.query(`SELECT * ${baseFromSql} ORDER BY pr_id DESC LIMIT ${limit} OFFSET ${offset}`, params),
+            db.query(`SELECT * ${baseFromSql} ORDER BY pr_id DESC LIMIT ? OFFSET ?`, [...params, limit, offset]),
             db.query(`
                 SELECT
                     COUNT(*) AS total_all,
@@ -2364,7 +2387,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
 
             values.forEach((val, colIdx) => {
                 const cell = dataRow.getCell(colIdx + 1);
-                cell.value = val;
+                cell.value = sanitizeExcelCellValue(val);
                 cell.font = { name: "Segoe UI", size: 10, color: { argb: "FF0F172A" } };
                 cell.fill = {
                     type: "pattern",
@@ -2912,7 +2935,7 @@ app.get(["/vendors/export/excel", "/api/vendors/export/excel"], verifyProcuremen
 
             values.forEach((val, colIdx) => {
                 const cell = dataRow.getCell(colIdx + 1);
-                cell.value = val;
+                cell.value = sanitizeExcelCellValue(val);
                 cell.font = { name: "Segoe UI", size: 9.5, color: { argb: "FF0F172A" } };
                 cell.fill = {
                     type: "pattern",
@@ -5986,8 +6009,8 @@ app.get("/report-logs", verifyManager, async (req, res) => {
                 FROM report_logs
                 ${whereClause}
                 ORDER BY log_timestamp DESC, report_log_id DESC
-                LIMIT ${limit} OFFSET ${offset}`,
-                params
+                LIMIT ? OFFSET ?`,
+                [...params, limit, offset]
             )
         ]);
         const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -6040,8 +6063,8 @@ app.get("/audit-logs", verifyAdmin, async (req, res) => {
                 FROM audit_logs
                 ${whereClause}
                 ORDER BY log_timestamp DESC, audit_log_id DESC
-                LIMIT ${limit} OFFSET ${offset}`,
-                params
+                LIMIT ? OFFSET ?`,
+                [...params, limit, offset]
             )
         ]);
         const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -6105,8 +6128,8 @@ app.get("/login-logs", verifyAdmin, async (req, res) => {
                  INNER JOIN users u ON u.user_id = ll.user_id
                  ${whereClause}
                  ORDER BY ll.login_time DESC, ll.login_log_id DESC
-                 LIMIT ${limit} OFFSET ${offset}`,
-                params
+                 LIMIT ? OFFSET ?`,
+                [...params, limit, offset]
             )
         ]);
 

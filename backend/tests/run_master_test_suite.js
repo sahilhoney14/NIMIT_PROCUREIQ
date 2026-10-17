@@ -4,6 +4,7 @@
  * database connectivity, and 50+ API endpoints across all user roles.
  */
 
+process.env.NODE_ENV = "test";
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
@@ -266,10 +267,12 @@ async function runAllTests() {
 
     // 3.4 Procurement user login
     try {
+        const [procUsers] = await db.execute("SELECT username FROM users WHERE role = 'PROCUREMENT' AND is_active = 1 LIMIT 1");
+        const procUsername = procUsers[0]?.username || "procurement";
         const res = await apiRequest({
             method: "POST",
             path: "/login",
-            body: { username: "procurement", password: "Password@123" }
+            body: { username: procUsername, password: "Password@123" }
         });
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.data.role, "PROCUREMENT");

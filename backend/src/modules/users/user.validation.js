@@ -3,6 +3,9 @@ function validateCreateUser(req, res, next) {
     if (!username || !password || !role) {
         return res.status(400).json({ success: false, message: "Username, password and role are required" });
     }
+    if (String(password).length < 8) {
+        return res.status(400).json({ success: false, message: "Password must be at least 8 characters long" });
+    }
     if (!["ADMIN", "PROCUREMENT"].includes(role)) {
         return res.status(400).json({ success: false, message: "Invalid role" });
     }
@@ -13,6 +16,9 @@ function validateChangePassword(req, res, next) {
     const { password } = req.body;
     if (!password || String(password).trim() === "") {
         return res.status(400).json({ success: false, message: "Password is required" });
+    }
+    if (String(password).length < 8) {
+        return res.status(400).json({ success: false, message: "Password must be at least 8 characters long" });
     }
     next();
 }

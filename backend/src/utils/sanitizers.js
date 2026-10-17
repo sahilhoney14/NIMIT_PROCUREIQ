@@ -1,10 +1,11 @@
 function sanitizeFolderName(name) {
     if (!name) return "unnamed_vendor";
-    return String(name)
+    const clean = String(name)
         .trim()
         .replace(/[<>:"/\\|?*]/g, "_")
         .replace(/\s+/g, " ")
         .replace(/[.\s]+$/, ""); // Strip trailing dots and spaces to prevent Windows directory errors
+    return clean || "unnamed_vendor";
 }
 
 function getFileExtension(filename, defaultExt = ".pdf") {

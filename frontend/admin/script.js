@@ -477,7 +477,7 @@ async function loadUsers() {
                             ${user.is_active ? "Revoke Access" : "Grant Access"}
                         </button>
                         ${canDelete ? `
-                        <button class="action-button delete-button" onclick="deleteUser(${user.user_id}, '${escapeHtml(user.username)}')" title="Delete User">
+                        <button class="action-button delete-button btn-delete-user" data-user-id="${user.user_id}" data-username="${escapeHtml(user.username)}" title="Delete User">
                             <svg class="action-btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -500,6 +500,12 @@ async function loadUsers() {
             `;
 
             usersTableBody.appendChild(row);
+            const delBtn = row.querySelector(".btn-delete-user");
+            if (delBtn) {
+                delBtn.addEventListener("click", () => {
+                    deleteUser(Number(delBtn.dataset.userId), delBtn.dataset.username);
+                });
+            }
         });
     } catch (error) {
         console.error(error);

@@ -24,6 +24,9 @@ async function createUser(req, res) {
         if (!username || !password || !role) {
             return res.status(400).json({ success: false, message: "Username, password and role are required" });
         }
+        if (String(password).length < 8) {
+            return res.status(400).json({ success: false, message: "Password must be at least 8 characters long" });
+        }
         if (!["ADMIN", "PROCUREMENT"].includes(role)) {
             return res.status(400).json({ success: false, message: "Invalid role" });
         }
@@ -68,6 +71,9 @@ async function updatePassword(req, res) {
         const { password } = req.body;
         if (!password) {
             return res.status(400).json({ success: false, message: "Password is required" });
+        }
+        if (String(password).length < 8) {
+            return res.status(400).json({ success: false, message: "Password must be at least 8 characters long" });
         }
 
         const [userRows] = await db.execute(
