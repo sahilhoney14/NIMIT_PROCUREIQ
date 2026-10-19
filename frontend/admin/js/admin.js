@@ -321,34 +321,65 @@ document.addEventListener("wheel", event => {
     }
 }, { passive: true });
 
-// ─── Sidebar Navigation ────────────────────────────────────────────────────────
+// ─── Sidebar Dropdown Navigation ────────────────────────────────────────────────────────
 
-document.querySelectorAll(".main-menu").forEach(button => {
-    button.addEventListener("click", () => {
-        const sectionId = button.dataset.section;
-        const section   = document.getElementById(sectionId);
+// Dropdown Toggles (Workspace, Vendors, Intelligence, Management)
+document.querySelectorAll(".nav-dropdown-toggle").forEach(button => {
+    button.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const group = button.closest(".nav-dropdown-group");
+        if (!group) return;
 
-        document.querySelectorAll(".main-menu").forEach(b => b.classList.remove("active"));
-        document.querySelectorAll(".submenu").forEach(s => s.classList.remove("open"));
+        const wasOpen = group.classList.contains("open");
 
-        button.classList.add("active");
-        if (section) section.classList.add("open");
+        // Accordion behavior: close other open dropdowns
+        document.querySelectorAll(".nav-dropdown-group").forEach(g => {
+            if (g !== group) {
+                g.classList.remove("open");
+            }
+        });
 
-        if (sectionId === "workspace") {
-            const wsBtn = section?.querySelector('[data-page="workspace-dashboard"]');
-            if (wsBtn) wsBtn.click();
+        // Toggle this dropdown
+        if (wasOpen) {
+            group.classList.remove("open");
+        } else {
+            group.classList.add("open");
         }
     });
 });
 
+// All Actionable Navigation Items (.submenu-item)
 document.querySelectorAll(".submenu-item").forEach(button => {
     button.addEventListener("click", () => {
         if (button.classList.contains("disabled") || button.disabled) return;
 
+        // Clear active state across all navigation items
         document.querySelectorAll(".submenu-item").forEach(b => b.classList.remove("active"));
         document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
 
         button.classList.add("active");
+
+        // Maintain dropdown toggle active-parent state
+        document.querySelectorAll(".nav-dropdown-toggle").forEach(t => t.classList.remove("active-parent"));
+        document.querySelectorAll(".nav-direct-item").forEach(d => d.classList.remove("active"));
+
+        const parentGroup = button.closest(".nav-dropdown-group");
+        if (parentGroup) {
+            parentGroup.classList.add("open");
+            const parentToggle = parentGroup.querySelector(".nav-dropdown-toggle");
+            if (parentToggle) parentToggle.classList.add("active-parent");
+
+            // Close other dropdowns for a clean accordion look
+            document.querySelectorAll(".nav-dropdown-group").forEach(g => {
+                if (g !== parentGroup) g.classList.remove("open");
+            });
+        } else {
+            // Direct item like Users
+            button.classList.add("active");
+            // Close any open dropdowns when navigating to a direct item
+            document.querySelectorAll(".nav-dropdown-group").forEach(g => g.classList.remove("open"));
+        }
 
         const page = button.dataset.page;
 
@@ -816,17 +847,48 @@ importButton?.addEventListener("click", async () => {
 
 // ─── PR Excel: Render Editable Preview Table ───────────────────────────────────
 
+const TERRITORY_OPTIONS = [
+    "North",
+    "South (Dahej)",
+    "South (Bharuch)",
+    "West",
+    "Central Projects",
+    "Central Services",
+    "Central Contracts",
+    "Ahmedabad",
+    "Pan India",
+    "Kutch",
+    "Surat"
+];
+
 function renderPreview() {
     previewBody.innerHTML = "";
 
     importedRows.forEach((row, index) => {
         const tr = document.createElement("tr");
 
+        const normT = s => String(s || "").toLowerCase().replace(/[\s()]+/g, "");
+        const currentTerritoryNorm = normT(row.territory);
+        const territoryOptionsHtml = TERRITORY_OPTIONS.map(t => {
+            const isSel = normT(t) === currentTerritoryNorm ? "selected" : "";
+            return `<option value="${t}" ${isSel}>${t}</option>`;
+        }).join("");
+        const isKnownTerritory = TERRITORY_OPTIONS.some(t => normT(t) === currentTerritoryNorm);
+        const customTerritoryOpt = (!isKnownTerritory && row.territory)
+            ? `<option value="${escapeHtml(row.territory)}" selected>${escapeHtml(row.territory)}</option>`
+            : "";
+
         tr.innerHTML = `
             <td><input type="date" data-index="${index}" data-field="pr_date" value="${escapeHtml(String(row.pr_date || "").slice(0, 10))}"></td>
             <td><input data-index="${index}" data-field="party_name"       value="${escapeHtml(row.party_name || "")}"></td>
             <td><input data-index="${index}" data-field="location"         value="${escapeHtml(row.location || "")}"></td>
-            <td><input data-index="${index}" data-field="territory"        value="${escapeHtml(row.territory || "")}"></td>
+            <td>
+                <select data-index="${index}" data-field="territory">
+                    <option value="" ${!row.territory ? "selected" : ""}>Select Territory</option>
+                    ${territoryOptionsHtml}
+                    ${customTerritoryOpt}
+                </select>
+            </td>
             <td><input data-index="${index}" data-field="product_category" value="${escapeHtml(row.product_category || "")}"></td>
             <td><input data-index="${index}" data-field="item_name"        value="${escapeHtml(row.item_name || "")}"></td>
             <td><input data-index="${index}" data-field="product_remarks"  value="${escapeHtml(row.product_remarks || "")}"></td>
@@ -1006,10 +1068,17 @@ function setTurnoverYears() {
     const year      = now.getFullYear();
     const startYear = month >= 4 ? year : year - 1;
 
+    const t1Label = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)} Turnover`;
+    const t2Label = `${String(startYear - 1).slice(-2)}-${String(startYear).slice(-2)} Turnover`;
+    const t3Label = `${String(startYear - 2).slice(-2)}-${String(startYear - 1).slice(-2)} Turnover`;
+
     [
-        { id: "turnover_value_1", text: `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)} Turnover`, required: true },
-        { id: "turnover_value_2", text: `${String(startYear - 1).slice(-2)}-${String(startYear).slice(-2)} Turnover`, required: false },
-        { id: "turnover_value_3", text: `${String(startYear - 2).slice(-2)}-${String(startYear - 1).slice(-2)} Turnover`, required: false }
+        { id: "turnover_value_1", text: t1Label, required: false },
+        { id: "turnover_value_2", text: t2Label, required: false },
+        { id: "turnover_value_3", text: t3Label, required: false },
+        { id: "ev-turnover_value_1", text: t1Label, required: false },
+        { id: "ev-turnover_value_2", text: t2Label, required: false },
+        { id: "ev-turnover_value_3", text: t3Label, required: false }
     ].forEach(({ id, text, required }) => {
         const input = document.getElementById(id);
         if (!input) return;
@@ -1018,6 +1087,43 @@ function setTurnoverYears() {
             label.innerHTML = required ? `${text} <span class="required-star">*</span>` : text;
         }
     });
+
+    const itr1Label = `${String(startYear - 1).slice(-2)}-${String(startYear).slice(-2)} ITR`;
+    const itr2Label = `${String(startYear - 2).slice(-2)}-${String(startYear - 1).slice(-2)} ITR`;
+    const itr3Label = `${String(startYear - 3).slice(-2)}-${String(startYear - 2).slice(-2)} ITR`;
+
+    [
+        { id: "itr_last_year_document", text: itr1Label },
+        { id: "itr_second_last_year_document", text: itr2Label },
+        { id: "itr_third_last_year_document", text: itr3Label },
+        { id: "excel_itr_last_year_document", text: itr1Label },
+        { id: "excel_itr_second_last_year_document", text: itr2Label },
+        { id: "excel_itr_third_last_year_document", text: itr3Label },
+        { id: "ev-doc-itr_last_year_document", text: itr1Label },
+        { id: "ev-doc-itr_second_last_year_document", text: itr2Label },
+        { id: "ev-doc-itr_third_last_year_document", text: itr3Label }
+    ].forEach(({ id, text }) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        const label = input.closest(".form-group")?.querySelector("label");
+        if (label) {
+            label.textContent = text;
+        }
+    });
+
+    const evItr1 = document.getElementById("ev-label-itr_last_year_document");
+    if (evItr1) evItr1.textContent = itr1Label;
+    const evItr2 = document.getElementById("ev-label-itr_second_last_year_document");
+    if (evItr2) evItr2.textContent = itr2Label;
+    const evItr3 = document.getElementById("ev-label-itr_third_last_year_document");
+    if (evItr3) evItr3.textContent = itr3Label;
+
+    const evT1 = document.getElementById("ev-label-turnover_value_1");
+    if (evT1) evT1.textContent = t1Label;
+    const evT2 = document.getElementById("ev-label-turnover_value_2");
+    if (evT2) evT2.textContent = t2Label;
+    const evT3 = document.getElementById("ev-label-turnover_value_3");
+    if (evT3) evT3.textContent = t3Label;
 }
 
 // Restrict user typing in real time: prevent numbers in name fields, prevent non-digits in phone/bank fields
@@ -1236,16 +1342,6 @@ function validateVendorForm() {
     const curYear = new Date().getFullYear();
     if (!/^\d{4}$/.test(yearVal) || parseInt(yearVal, 10) < 1800 || parseInt(yearVal, 10) > curYear) {
         return `Year of incorporation must be a valid 4-digit year (between 1800 and ${curYear}).`;
-    }
-
-    const gstVal = String(document.getElementById("gst_number")?.value ?? "").trim();
-    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gstVal)) {
-        return "GST number must be 15 alphanumeric characters (e.g. 22AAAAA0000A1Z5).";
-    }
-
-    const panVal = String(document.getElementById("pan_number")?.value ?? "").trim();
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(panVal)) {
-        return "PAN number must be 10 characters (e.g. AAAAA0000A).";
     }
 
     const bankNameVal = String(document.getElementById("bank_name")?.value ?? "").trim();
@@ -1526,21 +1622,30 @@ function renderVendorBulkPreview(rows) {
     if (countBadge) countBadge.textContent = `(${rows.length} vendor${rows.length === 1 ? '' : 's'})`;
     tbody.innerHTML = "";
 
-    const legalEntityOptions = ["Private Limited", "Public Limited", "Partnership", "Proprietorship", "LLP", "Joint Venture", "Government", "Other"];
-    const commercialRoleOptions = ["Manufacturer", "Authorized Dealer", "Stockist / Distributor", "Trader", "Service Provider", "OEM", "Other"];
-
     rows.forEach((row, index) => {
         const tr = document.createElement("tr");
 
+        const baseEntities = ["Private Limited", "Public Limited", "Partnership", "Proprietorship", "Sole Proprietorship", "LLP", "Joint Venture", "Government", "Other"];
+        const curEntity = (row.legal_entity || "").trim();
+        const entityList = (curEntity && !baseEntities.some(o => o.toLowerCase() === curEntity.toLowerCase()))
+            ? [curEntity, ...baseEntities]
+            : baseEntities;
+
         const legalEntitySelect = `
             <select data-index="${index}" data-field="legal_entity" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
-                ${legalEntityOptions.map(opt => `<option value="${opt}" ${(row.legal_entity || "").toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${opt}</option>`).join("")}
+                ${entityList.map(opt => `<option value="${escapeHtml(opt)}" ${curEntity.toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${escapeHtml(opt)}</option>`).join("")}
             </select>
         `;
 
+        const baseRoles = ["Manufacturer", "Authorized Dealer", "Stockist / Distributor", "Distributor", "Trader", "Service Provider", "OEM", "Other"];
+        const curRole = (row.commercial_role || "").trim();
+        const roleList = (curRole && !baseRoles.some(o => o.toLowerCase() === curRole.toLowerCase()))
+            ? [curRole, ...baseRoles]
+            : baseRoles;
+
         const commercialRoleSelect = `
             <select data-index="${index}" data-field="commercial_role" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
-                ${commercialRoleOptions.map(opt => `<option value="${opt}" ${(row.commercial_role || "").toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${opt}</option>`).join("")}
+                ${roleList.map(opt => `<option value="${escapeHtml(opt)}" ${curRole.toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${escapeHtml(opt)}</option>`).join("")}
             </select>
         `;
 
@@ -1608,51 +1713,54 @@ saveVendorExcelButton?.addEventListener("click", async () => {
         return;
     }
 
+    // Sync current values from DOM inputs in case user edited them in the table
+    const tbody = document.getElementById("vendorBulkPreviewTbody");
+    if (tbody) {
+        tbody.querySelectorAll("tr").forEach((tr, idx) => {
+            if (!importedVendorRows[idx]) return;
+            tr.querySelectorAll("[data-field]").forEach(input => {
+                const field = input.dataset.field;
+                if (field) {
+                    importedVendorRows[idx][field] = input.value.trim();
+                }
+            });
+        });
+    }
+
+    const REQUIRED_COLUMNS = [
+        { field: "vendor_name", label: "Vendor Name" },
+        { field: "gst_number", label: "GST Number" },
+        { field: "pan_number", label: "PAN Number" },
+        { field: "legal_entity", label: "Legal Entity" },
+        { field: "commercial_role", label: "Commercial Role" },
+        { field: "office_address", label: "Office Address" },
+        { field: "office_contact_name", label: "Contact Person" },
+        { field: "office_contact_number", label: "Contact Phone" },
+        { field: "director_or_ceo_or_management_name", label: "Director Name" },
+        { field: "director_or_ceo_or_management_mobile_no", label: "Director Mobile" },
+        { field: "director_or_ceo_or_management_email", label: "Director Email" },
+        { field: "bank_name", label: "Bank Name" },
+        { field: "bank_account_no", label: "Bank Account No" },
+        { field: "bank_ifsc", label: "IFSC Code" }
+    ];
+
     // Client-side validation for required fields on each row
     const errors = [];
-    const seenGst = new Set();
 
     importedVendorRows.forEach((v, i) => {
         const rowNum = i + 1;
-        const name = (v.vendor_name || "").trim();
-        if (!name) errors.push(`Row ${rowNum}: Vendor Name is required.`);
-        if (name && /^\d+$/.test(name)) errors.push(`Row ${rowNum}: Vendor Name cannot be only numbers.`);
 
-        const gst = (v.gst_number || "").trim().toUpperCase();
-        if (!gst) errors.push(`Row ${rowNum}: GST Number is required.`);
-        else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gst)) {
-            errors.push(`Row ${rowNum}: Invalid GST format (${gst}).`);
-        } else if (seenGst.has(gst)) {
-            errors.push(`Row ${rowNum}: Duplicate GST (${gst}) within the sheet.`);
-        } else {
-            seenGst.add(gst);
-        }
-
-        const pan = (v.pan_number || "").trim().toUpperCase();
-        if (!pan) errors.push(`Row ${rowNum}: PAN Number is required.`);
-        else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(pan)) {
-            errors.push(`Row ${rowNum}: Invalid PAN format (${pan}).`);
-        }
-
-        if (!(v.office_address || "").trim()) errors.push(`Row ${rowNum}: Office Address is required.`);
-        if (!(v.office_contact_name || "").trim()) errors.push(`Row ${rowNum}: Office Contact Name is required.`);
-
-        const phone = (v.office_contact_number || "").trim().replace(/\s+/g, "");
-        if (!phone) errors.push(`Row ${rowNum}: Office Contact Number is required.`);
-        else if (!/^\d{10}$/.test(phone)) errors.push(`Row ${rowNum}: Office Contact Phone must be 10 digits.`);
-
-        if (!(v.bank_name || "").trim()) errors.push(`Row ${rowNum}: Bank Name is required.`);
-        if (!(v.bank_account_no || "").trim()) errors.push(`Row ${rowNum}: Bank Account No is required.`);
-
-        const ifsc = (v.bank_ifsc || "").trim().toUpperCase();
-        if (!ifsc) errors.push(`Row ${rowNum}: IFSC Code is required.`);
-        else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(ifsc)) {
-            errors.push(`Row ${rowNum}: Invalid IFSC code (${ifsc}).`);
+        for (const col of REQUIRED_COLUMNS) {
+            const val = String(v[col.field] ?? "").trim();
+            if (!val) {
+                errors.push(`Row ${rowNum}: ${col.label} is required.`);
+            }
         }
     });
 
     if (errors.length > 0) {
-        alert("Please fix the following validation errors before importing:\n\n" + errors.slice(0, 10).join("\n") + (errors.length > 10 ? `\n...and ${errors.length - 10} more` : ""));
+        alert("Please fix the following validation errors before importing:\n\n" + errors.slice(0, 15).join("\n") + (errors.length > 15 ? `\n...and ${errors.length - 15} more` : ""));
+        showVendorMessage(`Validation failed: ${errors.length} required field(s) missing.`);
         return;
     }
 
@@ -1878,6 +1986,17 @@ function openEditPrForm(inquiryId, inquiryStatus, hasQuotations, inquiry) {
             <textarea id="epr-${id}-${inquiryId}">${escapeHtml(value || "")}</textarea>
         </div>`;
 
+    const normT = s => String(s || "").toLowerCase().replace(/[\s()]+/g, "");
+    const editTerritoryNorm = normT(inquiry.territory);
+    const editTerritoryOptionsHtml = TERRITORY_OPTIONS.map(t => {
+        const isSel = normT(t) === editTerritoryNorm ? "selected" : "";
+        return `<option value="${t}" ${isSel}>${t}</option>`;
+    }).join("");
+    const isKnownEditTerritory = TERRITORY_OPTIONS.some(t => normT(t) === editTerritoryNorm);
+    const customEditTerritoryOpt = (!isKnownEditTerritory && inquiry.territory)
+        ? `<option value="${escapeHtml(inquiry.territory)}" selected>${escapeHtml(inquiry.territory)}</option>`
+        : "";
+
     formEl.innerHTML = `
         <div class="edit-pr-form-inner">
             <h3>Edit Purchase Request — ${escapeHtml(inquiry.pr_number)}
@@ -1888,7 +2007,14 @@ function openEditPrForm(inquiryId, inquiryStatus, hasQuotations, inquiry) {
 
             <div class="form-grid">
                 ${editable("Location",         "location",         inquiry.location)}
-                ${editable("Territory",        "territory",        inquiry.territory)}
+                <div class="form-group">
+                    <label>Territory <span class="required-star">*</span></label>
+                    <select id="epr-territory-${inquiryId}">
+                        <option value="" disabled ${!inquiry.territory ? "selected" : ""}>Select Territory</option>
+                        ${editTerritoryOptionsHtml}
+                        ${customEditTerritoryOpt}
+                    </select>
+                </div>
                 ${editable("Product Category", "product_category", inquiry.product_category)}
                 ${editable("Item Name",        "item_name",        inquiry.item_name)}
                 ${editable("Make",             "make",             inquiry.make)}
@@ -3511,6 +3637,10 @@ function ensurePoFilterToolbarInDom() {
             </div>
             <button type="button" id="poFilterClearBtn" class="po-btn-clear">Clear</button>
             <button type="button" id="poFilterApplyBtn" class="po-btn-apply">Apply</button>
+            <button type="button" id="poExportBtn" class="po-btn-export" title="Export Purchase Orders to Excel (.xlsx)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Export</span>
+            </button>
         </div>
         <div class="po-filter-pills-row">
             <div class="po-filter-pills" id="poStatusPills">
@@ -3555,6 +3685,68 @@ function initPurchaseOrderFilters() {
         if (statusSelect) statusSelect.value = status;
         updateActivePoPill(status);
         applyPurchaseOrderFilter();
+    });
+// Export Button
+    const exportBtn = document.getElementById("poExportBtn");
+    exportBtn?.addEventListener("click", async () => {
+        const originalContent = exportBtn.innerHTML;
+        exportBtn.disabled = true;
+        exportBtn.innerHTML = `
+            <svg class="spin-animation" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.85"></path>
+            </svg>
+            <span>Exporting...</span>
+        `;
+
+        try {
+            const params = new URLSearchParams();
+            if (poSearchQuery) params.set("search", poSearchQuery);
+            if (poStatusFilter && poStatusFilter !== "ALL") params.set("status", poStatusFilter);
+            if (poVendorFilter && poVendorFilter !== "ALL") params.set("vendor", poVendorFilter);
+            if (poDateFromFilter) params.set("from_date", poDateFromFilter);
+            if (poDateToFilter) params.set("to_date", poDateToFilter);
+
+            const response = await apiFetch(`/purchase-orders/export?${params.toString()}`);
+            if (!response || !response.ok) {
+                throw new Error("Export request failed");
+            }
+
+            const blob = await response.blob();
+            const excelBlob = new Blob([blob], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
+            const downloadUrl = window.URL.createObjectURL(excelBlob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = downloadUrl;
+
+            let downloadFilename = "";
+            const disposition = response.headers.get("Content-Disposition");
+            if (disposition && disposition.includes("filename=")) {
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    downloadFilename = match[1].replace(/['"]/g, "").trim();
+                }
+            }
+            if (!downloadFilename) {
+                const dateStr = new Date().toISOString().slice(0, 10);
+                const statusSuffix = (poStatusFilter && poStatusFilter !== "ALL") ? `_${poStatusFilter}` : "";
+                downloadFilename = `Purchase_Orders_Summary${statusSuffix}_${dateStr}.xlsx`;
+            }
+
+            a.download = downloadFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (err) {
+            console.error("Purchase order export failed:", err);
+            alert("Failed to export purchase orders to Excel. Please try again.");
+        } finally {
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = originalContent;
+        }
     });
 
     // Status Select Change
@@ -5906,20 +6098,590 @@ async function loadLogs() {
     }
 }
 
+/* ─── Reports & Audits Formatters ────────────────────────── */
+
+const LOG_ACTION_META = {
+    // Vendor actions
+    "VENDOR_DELETED": {
+        label: "Vendor Deleted",
+        badgeClass: "log-badge-danger",
+        narrative: (user, oldObj) => {
+            const vName = oldObj?.vendor_name || "";
+            const vCode = oldObj?.vendor_code || (oldObj?.vendor_id ? "ID #" + oldObj.vendor_id : "");
+            const details = [vCode, vName].filter(Boolean).join(" - ");
+            return (user || "Admin") + " deleted this vendor" + (details ? " (" + details + ")" : "");
+        }
+    },
+    "VENDOR_CREATED": {
+        label: "Vendor Added",
+        badgeClass: "log-badge-success",
+        narrative: (user) => (user || "Admin") + " registered a new vendor"
+    },
+    "VENDOR_IMPORTED": {
+        label: "Vendor Imported",
+        badgeClass: "log-badge-info",
+        narrative: (user) => (user || "Admin") + " imported vendor from Excel"
+    },
+    "VENDOR_UPDATED": {
+        label: "Vendor Updated",
+        badgeClass: "log-badge-info",
+        narrative: (user) => (user || "Admin") + " updated vendor details"
+    },
+    "VENDOR_BANK_UPDATED": {
+        label: "Bank Details Updated",
+        badgeClass: "log-badge-warning",
+        narrative: (user) => (user || "Admin") + " updated vendor bank & legal details"
+    },
+    "VENDOR_BLACKLISTED": {
+        label: "Vendor Blacklisted",
+        badgeClass: "log-badge-danger",
+        narrative: (user) => (user || "Admin") + " blacklisted vendor"
+    },
+    "VENDOR_UNBLACKLISTED": {
+        label: "Vendor Whitelisted",
+        badgeClass: "log-badge-success",
+        narrative: (user) => (user || "Admin") + " restored vendor from blacklist"
+    },
+    "VENDOR_SELECTED": {
+        label: "Vendor Finalized",
+        badgeClass: "log-badge-purple",
+        narrative: (user) => (user || "Admin") + " selected winning vendor quotation"
+    },
+    "VENDOR_QUOTATION_ADDED": {
+        label: "Quotation Added",
+        badgeClass: "log-badge-primary",
+        narrative: (user) => (user || "Admin") + " added vendor quotation"
+    },
+    "VENDOR_INQUIRY_CREATED": {
+        label: "Inquiry Created",
+        badgeClass: "log-badge-primary",
+        narrative: (user) => (user || "Admin") + " created vendor inquiry"
+    },
+
+    // Purchase Order & Goods actions
+    "PO_COMPLETED": {
+        label: "PO Completed",
+        badgeClass: "log-badge-success",
+        narrative: (user) => (user || "Admin") + " marked purchase order as completed"
+    },
+    "GOODS_RECEIVED": {
+        label: "Goods Received",
+        badgeClass: "log-badge-info",
+        narrative: (user) => (user || "Admin") + " recorded goods receipt"
+    },
+    "GOODS_RETURNED": {
+        label: "Goods Returned",
+        badgeClass: "log-badge-warning",
+        narrative: (user) => (user || "Admin") + " recorded goods return"
+    },
+    "PO_ISSUED": {
+        label: "PO Issued",
+        badgeClass: "log-badge-primary",
+        narrative: (user) => (user || "Admin") + " issued purchase order to vendor"
+    },
+    "PO_CREATED": {
+        label: "Draft PO Created",
+        badgeClass: "log-badge-neutral",
+        narrative: (user) => (user || "Admin") + " generated draft purchase order"
+    },
+    "PO_RESELECT": {
+        label: "PO Reselection",
+        badgeClass: "log-badge-warning",
+        narrative: (user) => (user || "Admin") + " initiated vendor re-selection"
+    },
+    "INQUIRY_CANCELLED": {
+        label: "Inquiry Cancelled",
+        badgeClass: "log-badge-danger",
+        narrative: (user) => (user || "Admin") + " cancelled inquiry"
+    },
+    "REQUIREMENT_CANCELLED": {
+        label: "Requirement Cancelled",
+        badgeClass: "log-badge-danger",
+        narrative: (user) => (user || "Admin") + " cancelled requirement"
+    },
+
+    // PR actions
+    "PR_CREATED": {
+        label: "PR Created",
+        badgeClass: "log-badge-primary",
+        narrative: (user) => (user || "Admin") + " created purchase requisition"
+    },
+    "PR_UPDATED": {
+        label: "PR Updated",
+        badgeClass: "log-badge-info",
+        narrative: (user) => (user || "Admin") + " updated purchase requisition"
+    },
+    "PR_EXCEL_IMPORTED": {
+        label: "Excel PRs Imported",
+        badgeClass: "log-badge-info",
+        narrative: (user) => (user || "Admin") + " bulk-imported PRs via Excel"
+    },
+
+    // User management actions
+    "USER_CREATED": {
+        label: "User Created",
+        badgeClass: "log-badge-success",
+        narrative: (user, oldObj, newObj) => {
+            const u = newObj?.username || "";
+            return (user || "Admin") + " created new user account" + (u ? ' "' + u + '"' : "");
+        }
+    },
+    "USER_PASSWORD_CHANGED": {
+        label: "Password Reset",
+        badgeClass: "log-badge-warning",
+        narrative: (user, oldObj, newObj) => {
+            const u = newObj?.username || oldObj?.username || "";
+            return (user || "Admin") + " changed password for user" + (u ? ' "' + u + '"' : "");
+        }
+    },
+    "USER_ACCESS_REVOKED": {
+        label: "Access Revoked",
+        badgeClass: "log-badge-danger",
+        narrative: (user, oldObj, newObj) => {
+            const u = newObj?.username || oldObj?.username || "";
+            return (user || "Admin") + " deactivated account" + (u ? ' for "' + u + '"' : "");
+        }
+    },
+    "USER_ACCESS_GRANTED": {
+        label: "Access Granted",
+        badgeClass: "log-badge-success",
+        narrative: (user, oldObj, newObj) => {
+            const u = newObj?.username || oldObj?.username || "";
+            return (user || "Admin") + " activated account" + (u ? ' for "' + u + '"' : "");
+        }
+    },
+    "USER_DELETED": {
+        label: "User Deleted",
+        badgeClass: "log-badge-danger",
+        narrative: (user, oldObj) => {
+            const u = oldObj?.username || "";
+            return (user || "Admin") + " deleted user account" + (u ? ' "' + u + '"' : "");
+        }
+    }
+};
+
+const AUDIT_FIELD_LABELS = {
+    vendor_name: "Vendor Name",
+    vendor_code: "Vendor Code / Number",
+    vendor_id: "Vendor ID",
+    legal_entity: "Legal Entity",
+    commercial_role: "Commercial Role",
+    year_of_incorporation: "Year of Incorporation",
+    director_or_ceo_or_management_name: "Director / CEO Name",
+    director_or_ceo_or_management_designation: "Director Designation",
+    director_or_ceo_or_management_mobile_no: "Director Mobile",
+    director_or_ceo_or_management_email: "Director Email",
+    director_or_ceo_or_management_web_address: "Website",
+    sales_team_name: "Sales Contact Name",
+    sales_team_contact: "Sales Contact Phone",
+    sales_team_email: "Sales Email",
+    accounts_team_name: "Accounts Contact Name",
+    accounts_team_contact: "Accounts Contact Phone",
+    accounts_team_email: "Accounts Email",
+    office_address: "Office Address",
+    office_contact_name: "Office Contact Person",
+    office_contact_number: "Office Phone",
+    factory_address: "Factory Address",
+    factory_contact_name: "Factory Contact Person",
+    factory_contact_number: "Factory Phone",
+    warehouse_address: "Warehouse Address",
+    warehouse_contact_name: "Warehouse Contact Person",
+    warehouse_contact_number: "Warehouse Phone",
+    workshop_address: "Workshop Address",
+    workshop_contact_name: "Workshop Contact Person",
+    workshop_contact_number: "Workshop Phone",
+    gst_number: "GST Number",
+    pan_number: "PAN Number",
+    msme_number: "MSME / Udyam Number",
+    turnover_year_1: "Turnover Year 1",
+    turnover_value_1: "Turnover Value 1",
+    turnover_year_2: "Turnover Year 2",
+    turnover_value_2: "Turnover Value 2",
+    turnover_year_3: "Turnover Year 3",
+    turnover_value_3: "Turnover Value 3",
+    bank_name: "Bank Name",
+    bank_account_no: "Bank Account Number",
+    bank_branch: "Bank Branch",
+    bank_account_type: "Account Type",
+    bank_ifsc: "Bank IFSC Code",
+    recommended_by: "Recommended By",
+    approved_by: "Approved By",
+    is_blacklisted: "Blacklisted",
+    registration_date: "Registration Date",
+    username: "Username",
+    role: "User Role",
+    is_active: "Account Status",
+    password_hash: "Password",
+    pr_number: "PR Number",
+    pr_date: "PR Date",
+    item_name: "Item Name",
+    product_category: "Product Category",
+    make: "Make / Brand",
+    model: "Model",
+    qty: "Quantity",
+    unit: "Unit",
+    sales_rate: "Sales Rate",
+    taxable_value: "Taxable Value",
+    party_name: "Party Name",
+    location: "Location",
+    territory: "Territory",
+    product_remarks: "Remarks"
+};
+
+function tryParseJson(str) {
+    if (!str || typeof str !== "string") return null;
+    const trimmed = str.trim();
+    if (!((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]")))) {
+        return null;
+    }
+    try {
+        return JSON.parse(str);
+    } catch {
+        return null;
+    }
+}
+
+function formatAuditFieldValue(key, val) {
+    if (val === null || val === undefined || val === "") return `<span class="audit-empty-val">— None</span>`;
+    if (typeof val === "boolean") {
+        return val ? `<span class="audit-pill-success">Active / Yes</span>` : `<span class="audit-pill-danger">Inactive / No</span>`;
+    }
+    if (key === "is_active") {
+        return val ? `<span class="audit-pill-success">Active</span>` : `<span class="audit-pill-danger">Disabled</span>`;
+    }
+    if (key === "is_blacklisted") {
+        return Number(val) === 1 ? `<span class="audit-pill-danger">Blacklisted</span>` : `<span class="audit-pill-success">Not Blacklisted</span>`;
+    }
+    if (key === "password_hash") {
+        return `<span class="audit-pill-warning">Encrypted</span>`;
+    }
+    if (key.includes("date") && typeof val === "string" && val.includes("T")) {
+        return escapeHtml(val.split("T")[0]);
+    }
+    if ((key.includes("rate") || key.includes("taxable_value") || key.includes("turnover_value")) && !isNaN(Number(val))) {
+        return "₹" + Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    return escapeHtml(String(val));
+}
+
+function formatAuditAction(action, username, oldObj, newObj) {
+    const meta = LOG_ACTION_META[action] || {
+        label: (action || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+        badgeClass: "log-badge-neutral",
+        narrative: (u) => (u || "Admin") + " performed " + action
+    };
+
+    const narrativeText = meta.narrative ? meta.narrative(username, oldObj, newObj) : "";
+
+    return `
+        <div class="log-action-wrap">
+            <span class="log-badge ${meta.badgeClass}">${escapeHtml(meta.label)}</span>
+            ${narrativeText ? `<div class="log-action-subtext">${escapeHtml(narrativeText)}</div>` : ""}
+        </div>
+    `;
+}
+
+function formatAuditCell(rawVal, side, action, username, oldObj, newObj) {
+    if (!rawVal || rawVal === "-" || rawVal === "null") {
+        if (side === "old") {
+            return `<div class="audit-muted-box">— None (New Entry)</div>`;
+        } else {
+            if (action === "VENDOR_DELETED") {
+                return `
+                    <div class="audit-deleted-state">
+                        <span class="audit-pill-danger">Removed</span>
+                        <span>Vendor permanently deleted from system</span>
+                    </div>
+                `;
+            }
+            if (action === "USER_DELETED") {
+                return `
+                    <div class="audit-deleted-state">
+                        <span class="audit-pill-danger">Deleted</span>
+                        <span>User account deleted & purged</span>
+                    </div>
+                `;
+            }
+            return `<div class="audit-muted-box">— None (Record Removed)</div>`;
+        }
+    }
+
+    const obj = tryParseJson(rawVal);
+    if (!obj || typeof obj !== "object") {
+        return `<div class="audit-plain-text">${escapeHtml(String(rawVal))}</div>`;
+    }
+
+    // Special handling for VENDOR_DELETED
+    if (action === "VENDOR_DELETED" && side === "old") {
+        const vCode = obj.vendor_code || (obj.vendor_id ? "ID #" + obj.vendor_id : "");
+        return `
+            <div class="audit-card audit-card-danger">
+                <div class="audit-card-header">
+                    <span class="audit-card-title">${escapeHtml(obj.vendor_name || "Deleted Vendor")}</span>
+                    ${vCode ? `<span class="audit-card-code">${escapeHtml(vCode)}</span>` : ""}
+                </div>
+                <div class="audit-card-body">
+                    ${obj.legal_entity ? `<div class="audit-field"><span class="audit-label">Entity:</span><span class="audit-val">${escapeHtml(obj.legal_entity)}</span></div>` : ""}
+                    ${obj.commercial_role ? `<div class="audit-field"><span class="audit-label">Role:</span><span class="audit-val">${escapeHtml(obj.commercial_role)}</span></div>` : ""}
+                    ${obj.director_or_ceo_or_management_name ? `<div class="audit-field"><span class="audit-label">Director:</span><span class="audit-val">${escapeHtml(obj.director_or_ceo_or_management_name)}${obj.director_or_ceo_or_management_mobile_no ? " (" + escapeHtml(obj.director_or_ceo_or_management_mobile_no) + ")" : ""}</span></div>` : ""}
+                    ${obj.office_address ? `<div class="audit-field"><span class="audit-label">Address:</span><span class="audit-val">${escapeHtml(obj.office_address)}</span></div>` : ""}
+                    ${obj.gst_number ? `<div class="audit-field"><span class="audit-label">GST / PAN:</span><span class="audit-val">${escapeHtml(obj.gst_number)}${obj.pan_number ? " / " + escapeHtml(obj.pan_number) : ""}</span></div>` : ""}
+                    ${obj.bank_name ? `<div class="audit-field"><span class="audit-label">Bank:</span><span class="audit-val">${escapeHtml(obj.bank_name)} (A/C: ${escapeHtml(obj.bank_account_no || "")}, IFSC: ${escapeHtml(obj.bank_ifsc || "")})</span></div>` : ""}
+                </div>
+                <details class="audit-raw-details">
+                    <summary>View raw JSON</summary>
+                    <pre>${escapeHtml(JSON.stringify(obj, null, 2))}</pre>
+                </details>
+            </div>
+        `;
+    }
+
+    // Special handling for USER_CREATED
+    if (action === "USER_CREATED" && side === "new") {
+        return `
+            <div class="audit-card audit-card-success">
+                <div class="audit-card-header">
+                    <span class="audit-card-title">User: ${escapeHtml(obj.username || "")}</span>
+                    <span class="audit-pill-success">Active</span>
+                </div>
+                <div class="audit-card-body">
+                    <div class="audit-field"><span class="audit-label">Role:</span><span class="audit-val"><strong>${escapeHtml(obj.role || "")}</strong></span></div>
+                    <div class="audit-field"><span class="audit-label">User ID:</span><span class="audit-val">#${escapeHtml(String(obj.user_id || ""))}</span></div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Special handling for USER_DELETED
+    if (action === "USER_DELETED" && side === "old") {
+        return `
+            <div class="audit-card audit-card-danger">
+                <div class="audit-card-header">
+                    <span class="audit-card-title">User: ${escapeHtml(obj.username || "")}</span>
+                    <span class="audit-pill-danger">Deleted</span>
+                </div>
+                <div class="audit-card-body">
+                    <div class="audit-field"><span class="audit-label">Role:</span><span class="audit-val">${escapeHtml(obj.role || "")}</span></div>
+                    <div class="audit-field"><span class="audit-label">User ID:</span><span class="audit-val">#${escapeHtml(String(obj.user_id || ""))}</span></div>
+                    <div class="audit-field"><span class="audit-label">Status Before:</span><span class="audit-val">${obj.is_active ? "Active" : "Inactive"}</span></div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Special handling for USER_PASSWORD_CHANGED
+    if (action === "USER_PASSWORD_CHANGED") {
+        if (side === "old") {
+            return `
+                <div class="audit-state-info">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span>Previous encrypted password</span>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="audit-state-info">
+                    <span class="audit-pill-warning">Password Reset</span>
+                    <span>New password saved & encrypted</span>
+                </div>
+            `;
+        }
+    }
+
+    // Special handling for USER_ACCESS_REVOKED
+    if (action === "USER_ACCESS_REVOKED") {
+        if (side === "old") {
+            return `<div class="audit-field"><span class="audit-label">Status Before:</span> <span class="audit-pill-success">Active</span></div>`;
+        } else {
+            return `
+                <div class="audit-state-revoked">
+                    <span class="audit-pill-danger">Access Revoked</span>
+                    <span>Account deactivated (cannot log in)</span>
+                </div>
+            `;
+        }
+    }
+
+    // Special handling for USER_ACCESS_GRANTED
+    if (action === "USER_ACCESS_GRANTED") {
+        if (side === "old") {
+            return `<div class="audit-field"><span class="audit-label">Status Before:</span> <span class="audit-pill-danger">Inactive</span></div>`;
+        } else {
+            return `
+                <div class="audit-state-granted">
+                    <span class="audit-pill-success">Access Granted</span>
+                    <span>Account activated (login enabled)</span>
+                </div>
+            `;
+        }
+    }
+
+    // General object or diff
+    const entries = Object.entries(obj).filter(([k]) => !["created_at", "updated_at"].includes(k));
+    if (!entries.length) {
+        return `<div class="audit-muted-box">— No modified fields</div>`;
+    }
+
+    const fieldRows = entries.map(([key, val]) => {
+        const label = AUDIT_FIELD_LABELS[key] || key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+        const formattedVal = formatAuditFieldValue(key, val);
+        const diffClass = side === "old" ? "audit-diff-old-val" : "audit-diff-new-val";
+        return `
+            <div class="audit-diff-item">
+                <span class="audit-diff-label">${escapeHtml(label)}:</span>
+                <span class="${diffClass}">${formattedVal}</span>
+            </div>
+        `;
+    }).join("");
+
+    return `
+        <div class="audit-card ${side === 'old' ? 'audit-card-old' : 'audit-card-new'}">
+            <div class="audit-card-body">
+                ${fieldRows}
+            </div>
+            <details class="audit-raw-details">
+                <summary>View raw JSON</summary>
+                <pre>${escapeHtml(JSON.stringify(obj, null, 2))}</pre>
+            </details>
+        </div>
+    `;
+}
+
+function formatReportText(row) {
+    const raw = row.report || "";
+    const user = row.username || "Admin";
+
+    // Specialize VENDOR_DELETED
+    if (row.action === "VENDOR_DELETED") {
+        const match = raw.match(/Vendor "([^"]+)" \(([^,]+),\s*vendor ID (\d+)\) was deleted/i) ||
+                      raw.match(/(?:Admin|admin|[A-Za-z0-9_]+) deleted vendor "([^"]+)" \(Vendor (?:Code|Number): ([^,]+),\s*ID: (\d+)\)/i);
+        if (match) {
+            const vName = match[1];
+            const vCode = match[2];
+            return `
+                <div class="activity-report-lead">
+                    <span class="activity-actor">${escapeHtml(user)}</span> deleted vendor
+                    <strong class="report-entity">"${escapeHtml(vName)}"</strong>
+                    <span class="report-meta">(Vendor Number: <span class="report-code-badge">${escapeHtml(vCode)}</span>)</span>
+                </div>
+            `;
+        }
+        return `
+            <div class="activity-report-lead">
+                <span class="activity-actor">${escapeHtml(user)}</span> deleted vendor: ${escapeHtml(raw)}
+            </div>
+        `;
+    }
+
+    // Specialize USER_DELETED
+    if (row.action === "USER_DELETED") {
+        const match = raw.match(/User deleted\. Username: "([^"]+)", Role: ([^,]+), User ID: (\d+)\./i) ||
+                      raw.match(/(?:Admin|admin|[A-Za-z0-9_]+) deleted user account "([^"]+)" \(Role: ([^,]+),\s*ID: (\d+)\)/i);
+        if (match) {
+            return `
+                <div class="activity-report-lead">
+                    <span class="activity-actor">${escapeHtml(user)}</span> deleted user account
+                    <strong class="report-entity">"${escapeHtml(match[1])}"</strong>
+                    <span class="report-meta">(Role: <strong>${escapeHtml(match[2])}</strong>, ID: #${escapeHtml(match[3])})</span>
+                </div>
+            `;
+        }
+    }
+
+    // Specialize USER_CREATED
+    if (row.action === "USER_CREATED") {
+        const match = raw.match(/New user created\. Username: "([^"]+)", Role: ([^,]+), User ID: (\d+)\./i);
+        if (match) {
+            return `
+                <div class="activity-report-lead">
+                    <span class="activity-actor">${escapeHtml(user)}</span> created user account
+                    <strong class="report-entity">"${escapeHtml(match[1])}"</strong>
+                    <span class="report-meta">(Role: <strong>${escapeHtml(match[2])}</strong>, ID: #${escapeHtml(match[3])})</span>
+                </div>
+            `;
+        }
+    }
+
+    // Specialize USER_PASSWORD_CHANGED
+    if (row.action === "USER_PASSWORD_CHANGED") {
+        const match = raw.match(/Password changed for user ID (\d+)\. Username: "([^"]+)", Role: ([^.]+)\./i);
+        if (match) {
+            return `
+                <div class="activity-report-lead">
+                    <span class="activity-actor">${escapeHtml(user)}</span> reset password for user
+                    <strong class="report-entity">"${escapeHtml(match[2])}"</strong>
+                    <span class="report-meta">(Role: <strong>${escapeHtml(match[3])}</strong>)</span>
+                </div>
+            `;
+        }
+    }
+
+    // Specialize USER_ACCESS_REVOKED / USER_ACCESS_GRANTED
+    if (row.action === "USER_ACCESS_REVOKED" || row.action === "USER_ACCESS_GRANTED") {
+        const match = raw.match(/User access changed\. User ID: (\d+), Username: "([^"]+)", Role: ([^,]+)/i);
+        const isRevoked = row.action === "USER_ACCESS_REVOKED";
+        if (match) {
+            return `
+                <div class="activity-report-lead">
+                    <span class="activity-actor">${escapeHtml(user)}</span> ${isRevoked ? "revoked access for" : "granted access to"} user
+                    <strong class="report-entity">"${escapeHtml(match[2])}"</strong>
+                    <span class="report-meta">(${isRevoked ? '<span class="status-text-danger">Deactivated</span>' : '<span class="status-text-success">Activated</span>'})</span>
+                </div>
+            `;
+        }
+    }
+
+    // General procurement report formatting
+    let formatted = escapeHtml(raw);
+
+    // Highlight quoted vendor or entity names
+    formatted = formatted.replace(/"([^"]+)"/g, '<strong class="report-entity">"$1"</strong>');
+
+    // Highlight PO and PR numbers
+    formatted = formatted.replace(/\b(NEE\/[\w\-\/]+)\b/g, '<span class="report-ref-badge">$1</span>');
+
+    // Highlight vendor codes
+    formatted = formatted.replace(/\b((?:NEE2627V|DEL_)\w+)\b/g, '<span class="report-code-badge">$1</span>');
+
+    // Highlight money amounts
+    formatted = formatted.replace(/(PO value:\s*)([\d,]+\.\d{2})/g, '$1<strong class="report-amount">₹$2</strong>');
+    formatted = formatted.replace(/(sales rate\s*)([\d,]+\.\d{2})/g, '$1<strong class="report-amount">₹$2</strong>');
+    formatted = formatted.replace(/(taxable value\s*)([\d,]+\.\d{2})/g, '$1<strong class="report-amount">₹$2</strong>');
+
+    // Highlight status transitions
+    formatted = formatted.replace(/\b(COMPLETED|ISSUED|DRAFT|VENDOR_SELECTED|OPEN|CANCELLED)\b/g, '<span class="report-status-pill">$1</span>');
+
+    return `<div class="activity-report-text">${formatted}</div>`;
+}
+
 function renderReportLogs(rows) {
     if (!rows.length) {
         reportLogsBody.innerHTML = `<tr class="logs-empty-row"><td colspan="4">No report logs found</td></tr>`;
         return;
     }
 
-    reportLogsBody.innerHTML = rows.map(row => `
-        <tr>
-            <td>${formatDateTime(row.log_timestamp)}</td>
-            <td>${escapeHtml(row.username)}</td>
-            <td>${escapeHtml(row.action)}</td>
-            <td class="logs-report-cell">${escapeHtml(row.report)}</td>
-        </tr>
-    `).join("");
+    reportLogsBody.innerHTML = rows.map(row => {
+        const meta = LOG_ACTION_META[row.action] || {
+            label: (row.action || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+            badgeClass: "log-badge-neutral"
+        };
+
+        return `
+            <tr>
+                <td style="white-space: nowrap; font-size: 12.5px; color: #64748b;">${formatDateTime(row.log_timestamp)}</td>
+                <td>
+                    <div class="user-pill">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <span>${escapeHtml(row.username || "System")}</span>
+                    </div>
+                </td>
+                <td>
+                    <span class="log-badge ${meta.badgeClass}">${escapeHtml(meta.label)}</span>
+                </td>
+                <td class="logs-report-cell">${formatReportText(row)}</td>
+            </tr>
+        `;
+    }).join("");
 }
 
 function renderAuditLogs(rows) {
@@ -5928,15 +6690,27 @@ function renderAuditLogs(rows) {
         return;
     }
 
-    auditLogsBody.innerHTML = rows.map(row => `
-        <tr>
-            <td>${formatDateTime(row.log_timestamp)}</td>
-            <td>${escapeHtml(row.username)}</td>
-            <td>${escapeHtml(row.action)}</td>
-            <td class="logs-value-cell audit-old-value">${escapeHtml(row.old_value || "-")}</td>
-            <td class="logs-value-cell audit-new-value">${escapeHtml(row.new_value || "-")}</td>
-        </tr>
-    `).join("");
+    auditLogsBody.innerHTML = rows.map(row => {
+        const oldObj = tryParseJson(row.old_value);
+        const newObj = tryParseJson(row.new_value);
+
+        return `
+            <tr>
+                <td style="white-space: nowrap; font-size: 12.5px; color: #64748b; vertical-align: top; padding-top: 14px;">${formatDateTime(row.log_timestamp)}</td>
+                <td style="vertical-align: top; padding-top: 14px;">
+                    <div class="user-pill">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <span>${escapeHtml(row.username || "System")}</span>
+                    </div>
+                </td>
+                <td style="vertical-align: top; padding-top: 14px;">
+                    ${formatAuditAction(row.action, row.username, oldObj, newObj)}
+                </td>
+                <td class="logs-value-cell audit-old-cell">${formatAuditCell(row.old_value, "old", row.action, row.username, oldObj, newObj)}</td>
+                <td class="logs-value-cell audit-new-cell">${formatAuditCell(row.new_value, "new", row.action, row.username, oldObj, newObj)}</td>
+            </tr>
+        `;
+    }).join("");
 }
 
 function renderLoginLogs(rows) {
@@ -5947,8 +6721,13 @@ function renderLoginLogs(rows) {
 
     loginLogsBody.innerHTML = rows.map(row => `
         <tr>
-            <td>${formatDateTime(row.login_time)}</td>
-            <td>${escapeHtml(row.username)}</td>
+            <td style="white-space: nowrap; font-size: 12.5px; color: #64748b;">${formatDateTime(row.login_time)}</td>
+            <td>
+                <div class="user-pill">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <span>${escapeHtml(row.username || "System")}</span>
+                </div>
+            </td>
             <td>
                 <span class="${row.login_status === "SUCCESS" ? "access-granted" : "access-revoked"}">
                     ${escapeHtml(row.login_status)}
@@ -5965,6 +6744,7 @@ let editVendorId     = null; // currently loaded vendor
 
 const EDIT_VENDOR_FIELDS = [
     "vendor_name", "commercial_role",
+    "gst_number", "pan_number", "msme_number", "year_of_incorporation",
     "director_or_ceo_or_management_name", "director_or_ceo_or_management_designation",
     "director_or_ceo_or_management_mobile_no", "director_or_ceo_or_management_email",
     "director_or_ceo_or_management_web_address",
@@ -5976,7 +6756,10 @@ const EDIT_VENDOR_FIELDS = [
     "workshop_address", "workshop_contact_name", "workshop_contact_number",
     "branch_office_1_address", "branch_office_1_contact_name", "branch_office_1_contact_number",
     "branch_office_2_address", "branch_office_2_contact_name", "branch_office_2_contact_number",
-    "branch_office_3_address", "branch_office_3_contact_name", "branch_office_3_contact_number"
+    "branch_office_3_address", "branch_office_3_contact_name", "branch_office_3_contact_number",
+    "turnover_year_1", "turnover_value_1", "turnover_year_2", "turnover_value_2",
+    "turnover_year_3", "turnover_value_3",
+    "recommended_by", "approved_by"
 ];
 
 const EDIT_BANK_FIELDS = [
@@ -5985,10 +6768,7 @@ const EDIT_BANK_FIELDS = [
 ];
 
 const EDIT_READONLY_FIELDS = [
-    "vendor_code", "registration_date", "gst_number", "pan_number",
-    "msme_number", "year_of_incorporation", "recommended_by", "approved_by",
-    "turnover_year_1", "turnover_value_1", "turnover_year_2", "turnover_value_2",
-    "turnover_year_3", "turnover_value_3"
+    "vendor_code", "registration_date"
 ];
 
 async function initEditVendor() {
@@ -6014,6 +6794,25 @@ async function initEditVendor() {
     await loadVendorsForDirectory();
 }
 
+function sortVendorsSerialWise(list) {
+    if (!Array.isArray(list)) return [];
+    return list.slice().sort((a, b) => {
+        const codeA = String(a.vendor_code || "").trim().toUpperCase();
+        const codeB = String(b.vendor_code || "").trim().toUpperCase();
+        const matchA = codeA.match(/V(\d+)$/i);
+        const matchB = codeB.match(/V(\d+)$/i);
+        if (matchA && matchB) {
+            const numA = parseInt(matchA[1], 10);
+            const numB = parseInt(matchB[1], 10);
+            if (numA !== numB) return numA - numB;
+        }
+        const idA = Number(a.vendor_id) || 0;
+        const idB = Number(b.vendor_id) || 0;
+        if (idA !== idB) return idA - idB;
+        return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+}
+
 async function loadVendorsForDirectory() {
     const tableBody = document.getElementById("evVendorTableBody");
     if (tableBody) {
@@ -6032,7 +6831,7 @@ async function loadVendorsForDirectory() {
             return;
         }
 
-        editVendorList = result.vendors || [];
+        editVendorList = sortVendorsSerialWise(result.vendors || []);
 
         // Populate quick switch dropdown
         const select = document.getElementById("editVendorSelect");
@@ -6041,7 +6840,7 @@ async function loadVendorsForDirectory() {
             editVendorList.forEach(v => {
                 const option = document.createElement("option");
                 option.value = v.vendor_id;
-                option.textContent = `${v.vendor_name}${v.vendor_code ? ` (${v.vendor_code})` : ""}`;
+                option.textContent = `${v.vendor_code ? `${v.vendor_code} - ` : ""}${v.vendor_name}`;
                 select.appendChild(option);
             });
         }
@@ -6091,7 +6890,7 @@ function populateVendorFilterOptions() {
     }
 }
 
-function applyVendorFilters() {
+function applyVendorFilters(resetPage = true) {
     const searchInput = document.getElementById("evSearchInput");
     const roleSelect = document.getElementById("evRoleFilter");
     const entitySelect = document.getElementById("evEntityFilter");
@@ -6141,14 +6940,55 @@ function applyVendorFilters() {
     if (totalBadgeEl) {
         totalBadgeEl.textContent = `${editVendorList.length} ${editVendorList.length === 1 ? "Vendor" : "Vendors"}`;
     }
-    if (resultsCountEl) {
-        resultsCountEl.textContent = `Showing ${filtered.length} of ${editVendorList.length} vendors`;
-    }
 
-    renderVendorDirectoryTable(filtered);
+    filteredVendorList = sortVendorsSerialWise(filtered);
+    if (resetPage) {
+        currentVendorPage = 1;
+    }
+    renderVendorDirectoryPage();
 }
 
-function renderVendorDirectoryTable(vendors) {
+let currentVendorPage = 1;
+const VENDORS_PER_PAGE = 10;
+let filteredVendorList = [];
+
+function renderVendorDirectoryPage() {
+    const totalVendors = filteredVendorList.length;
+    const totalPages = Math.ceil(totalVendors / VENDORS_PER_PAGE) || 1;
+
+    if (currentVendorPage > totalPages) currentVendorPage = totalPages;
+    if (currentVendorPage < 1) currentVendorPage = 1;
+
+    const startIndex = (currentVendorPage - 1) * VENDORS_PER_PAGE;
+    const endIndex = Math.min(startIndex + VENDORS_PER_PAGE, totalVendors);
+    const pageVendors = filteredVendorList.slice(startIndex, endIndex);
+
+    const resultsCountEl = document.getElementById("evResultsCount");
+    if (resultsCountEl) {
+        if (totalVendors === 0) {
+            resultsCountEl.textContent = "Showing 0 vendors";
+        } else {
+            resultsCountEl.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalVendors} vendors`;
+        }
+    }
+
+    const prevBtn = document.getElementById("evPrevBtn");
+    const nextBtn = document.getElementById("evNextBtn");
+    const pageLabel = document.getElementById("evPageLabel");
+    const paginationControls = document.getElementById("evPaginationControls");
+
+    if (prevBtn) prevBtn.disabled = currentVendorPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentVendorPage >= totalPages;
+    if (pageLabel) pageLabel.textContent = `Page ${currentVendorPage} of ${totalPages}`;
+
+    if (paginationControls) {
+        paginationControls.style.display = totalVendors > 0 ? "flex" : "none";
+    }
+
+    renderVendorDirectoryTable(pageVendors, startIndex);
+}
+
+function renderVendorDirectoryTable(vendors, startIndex = 0) {
     const tableBody = document.getElementById("evVendorTableBody");
     const tableEl = document.getElementById("evVendorTable");
     const noResultsEl = document.getElementById("evNoResults");
@@ -6181,7 +7021,7 @@ function renderVendorDirectoryTable(vendors) {
 
         return `
             <tr>
-                <td style="text-align: center; color: #64748b; font-weight: 600;">${index + 1}</td>
+                <td style="text-align: center; color: #64748b; font-weight: 600;">${startIndex + index + 1}</td>
                 <td><strong class="ev-code-normal">${code}</strong></td>
                 <td>
                     <div class="ev-name-cell">
@@ -6218,6 +7058,15 @@ function renderVendorDirectoryTable(vendors) {
                             </svg>
                             Edit Vendor
                         </button>
+                        <button type="button" class="ev-btn-action ev-btn-delete" onclick="confirmDeleteVendor(${vendorId})" title="Delete vendor">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                <line x1="10" y1="11" x2="10" y2="17"></line>
+                                <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                            Delete
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -6225,7 +7074,10 @@ function renderVendorDirectoryTable(vendors) {
     }).join("");
 }
 
+let activeVendorDetailsId = null;
+
 function openVendorDetailsModal(vendorId) {
+    activeVendorDetailsId = vendorId;
     const v = editVendorList.find(x => String(x.vendor_id) === String(vendorId));
     if (!v) {
         alert("Vendor not found");
@@ -6405,7 +7257,10 @@ function openVendorDetailsModal(vendorId) {
                 <div class="ev-detail-grid">
                     <div class="ev-detail-item"><span class="ev-detail-label">GST Certificate</span><span class="ev-detail-val">${fmtDoc(v.gst_document, "GST Document")}</span></div>
                     <div class="ev-detail-item"><span class="ev-detail-label">PAN Card</span><span class="ev-detail-val">${fmtDoc(v.pan_document, "PAN Document")}</span></div>
-                    <div class="ev-detail-item"><span class="ev-detail-label">Last Year ITR</span><span class="ev-detail-val">${fmtDoc(v.itr_last_year_document, "ITR Document")}</span></div>
+                    <div class="ev-detail-item"><span class="ev-detail-label">MSME Certificate</span><span class="ev-detail-val">${fmtDoc(v.msme_document, "MSME Document")}</span></div>
+                    <div class="ev-detail-item"><span class="ev-detail-label">${(() => { const now = new Date(); const sY = (now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1); return `${String(sY - 1).slice(-2)}-${String(sY).slice(-2)} ITR`; })()}</span><span class="ev-detail-val">${fmtDoc(v.itr_last_year_document, "ITR Document")}</span></div>
+                    <div class="ev-detail-item"><span class="ev-detail-label">${(() => { const now = new Date(); const sY = (now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1); return `${String(sY - 2).slice(-2)}-${String(sY - 1).slice(-2)} ITR`; })()}</span><span class="ev-detail-val">${fmtDoc(v.itr_second_last_year_document, "ITR Document")}</span></div>
+                    <div class="ev-detail-item"><span class="ev-detail-label">${(() => { const now = new Date(); const sY = (now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1); return `${String(sY - 3).slice(-2)}-${String(sY - 2).slice(-2)} ITR`; })()}</span><span class="ev-detail-val">${fmtDoc(v.itr_third_last_year_document, "ITR Document")}</span></div>
                     <div class="ev-detail-item"><span class="ev-detail-label">Recommended By</span><span class="ev-detail-val">${fmt(v.recommended_by)}</span></div>
                     <div class="ev-detail-item"><span class="ev-detail-label">Approved By</span><span class="ev-detail-val">${fmt(v.approved_by)}</span></div>
                 </div>
@@ -6456,6 +7311,38 @@ function populateVendorEditForm(v) {
     EDIT_BANK_FIELDS.forEach(field => {
         const el = document.getElementById(`ev-${field}`);
         if (el) el.value = v[field] ?? "";
+    });
+
+    // Update dynamic turnover and ITR labels in edit form
+    setTurnoverYears();
+
+    // Fill Document Previews & reset file inputs
+    const docKeys = [
+        { key: "gst_document", title: "GST Certificate" },
+        { key: "pan_document", title: "PAN Card" },
+        { key: "msme_document", title: "MSME Certificate" },
+        { key: "itr_last_year_document", title: "ITR Document (Last Year)" },
+        { key: "itr_second_last_year_document", title: "ITR Document (Second Last Year)" },
+        { key: "itr_third_last_year_document", title: "ITR Document (Third Last Year)" }
+    ];
+
+    docKeys.forEach(({ key, title }) => {
+        const fileInput = document.getElementById(`ev-doc-${key}`);
+        if (fileInput) fileInput.value = "";
+        const prevEl = document.getElementById(`ev-prev-${key}`);
+        if (prevEl) {
+            const docPath = v[key];
+            if (docPath) {
+                let cleanPath = String(docPath).replace(/^\.\.\//, "/backend/").replace(/^\/?backend\//, "/backend/");
+                if (!cleanPath.startsWith("/backend/")) cleanPath = "/backend/" + cleanPath;
+                prevEl.innerHTML = `<a href="${cleanPath}" target="_blank" class="ev-doc-badge" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#eff6ff;color:#0b57a4;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                    View Current ${escapeHtml(title)}
+                </a>`;
+            } else {
+                prevEl.innerHTML = `<span style="font-size:12px;color:#94a3b8;font-style:italic;">No file uploaded</span>`;
+            }
+        }
     });
 
     // Clear password field safely
@@ -6690,7 +7577,7 @@ document.getElementById("saveVendorDetailsBtn")?.addEventListener("click", async
         if (el) body[field] = el.value;
     });
 
-    // Comprehensive required field and format check
+    // Required fields check: only core identity/contact fields are required
     if (!body.vendor_name?.trim())           { msgEl.textContent = "Vendor name is required."; return; }
     if (/^\d+$/.test(body.vendor_name.trim())) { msgEl.textContent = "Vendor name cannot be only numbers."; return; }
     if (!/[a-zA-Z]/.test(body.vendor_name.trim())) { msgEl.textContent = "Vendor name must contain valid letters."; return; }
@@ -6707,19 +7594,35 @@ document.getElementById("saveVendorDetailsBtn")?.addEventListener("click", async
     if (!/^\d{10}$/.test(body.director_or_ceo_or_management_mobile_no.trim().replace(/\s+/g, ""))) { msgEl.textContent = "Director mobile must be a valid 10-digit number."; return; }
     if (!body.director_or_ceo_or_management_email?.trim()) { msgEl.textContent = "Director email is required."; return; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.director_or_ceo_or_management_email.trim())) { msgEl.textContent = "Director email must be a valid email address."; return; }
-    if (!body.sales_team_name?.trim()) { msgEl.textContent = "Sales team name is required."; return; }
-    if (/\d/.test(body.sales_team_name)) { msgEl.textContent = "Sales team name cannot contain numbers."; return; }
-    if (!body.sales_team_contact?.trim()) { msgEl.textContent = "Sales team contact is required."; return; }
-    if (!/^\d{10}$/.test(body.sales_team_contact.trim().replace(/\s+/g, ""))) { msgEl.textContent = "Sales team contact must be a valid 10-digit number."; return; }
-    if (!body.sales_team_email?.trim()) { msgEl.textContent = "Sales team email is required."; return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.sales_team_email.trim())) { msgEl.textContent = "Sales team email must be a valid email address."; return; }
-    if (!body.accounts_team_name?.trim()) { msgEl.textContent = "Accounts team name is required."; return; }
-    if (/\d/.test(body.accounts_team_name)) { msgEl.textContent = "Accounts team name cannot contain numbers."; return; }
-    if (!body.accounts_team_contact?.trim()) { msgEl.textContent = "Accounts team contact is required."; return; }
-    if (!/^\d{10}$/.test(body.accounts_team_contact.trim().replace(/\s+/g, ""))) { msgEl.textContent = "Accounts team contact must be a valid 10-digit number."; return; }
-    if (!body.accounts_team_email?.trim()) { msgEl.textContent = "Accounts team email is required."; return; }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.accounts_team_email.trim())) { msgEl.textContent = "Accounts team email must be a valid email address."; return; }
-    if (!body.branch_office_1_address?.trim()) { msgEl.textContent = "Branch 1 address is required."; return; }
+
+    // Optional fields format checks (only if value provided)
+    if (body.sales_team_name?.trim() && /\d/.test(body.sales_team_name)) { msgEl.textContent = "Sales team name cannot contain numbers."; return; }
+    if (body.sales_team_contact?.trim() && !/^\d{10}$/.test(body.sales_team_contact.trim().replace(/\s+/g, ""))) { msgEl.textContent = "Sales team contact must be a valid 10-digit number."; return; }
+    if (body.sales_team_email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.sales_team_email.trim())) { msgEl.textContent = "Sales team email must be a valid email address."; return; }
+
+    if (body.accounts_team_name?.trim() && /\d/.test(body.accounts_team_name)) { msgEl.textContent = "Accounts team name cannot contain numbers."; return; }
+    if (body.accounts_team_contact?.trim() && !/^\d{10}$/.test(body.accounts_team_contact.trim().replace(/\s+/g, ""))) { msgEl.textContent = "Accounts team contact must be a valid 10-digit number."; return; }
+    if (body.accounts_team_email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.accounts_team_email.trim())) { msgEl.textContent = "Accounts team email must be a valid email address."; return; }
+
+    if (!body.gst_number?.trim()) { msgEl.textContent = "GST number is required."; return; }
+    if (!body.pan_number?.trim()) { msgEl.textContent = "PAN number is required."; return; }
+
+    // Build FormData to support text fields and document file uploads
+    const formData = new FormData();
+    Object.entries(body).forEach(([k, v]) => {
+        formData.append(k, v ?? "");
+    });
+
+    const docKeys = [
+        "gst_document", "pan_document", "msme_document",
+        "itr_last_year_document", "itr_second_last_year_document", "itr_third_last_year_document"
+    ];
+    docKeys.forEach(docKey => {
+        const fileInput = document.getElementById(`ev-doc-${docKey}`);
+        if (fileInput && fileInput.files && fileInput.files[0]) {
+            formData.append(docKey, fileInput.files[0]);
+        }
+    });
 
     btn.disabled    = true;
     msgEl.textContent = "Saving...";
@@ -6727,8 +7630,7 @@ document.getElementById("saveVendorDetailsBtn")?.addEventListener("click", async
     try {
         const response = await apiFetch(`/vendors/${editVendorId}`, {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
+            body: formData
         });
         if (!response) return;
 
@@ -6742,13 +7644,20 @@ document.getElementById("saveVendorDetailsBtn")?.addEventListener("click", async
 
         msgEl.textContent = "";
         alert(`Vendor details updated successfully for ${body.vendor_name}.`);
+
+        // Reset file inputs
+        docKeys.forEach(docKey => {
+            const fileInput = document.getElementById(`ev-doc-${docKey}`);
+            if (fileInput) fileInput.value = "";
+        });
+
         await loadVendorsForDirectory();
-        const updated = editVendorList.find(x => String(x.vendor_id) === String(editVendorId));
+        const updated = result.vendor || editVendorList.find(x => String(x.vendor_id) === String(editVendorId));
         if (updated) {
             populateVendorEditForm(updated);
         }
 
-    } catch {
+    } catch (err) {
         msgEl.textContent = "Failed to connect to procurement service";
     } finally {
         btn.disabled = false;
@@ -6841,3 +7750,93 @@ if (window.WorkspaceDashboard) {
     });
     window.WorkspaceDashboard.load();
 }
+
+// ─── Delete Vendor Function ─────────────────────────────────────────────────────
+
+async function confirmDeleteVendor(vendorId) {
+    const v = editVendorList.find(x => String(x.vendor_id) === String(vendorId));
+    const vendorName = v ? v.vendor_name : "this vendor";
+    const vendorCode = v && v.vendor_code ? ` (${v.vendor_code})` : "";
+
+    const confirmed = confirm(
+        `Are you sure you want to delete vendor "${vendorName}"${vendorCode}?\n\n` +
+        `This action cannot be undone. Any historical inquiry invitations with no purchase orders will be cleaned up.`
+    );
+    if (!confirmed) return;
+
+    try {
+        const response = await apiFetch(`/vendors/${vendorId}`, {
+            method: "DELETE"
+        });
+        if (!response) return;
+
+        let result = {};
+        try {
+            result = await response.json();
+        } catch {
+            const errText = await response.text().catch(() => "");
+            result = { message: errText || `Server responded with HTTP ${response.status}` };
+        }
+
+        if (!response.ok || !result.success) {
+            alert(result.message || "Failed to delete vendor");
+            return;
+        }
+
+        // Close modal if open with this vendor
+        const modal = document.getElementById("vendorDetailsModal");
+        if (modal && !modal.classList.contains("hidden")) {
+            closeVendorDetailsModal();
+        }
+
+        // If currently editing this vendor, hide edit form
+        const editSelect = document.getElementById("editVendorSelect");
+        if (editSelect && String(editSelect.value) === String(vendorId)) {
+            editSelect.value = "";
+            const container = document.getElementById("editVendorFormContainer");
+            if (container) container.classList.add("hidden");
+        }
+
+        alert(`Vendor "${vendorName}" has been successfully deleted.`);
+
+        // Refresh vendor directory table & dropdown
+        await loadVendorsForDirectory();
+
+    } catch (err) {
+        console.error("Error deleting vendor:", err);
+        alert("An error occurred while deleting the vendor.");
+    }
+}
+
+// Hook up modal delete buttons
+document.getElementById("vdModalDeleteVendorBtn")?.addEventListener("click", () => {
+    if (activeVendorDetailsId) {
+        confirmDeleteVendor(activeVendorDetailsId);
+    }
+});
+
+document.getElementById("vdModalDeleteVendorFooterBtn")?.addEventListener("click", () => {
+    if (activeVendorDetailsId) {
+        confirmDeleteVendor(activeVendorDetailsId);
+    }
+});
+
+
+// ─── Vendor Directory: Pagination Buttons ───────────────────────────────────────
+
+document.getElementById("evPrevBtn")?.addEventListener("click", () => {
+    if (currentVendorPage > 1) {
+        currentVendorPage--;
+        renderVendorDirectoryPage();
+        document.getElementById("evVendorTable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+});
+
+document.getElementById("evNextBtn")?.addEventListener("click", () => {
+    const totalPages = Math.ceil(filteredVendorList.length / VENDORS_PER_PAGE) || 1;
+    if (currentVendorPage < totalPages) {
+        currentVendorPage++;
+        renderVendorDirectoryPage();
+        document.getElementById("evVendorTable")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+});

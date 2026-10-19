@@ -517,18 +517,49 @@ importButton.addEventListener("click", async () => {
 
 // ─── PR Excel: Render Editable Preview Table ───────────────────────────────────
 
+const TERRITORY_OPTIONS = [
+    "North",
+    "South (Dahej)",
+    "South (Bharuch)",
+    "West",
+    "Central Projects",
+    "Central Services",
+    "Central Contracts",
+    "Ahmedabad",
+    "Pan India",
+    "Kutch",
+    "Surat"
+];
+
 function renderPreview() {
     previewBody.innerHTML = "";
 
     importedRows.forEach((row, index) => {
         const tr = document.createElement("tr");
 
+        const normT = s => String(s || "").toLowerCase().replace(/[\s()]+/g, "");
+        const currentTerritoryNorm = normT(row.territory);
+        const territoryOptionsHtml = TERRITORY_OPTIONS.map(t => {
+            const isSel = normT(t) === currentTerritoryNorm ? "selected" : "";
+            return `<option value="${t}" ${isSel}>${t}</option>`;
+        }).join("");
+        const isKnownTerritory = TERRITORY_OPTIONS.some(t => normT(t) === currentTerritoryNorm);
+        const customTerritoryOpt = (!isKnownTerritory && row.territory)
+            ? `<option value="${escapeHtml(row.territory)}" selected>${escapeHtml(row.territory)}</option>`
+            : "";
+
         // FIX: pr_date is now a real date input
         tr.innerHTML = `
             <td><input type="date" data-index="${index}" data-field="pr_date" value="${escapeHtml(String(row.pr_date || "").slice(0, 10))}"></td>
             <td><input data-index="${index}" data-field="party_name"       value="${escapeHtml(row.party_name || "")}"></td>
             <td><input data-index="${index}" data-field="location"         value="${escapeHtml(row.location || "")}"></td>
-            <td><input data-index="${index}" data-field="territory"        value="${escapeHtml(row.territory || "")}"></td>
+            <td>
+                <select data-index="${index}" data-field="territory">
+                    <option value="" ${!row.territory ? "selected" : ""}>Select Territory</option>
+                    ${territoryOptionsHtml}
+                    ${customTerritoryOpt}
+                </select>
+            </td>
             <td><input data-index="${index}" data-field="product_category" value="${escapeHtml(row.product_category || "")}"></td>
             <td><input data-index="${index}" data-field="item_name"        value="${escapeHtml(row.item_name || "")}"></td>
             <td><input data-index="${index}" data-field="product_remarks"  value="${escapeHtml(row.product_remarks || "")}"></td>
@@ -708,16 +739,40 @@ function setTurnoverYears() {
     const year      = now.getFullYear();
     const startYear = month >= 4 ? year : year - 1;
 
+    const t1Label = `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)} Turnover`;
+    const t2Label = `${String(startYear - 1).slice(-2)}-${String(startYear).slice(-2)} Turnover`;
+    const t3Label = `${String(startYear - 2).slice(-2)}-${String(startYear - 1).slice(-2)} Turnover`;
+
     [
-        { id: "turnover_value_1", text: `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)} Turnover`, required: true },
-        { id: "turnover_value_2", text: `${String(startYear - 1).slice(-2)}-${String(startYear).slice(-2)} Turnover`, required: false },
-        { id: "turnover_value_3", text: `${String(startYear - 2).slice(-2)}-${String(startYear - 1).slice(-2)} Turnover`, required: false }
+        { id: "turnover_value_1", text: t1Label, required: false },
+        { id: "turnover_value_2", text: t2Label, required: false },
+        { id: "turnover_value_3", text: t3Label, required: false }
     ].forEach(({ id, text, required }) => {
         const input = document.getElementById(id);
         if (!input) return;
         const label = input.closest(".form-group")?.querySelector("label");
         if (label) {
             label.innerHTML = required ? `${text} <span class="required-star">*</span>` : text;
+        }
+    });
+
+    const itr1Label = `${String(startYear - 1).slice(-2)}-${String(startYear).slice(-2)} ITR`;
+    const itr2Label = `${String(startYear - 2).slice(-2)}-${String(startYear - 1).slice(-2)} ITR`;
+    const itr3Label = `${String(startYear - 3).slice(-2)}-${String(startYear - 2).slice(-2)} ITR`;
+
+    [
+        { id: "itr_last_year_document", text: itr1Label },
+        { id: "itr_second_last_year_document", text: itr2Label },
+        { id: "itr_third_last_year_document", text: itr3Label },
+        { id: "excel_itr_last_year_document", text: itr1Label },
+        { id: "excel_itr_second_last_year_document", text: itr2Label },
+        { id: "excel_itr_third_last_year_document", text: itr3Label }
+    ].forEach(({ id, text }) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        const label = input.closest(".form-group")?.querySelector("label");
+        if (label) {
+            label.textContent = text;
         }
     });
 }
@@ -930,16 +985,6 @@ function validateVendorForm() {
     const curYear = new Date().getFullYear();
     if (!/^\d{4}$/.test(yearVal) || parseInt(yearVal, 10) < 1800 || parseInt(yearVal, 10) > curYear) {
         return `Year of incorporation must be a valid 4-digit year (between 1800 and ${curYear}).`;
-    }
-
-    const gstVal = String(document.getElementById("gst_number")?.value ?? "").trim();
-    if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gstVal)) {
-        return "GST number must be 15 alphanumeric characters (e.g. 22AAAAA0000A1Z5).";
-    }
-
-    const panVal = String(document.getElementById("pan_number")?.value ?? "").trim();
-    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(panVal)) {
-        return "PAN number must be 10 characters (e.g. AAAAA0000A).";
     }
 
     const bankNameVal = String(document.getElementById("bank_name")?.value ?? "").trim();
@@ -1219,21 +1264,30 @@ function renderVendorBulkPreview(rows) {
     if (countBadge) countBadge.textContent = `(${rows.length} vendor${rows.length === 1 ? '' : 's'})`;
     tbody.innerHTML = "";
 
-    const legalEntityOptions = ["Private Limited", "Public Limited", "Partnership", "Proprietorship", "LLP", "Joint Venture", "Government", "Other"];
-    const commercialRoleOptions = ["Manufacturer", "Authorized Dealer", "Stockist / Distributor", "Trader", "Service Provider", "OEM", "Other"];
-
     rows.forEach((row, index) => {
         const tr = document.createElement("tr");
 
+        const baseEntities = ["Private Limited", "Public Limited", "Partnership", "Proprietorship", "Sole Proprietorship", "LLP", "Joint Venture", "Government", "Other"];
+        const curEntity = (row.legal_entity || "").trim();
+        const entityList = (curEntity && !baseEntities.some(o => o.toLowerCase() === curEntity.toLowerCase()))
+            ? [curEntity, ...baseEntities]
+            : baseEntities;
+
         const legalEntitySelect = `
             <select data-index="${index}" data-field="legal_entity" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
-                ${legalEntityOptions.map(opt => `<option value="${opt}" ${(row.legal_entity || "").toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${opt}</option>`).join("")}
+                ${entityList.map(opt => `<option value="${escapeHtml(opt)}" ${curEntity.toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${escapeHtml(opt)}</option>`).join("")}
             </select>
         `;
 
+        const baseRoles = ["Manufacturer", "Authorized Dealer", "Stockist / Distributor", "Distributor", "Trader", "Service Provider", "OEM", "Other"];
+        const curRole = (row.commercial_role || "").trim();
+        const roleList = (curRole && !baseRoles.some(o => o.toLowerCase() === curRole.toLowerCase()))
+            ? [curRole, ...baseRoles]
+            : baseRoles;
+
         const commercialRoleSelect = `
             <select data-index="${index}" data-field="commercial_role" style="width: 100%; min-width: 130px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px;">
-                ${commercialRoleOptions.map(opt => `<option value="${opt}" ${(row.commercial_role || "").toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${opt}</option>`).join("")}
+                ${roleList.map(opt => `<option value="${escapeHtml(opt)}" ${curRole.toLowerCase() === opt.toLowerCase() ? "selected" : ""}>${escapeHtml(opt)}</option>`).join("")}
             </select>
         `;
 
@@ -1301,51 +1355,54 @@ saveVendorExcelButton?.addEventListener("click", async () => {
         return;
     }
 
+    // Sync current values from DOM inputs in case user edited them in the table
+    const tbody = document.getElementById("vendorBulkPreviewTbody");
+    if (tbody) {
+        tbody.querySelectorAll("tr").forEach((tr, idx) => {
+            if (!importedVendorRows[idx]) return;
+            tr.querySelectorAll("[data-field]").forEach(input => {
+                const field = input.dataset.field;
+                if (field) {
+                    importedVendorRows[idx][field] = input.value.trim();
+                }
+            });
+        });
+    }
+
+    const REQUIRED_COLUMNS = [
+        { field: "vendor_name", label: "Vendor Name" },
+        { field: "gst_number", label: "GST Number" },
+        { field: "pan_number", label: "PAN Number" },
+        { field: "legal_entity", label: "Legal Entity" },
+        { field: "commercial_role", label: "Commercial Role" },
+        { field: "office_address", label: "Office Address" },
+        { field: "office_contact_name", label: "Contact Person" },
+        { field: "office_contact_number", label: "Contact Phone" },
+        { field: "director_or_ceo_or_management_name", label: "Director Name" },
+        { field: "director_or_ceo_or_management_mobile_no", label: "Director Mobile" },
+        { field: "director_or_ceo_or_management_email", label: "Director Email" },
+        { field: "bank_name", label: "Bank Name" },
+        { field: "bank_account_no", label: "Bank Account No" },
+        { field: "bank_ifsc", label: "IFSC Code" }
+    ];
+
     // Client-side validation for required fields on each row
     const errors = [];
-    const seenGst = new Set();
 
     importedVendorRows.forEach((v, i) => {
         const rowNum = i + 1;
-        const name = (v.vendor_name || "").trim();
-        if (!name) errors.push(`Row ${rowNum}: Vendor Name is required.`);
-        if (name && /^\d+$/.test(name)) errors.push(`Row ${rowNum}: Vendor Name cannot be only numbers.`);
 
-        const gst = (v.gst_number || "").trim().toUpperCase();
-        if (!gst) errors.push(`Row ${rowNum}: GST Number is required.`);
-        else if (!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/i.test(gst)) {
-            errors.push(`Row ${rowNum}: Invalid GST format (${gst}).`);
-        } else if (seenGst.has(gst)) {
-            errors.push(`Row ${rowNum}: Duplicate GST (${gst}) within the sheet.`);
-        } else {
-            seenGst.add(gst);
-        }
-
-        const pan = (v.pan_number || "").trim().toUpperCase();
-        if (!pan) errors.push(`Row ${rowNum}: PAN Number is required.`);
-        else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(pan)) {
-            errors.push(`Row ${rowNum}: Invalid PAN format (${pan}).`);
-        }
-
-        if (!(v.office_address || "").trim()) errors.push(`Row ${rowNum}: Office Address is required.`);
-        if (!(v.office_contact_name || "").trim()) errors.push(`Row ${rowNum}: Office Contact Name is required.`);
-
-        const phone = (v.office_contact_number || "").trim().replace(/\s+/g, "");
-        if (!phone) errors.push(`Row ${rowNum}: Office Contact Number is required.`);
-        else if (!/^\d{10}$/.test(phone)) errors.push(`Row ${rowNum}: Office Contact Phone must be 10 digits.`);
-
-        if (!(v.bank_name || "").trim()) errors.push(`Row ${rowNum}: Bank Name is required.`);
-        if (!(v.bank_account_no || "").trim()) errors.push(`Row ${rowNum}: Bank Account No is required.`);
-
-        const ifsc = (v.bank_ifsc || "").trim().toUpperCase();
-        if (!ifsc) errors.push(`Row ${rowNum}: IFSC Code is required.`);
-        else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(ifsc)) {
-            errors.push(`Row ${rowNum}: Invalid IFSC code (${ifsc}).`);
+        for (const col of REQUIRED_COLUMNS) {
+            const val = String(v[col.field] ?? "").trim();
+            if (!val) {
+                errors.push(`Row ${rowNum}: ${col.label} is required.`);
+            }
         }
     });
 
     if (errors.length > 0) {
-        alert("Please fix the following validation errors before importing:\n\n" + errors.slice(0, 10).join("\n") + (errors.length > 10 ? `\n...and ${errors.length - 10} more` : ""));
+        alert("Please fix the following validation errors before importing:\n\n" + errors.slice(0, 15).join("\n") + (errors.length > 15 ? `\n...and ${errors.length - 15} more` : ""));
+        showVendorMessage(`Validation failed: ${errors.length} required field(s) missing.`);
         return;
     }
 
@@ -2939,6 +2996,10 @@ function ensurePoFilterToolbarInDom() {
             </div>
             <button type="button" id="poFilterClearBtn" class="po-btn-clear">Clear</button>
             <button type="button" id="poFilterApplyBtn" class="po-btn-apply">Apply</button>
+            <button type="button" id="poExportBtn" class="po-btn-export" title="Export Purchase Orders to Excel (.xlsx)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <span>Export</span>
+            </button>
         </div>
         <div class="po-filter-pills-row">
             <div class="po-filter-pills" id="poStatusPills">
@@ -2983,6 +3044,68 @@ function initPurchaseOrderFilters() {
         if (statusSelect) statusSelect.value = status;
         updateActivePoPill(status);
         applyPurchaseOrderFilter();
+    });
+// Export Button
+    const exportBtn = document.getElementById("poExportBtn");
+    exportBtn?.addEventListener("click", async () => {
+        const originalContent = exportBtn.innerHTML;
+        exportBtn.disabled = true;
+        exportBtn.innerHTML = `
+            <svg class="spin-animation" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.85"></path>
+            </svg>
+            <span>Exporting...</span>
+        `;
+
+        try {
+            const params = new URLSearchParams();
+            if (poSearchQuery) params.set("search", poSearchQuery);
+            if (poStatusFilter && poStatusFilter !== "ALL") params.set("status", poStatusFilter);
+            if (poVendorFilter && poVendorFilter !== "ALL") params.set("vendor", poVendorFilter);
+            if (poDateFromFilter) params.set("from_date", poDateFromFilter);
+            if (poDateToFilter) params.set("to_date", poDateToFilter);
+
+            const response = await apiFetch(`/purchase-orders/export?${params.toString()}`);
+            if (!response || !response.ok) {
+                throw new Error("Export request failed");
+            }
+
+            const blob = await response.blob();
+            const excelBlob = new Blob([blob], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
+            const downloadUrl = window.URL.createObjectURL(excelBlob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = downloadUrl;
+
+            let downloadFilename = "";
+            const disposition = response.headers.get("Content-Disposition");
+            if (disposition && disposition.includes("filename=")) {
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    downloadFilename = match[1].replace(/['"]/g, "").trim();
+                }
+            }
+            if (!downloadFilename) {
+                const dateStr = new Date().toISOString().slice(0, 10);
+                const statusSuffix = (poStatusFilter && poStatusFilter !== "ALL") ? `_${poStatusFilter}` : "";
+                downloadFilename = `Purchase_Orders_Summary${statusSuffix}_${dateStr}.xlsx`;
+            }
+
+            a.download = downloadFilename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (err) {
+            console.error("Purchase order export failed:", err);
+            alert("Failed to export purchase orders to Excel. Please try again.");
+        } finally {
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = originalContent;
+        }
     });
 
     // Status Select Change

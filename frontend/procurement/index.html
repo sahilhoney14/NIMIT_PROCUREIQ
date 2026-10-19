@@ -365,7 +365,20 @@
 
                             <div class="form-group">
                                 <label>Territory <span class="required-star">*</span></label>
-                                <input type="text" id="territory" required>
+                                <select id="territory" required>
+                                    <option value="" disabled selected>Select Territory</option>
+                                    <option value="North">North</option>
+                                    <option value="South (Dahej)">South (Dahej)</option>
+                                    <option value="South (Bharuch)">South (Bharuch)</option>
+                                    <option value="West">West</option>
+                                    <option value="Central Projects">Central Projects</option>
+                                    <option value="Central Services">Central Services</option>
+                                    <option value="Central Contracts">Central Contracts</option>
+                                    <option value="Ahmedabad">Ahmedabad</option>
+                                    <option value="Pan India">Pan India</option>
+                                    <option value="Kutch">Kutch</option>
+                                    <option value="Surat">Surat</option>
+                                </select>
                             </div>
 
                             <div class="form-group">
@@ -1125,6 +1138,14 @@
                             <!-- Clear & Apply -->
                             <button type="button" id="poFilterClearBtn" class="po-btn-clear">Clear</button>
                             <button type="button" id="poFilterApplyBtn" class="po-btn-apply">Apply</button>
+                            <button type="button" id="poExportBtn" class="po-btn-export" title="Export Purchase Orders to Excel (.xlsx)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>Export</span>
+                            </button>
                         </div>
 
                         <!-- Status Pills Row -->

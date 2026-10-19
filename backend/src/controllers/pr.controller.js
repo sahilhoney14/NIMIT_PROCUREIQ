@@ -7,6 +7,8 @@ const { writeReportLog, describePr } = require("../services/audit.service");
 function normalizeHeader(value) {
     return String(value || "")
         .trim()
+        .replace(/\s*\(\s*(required|optional)\s*\)/gi, "")
+        .replace(/[*#?:.,!]/g, "")
         .toLowerCase()
         .replace(/\s+/g, "_")
         .replace(/[\/()-]+/g, "_")

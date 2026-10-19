@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin – ProcureIQ</title>
     <script src="/shared/js/auth-guard.js" data-allowed-roles="ADMIN"></script>
-    <link rel="stylesheet" href="/admin/style.css?v=2.2">
-    <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=2.1">
+    <link rel="stylesheet" href="/admin/style.css?v=3.1">
+    <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=2.8">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -37,168 +37,137 @@
     </header>
 
     <div class="layout">
-        <aside class="sidebar">
+        <aside class="sidebar" id="mainSidebar">
 
-            <!-- Admin-only section: Users -->
-            <div class="menu-section">
-                <button class="main-menu" data-section="users">
-                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                    <span>Users</span>
-                </button>
-                <div class="submenu" id="users">
-                    <button class="submenu-item" data-page="manage-access">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="8.5" cy="7" r="4"></circle>
-                            <polyline points="17 11 19 13 23 9"></polyline>
-                        </svg>
-                        <span>Manage Access</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Workspace -->
-            <div class="menu-section">
-                <button class="main-menu active" data-section="workspace">
+            <!-- 1. Workspace Dropdown -->
+            <div class="nav-dropdown-group open" id="group-workspace">
+                <button type="button" class="nav-dropdown-toggle active-parent" data-dropdown="workspace">
                     <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                         <polyline points="9 22 9 12 15 12 15 22"></polyline>
                     </svg>
-                    <span>Workspace</span>
+                    <span class="nav-label">Workspace</span>
+                    <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
                 </button>
-                <div class="submenu open" id="workspace">
-                    <button class="submenu-item active" data-page="workspace-dashboard">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="7" height="7"></rect>
-                            <rect x="14" y="3" width="7" height="7"></rect>
-                            <rect x="14" y="14" width="7" height="7"></rect>
-                            <rect x="3" y="14" width="7" height="7"></rect>
-                        </svg>
+                <div class="nav-submenu" id="submenu-workspace">
+                    <button type="button" class="nav-submenu-item submenu-item active" data-page="workspace-dashboard">
+                        <span class="submenu-dot"></span>
                         <span>Workspace Dashboard</span>
                     </button>
-                    <button class="submenu-item" data-page="purchase-requests">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="9 11 12 14 22 4"></polyline>
-                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                        </svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="purchase-requests">
+                        <span class="submenu-dot"></span>
                         <span>Purchase Requests</span>
                     </button>
-                    <button class="submenu-item" data-page="vendor-inquiries">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                        </svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="vendor-inquiries">
+                        <span class="submenu-dot"></span>
                         <span>Vendor Inquiries</span>
                     </button>
-                    <button class="submenu-item" data-page="quotation-comparisons">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                            <line x1="3" y1="9" x2="21" y2="9"></line>
-                            <line x1="9" y1="21" x2="9" y2="9"></line>
-                        </svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="quotation-comparisons">
+                        <span class="submenu-dot"></span>
                         <span>Quotation &amp; Comparisons</span>
                     </button>
-                    <button class="submenu-item" data-page="purchase-orders">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                        </svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="purchase-orders">
+                        <span class="submenu-dot"></span>
                         <span>Purchase Orders</span>
                     </button>
-                    <button class="submenu-item" data-page="order-tracking">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
-                        </svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="order-tracking">
+                        <span class="submenu-dot"></span>
                         <span>Order Tracking</span>
                     </button>
-                    <button class="submenu-item" data-page="goods-received">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="1" y="3" width="15" height="13"></rect>
-                            <polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon>
-                            <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                            <circle cx="18.5" cy="18.5" r="2.5"></circle>
-                        </svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="goods-received">
+                        <span class="submenu-dot"></span>
                         <span>Goods Received</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Vendors -->
-            <div class="menu-section">
-                <button class="main-menu" data-section="vendors">
+            <!-- 2. Vendors Dropdown -->
+            <div class="nav-dropdown-group" id="group-vendors">
+                <button type="button" class="nav-dropdown-toggle" data-dropdown="vendors">
                     <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                         <circle cx="9" cy="7" r="4"></circle>
                         <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                         <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                     </svg>
-                    <span>Vendors</span>
+                    <span class="nav-label">Vendors</span>
+                    <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
                 </button>
-                <div class="submenu" id="vendors">
-                    <button class="submenu-item" data-page="vendor-masters">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                <div class="nav-submenu" id="submenu-vendors">
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="edit-vendor">
+                        <span class="submenu-dot"></span>
+                        <span>Vendor Detail</span>
+                    </button>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="vendor-masters">
+                        <span class="submenu-dot"></span>
                         <span>Vendor/OEM Masters</span>
                     </button>
-                    <button class="submenu-item" data-page="vendor-performance">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="vendor-performance">
+                        <span class="submenu-dot"></span>
                         <span>Vendor Performance</span>
-                    </button>
-                    <button class="submenu-item" data-page="edit-vendor">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                        <span>Vendor Detail</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Intelligence -->
-            <div class="menu-section">
-                <button class="main-menu" data-section="intelligence">
+            <!-- 3. Intelligence Dropdown -->
+            <div class="nav-dropdown-group" id="group-intelligence">
+                <button type="button" class="nav-dropdown-toggle" data-dropdown="intelligence">
                     <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="18" y1="20" x2="18" y2="10"></line>
                         <line x1="12" y1="20" x2="12" y2="4"></line>
                         <line x1="6" y1="20" x2="6" y2="14"></line>
                     </svg>
-                    <span>Intelligence</span>
+                    <span class="nav-label">Intelligence</span>
+                    <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
                 </button>
-                <div class="submenu" id="intelligence">
-                    <button class="submenu-item" data-page="past-price-reference">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+                <div class="nav-submenu" id="submenu-intelligence">
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="past-price-reference">
+                        <span class="submenu-dot"></span>
                         <span>Past Price Reference</span>
                     </button>
                 </div>
             </div>
 
-            <!-- Management -->
-            <div class="menu-section">
-                <button class="main-menu" data-section="management">
+            <!-- 4. Management Dropdown -->
+            <div class="nav-dropdown-group" id="group-management">
+                <button type="button" class="nav-dropdown-toggle" data-dropdown="management">
                     <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="3"></circle>
                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                     </svg>
-                    <span>Management</span>
+                    <span class="nav-label">Management</span>
+                    <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
                 </button>
-                <div class="submenu" id="management">
-                    <button class="submenu-item" data-page="management-insights">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                <div class="nav-submenu" id="submenu-management">
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="management-insights">
+                        <span class="submenu-dot"></span>
                         <span>Management Insights</span>
                     </button>
-                    <button class="submenu-item" data-page="reports-audits">
-                        <svg class="nav-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="reports-audits">
+                        <span class="submenu-dot"></span>
                         <span>Reports &amp; Audits</span>
                     </button>
                 </div>
             </div>
 
+            <!-- 5. Users (Direct Navigation Item - Last in Sidebar) -->
+            <button type="button" class="nav-direct-item submenu-item" data-page="manage-access">
+                <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span class="nav-label">Users</span>
+            </button>
+
+            <!-- Footer Brand -->
             <div class="sidebar-footer-brand">
                 <span class="sidebar-developed-by">Developed by</span>
                 <img src="/logo" alt="NIMIT" class="sidebar-nimit-logo" onerror="this.onerror=null; this.src='nimit-brand-logo.png';">
@@ -473,7 +442,20 @@
                             </div>
                             <div class="form-group">
                                 <label>Territory <span class="required-star">*</span></label>
-                                <input type="text" id="territory" required>
+                                <select id="territory" required>
+                                    <option value="" disabled selected>Select Territory</option>
+                                    <option value="North">North</option>
+                                    <option value="South (Dahej)">South (Dahej)</option>
+                                    <option value="South (Bharuch)">South (Bharuch)</option>
+                                    <option value="West">West</option>
+                                    <option value="Central Projects">Central Projects</option>
+                                    <option value="Central Services">Central Services</option>
+                                    <option value="Central Contracts">Central Contracts</option>
+                                    <option value="Ahmedabad">Ahmedabad</option>
+                                    <option value="Pan India">Pan India</option>
+                                    <option value="Kutch">Kutch</option>
+                                    <option value="Surat">Surat</option>
+                                </select>
                             </div>
                             <div class="form-group">
                                 <label>Product Category <span class="required-star">*</span></label>
@@ -644,6 +626,14 @@
                             <!-- Clear & Apply -->
                             <button type="button" id="poFilterClearBtn" class="po-btn-clear">Clear</button>
                             <button type="button" id="poFilterApplyBtn" class="po-btn-apply">Apply</button>
+                            <button type="button" id="poExportBtn" class="po-btn-export" title="Export Purchase Orders to Excel (.xlsx)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>Export</span>
+                            </button>
                         </div>
 
                         <!-- Status Pills Row -->
@@ -1142,7 +1132,7 @@
                                         <th>Office Contact</th>
                                         <th>GST / PAN</th>
                                         <th>Location</th>
-                                        <th style="text-align: center; width: 240px;">Actions</th>
+                                        <th style="text-align: center; width: 300px;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="evVendorTableBody">
@@ -1159,6 +1149,13 @@
                             <div class="ev-no-results-title">No vendors found</div>
                             <p class="ev-no-results-desc">No vendors match your current search criteria or filters.</p>
                         </div>
+                    </div>
+
+                    <!-- Vendor Table Pagination (10 per page) -->
+                    <div class="pagination-controls" id="evPaginationControls" style="margin-top: 18px; margin-bottom: 24px;">
+                        <button type="button" id="evPrevBtn" class="option-button" disabled>&larr; Previous 10</button>
+                        <span id="evPageLabel" class="page-label">Page 1 of 1</span>
+                        <button type="button" id="evNextBtn" class="option-button" disabled>Next 10 &rarr;</button>
                     </div>
                 </div>
 
@@ -1192,152 +1189,204 @@
                     <div id="editVendorForm" class="hidden">
 
                 <!-- Read-only identity strip -->
-                    <div class="form-section">
-                        <h3 class="form-section-title">Vendor Identity — Read Only</h3>
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Vendor Code</label>
-                                <input type="text" id="ev-vendor_code" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Registration Date</label>
-                                <input type="text" id="ev-registration_date" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>GST Number</label>
-                                <input type="text" id="ev-gst_number" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>PAN Number</label>
-                                <input type="text" id="ev-pan_number" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>MSME Number</label>
-                                <input type="text" id="ev-msme_number" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Year of Incorporation</label>
-                                <input type="text" id="ev-year_of_incorporation" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Recommended By</label>
-                                <input type="text" id="ev-recommended_by" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Approved By</label>
-                                <input type="text" id="ev-approved_by" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Turnover Year 1</label>
-                                <input type="text" id="ev-turnover_year_1" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Turnover Value 1</label>
-                                <input type="text" id="ev-turnover_value_1" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Turnover Year 2</label>
-                                <input type="text" id="ev-turnover_year_2" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Turnover Value 2</label>
-                                <input type="text" id="ev-turnover_value_2" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Turnover Year 3</label>
-                                <input type="text" id="ev-turnover_year_3" readonly class="ev-readonly">
-                            </div>
-                            <div class="form-group">
-                                <label>Turnover Value 3</label>
-                                <input type="text" id="ev-turnover_value_3" readonly class="ev-readonly">
+                        <!-- System identity strip (Read Only) -->
+                        <div class="form-section">
+                            <h3 class="form-section-title">Vendor Identity — System Generated (Read Only)</h3>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Vendor Code</label>
+                                    <input type="text" id="ev-vendor_code" readonly class="ev-readonly">
+                                </div>
+                                <div class="form-group">
+                                    <label>Registration Date</label>
+                                    <input type="text" id="ev-registration_date" readonly class="ev-readonly">
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Editable sections -->
-                    <div class="form-section">
-                        <h3 class="form-section-title">Basic Details</h3>
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Vendor Name <span class="required-star">*</span></label>
-                                <input type="text" id="ev-vendor_name">
+                        <!-- Basic Details & Registration Identity (Editable by Admin) -->
+                        <div class="form-section">
+                            <h3 class="form-section-title">Basic Details & Registration</h3>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Vendor Name <span class="required-star">*</span></label>
+                                    <input type="text" id="ev-vendor_name">
+                                </div>
+                                <div class="form-group">
+                                    <label>Commercial Role <span class="required-star">*</span></label>
+                                    <input type="text" id="ev-commercial_role">
+                                </div>
+                                <div class="form-group">
+                                    <label>Year of Incorporation</label>
+                                    <input type="text" id="ev-year_of_incorporation">
+                                </div>
+                                <div class="form-group">
+                                    <label>GST Number <span class="required-star">*</span></label>
+                                    <input type="text" id="ev-gst_number">
+                                </div>
+                                <div class="form-group">
+                                    <label>PAN Number <span class="required-star">*</span></label>
+                                    <input type="text" id="ev-pan_number">
+                                </div>
+                                <div class="form-group">
+                                    <label>MSME Number</label>
+                                    <input type="text" id="ev-msme_number">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Commercial Role <span class="required-star">*</span></label>
-                                <input type="text" id="ev-commercial_role">
+                        </div>
+
+                        <div class="form-section">
+                            <h3 class="form-section-title">Address with Phone Numbers</h3>
+                            <div class="form-grid">
+                                <div class="form-group full-width"><label>Office Address <span class="required-star">*</span></label><input type="text" id="ev-office_address"></div>
+                                <div class="form-group"><label>Office Contact Name <span class="required-star">*</span></label><input type="text" id="ev-office_contact_name"></div>
+                                <div class="form-group"><label>Office Contact Number <span class="required-star">*</span></label><input type="text" id="ev-office_contact_number"></div>
+                                <div class="form-group full-width"><label>Factory Address</label><input type="text" id="ev-factory_address"></div>
+                                <div class="form-group"><label>Factory Contact Name</label><input type="text" id="ev-factory_contact_name"></div>
+                                <div class="form-group"><label>Factory Contact Number</label><input type="text" id="ev-factory_contact_number"></div>
+                                <div class="form-group full-width"><label>Warehouse Address</label><input type="text" id="ev-warehouse_address"></div>
+                                <div class="form-group"><label>Warehouse Contact Name</label><input type="text" id="ev-warehouse_contact_name"></div>
+                                <div class="form-group"><label>Warehouse Contact Number</label><input type="text" id="ev-warehouse_contact_number"></div>
+                                <div class="form-group full-width"><label>Workshop Address</label><input type="text" id="ev-workshop_address"></div>
+                                <div class="form-group"><label>Workshop Contact Name</label><input type="text" id="ev-workshop_contact_name"></div>
+                                <div class="form-group"><label>Workshop Contact Number</label><input type="text" id="ev-workshop_contact_number"></div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="form-section">
-                        <h3 class="form-section-title">Address with Phone Numbers</h3>
-                        <div class="form-grid">
-                            <div class="form-group full-width"><label>Office Address <span class="required-star">*</span></label><input type="text" id="ev-office_address"></div>
-                            <div class="form-group"><label>Office Contact Name <span class="required-star">*</span></label><input type="text" id="ev-office_contact_name"></div>
-                            <div class="form-group"><label>Office Contact Number <span class="required-star">*</span></label><input type="text" id="ev-office_contact_number"></div>
-                            <div class="form-group full-width"><label>Factory Address</label><input type="text" id="ev-factory_address"></div>
-                            <div class="form-group"><label>Factory Contact Name</label><input type="text" id="ev-factory_contact_name"></div>
-                            <div class="form-group"><label>Factory Contact Number</label><input type="text" id="ev-factory_contact_number"></div>
-                            <div class="form-group full-width"><label>Warehouse Address</label><input type="text" id="ev-warehouse_address"></div>
-                            <div class="form-group"><label>Warehouse Contact Name</label><input type="text" id="ev-warehouse_contact_name"></div>
-                            <div class="form-group"><label>Warehouse Contact Number</label><input type="text" id="ev-warehouse_contact_number"></div>
-                            <div class="form-group full-width"><label>Workshop Address</label><input type="text" id="ev-workshop_address"></div>
-                            <div class="form-group"><label>Workshop Contact Name</label><input type="text" id="ev-workshop_contact_name"></div>
-                            <div class="form-group"><label>Workshop Contact Number</label><input type="text" id="ev-workshop_contact_number"></div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">Director / CEO / Management Team</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Name <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_name"></div>
+                                <div class="form-group"><label>Designation <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_designation"></div>
+                                <div class="form-group"><label>Mobile No. <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_mobile_no"></div>
+                                <div class="form-group"><label>Email <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_email"></div>
+                                <div class="form-group"><label>Web Address</label><input type="text" id="ev-director_or_ceo_or_management_web_address"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-section">
-                        <h3 class="form-section-title">Director / CEO / Management Team</h3>
-                        <div class="form-grid">
-                            <div class="form-group"><label>Name <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_name"></div>
-                            <div class="form-group"><label>Designation <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_designation"></div>
-                            <div class="form-group"><label>Mobile No. <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_mobile_no"></div>
-                            <div class="form-group"><label>Email <span class="required-star">*</span></label><input type="text" id="ev-director_or_ceo_or_management_email"></div>
-                            <div class="form-group"><label>Web Address</label><input type="text" id="ev-director_or_ceo_or_management_web_address"></div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">Sales Team</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Name</label><input type="text" id="ev-sales_team_name"></div>
+                                <div class="form-group"><label>Contact</label><input type="text" id="ev-sales_team_contact"></div>
+                                <div class="form-group"><label>Email</label><input type="text" id="ev-sales_team_email"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-section">
-                        <h3 class="form-section-title">Sales Team</h3>
-                        <div class="form-grid">
-                            <div class="form-group"><label>Name <span class="required-star">*</span></label><input type="text" id="ev-sales_team_name"></div>
-                            <div class="form-group"><label>Contact <span class="required-star">*</span></label><input type="text" id="ev-sales_team_contact"></div>
-                            <div class="form-group"><label>Email <span class="required-star">*</span></label><input type="text" id="ev-sales_team_email"></div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">Accounts Team</h3>
+                            <div class="form-grid">
+                                <div class="form-group"><label>Name</label><input type="text" id="ev-accounts_team_name"></div>
+                                <div class="form-group"><label>Contact</label><input type="text" id="ev-accounts_team_contact"></div>
+                                <div class="form-group"><label>Email</label><input type="text" id="ev-accounts_team_email"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-section">
-                        <h3 class="form-section-title">Accounts Team</h3>
-                        <div class="form-grid">
-                            <div class="form-group"><label>Name <span class="required-star">*</span></label><input type="text" id="ev-accounts_team_name"></div>
-                            <div class="form-group"><label>Contact <span class="required-star">*</span></label><input type="text" id="ev-accounts_team_contact"></div>
-                            <div class="form-group"><label>Email <span class="required-star">*</span></label><input type="text" id="ev-accounts_team_email"></div>
+                        <div class="form-section">
+                            <h3 class="form-section-title">Branch Offices</h3>
+                            <div class="form-grid">
+                                <div class="form-group full-width"><label>Branch 1 Address</label><input type="text" id="ev-branch_office_1_address"></div>
+                                <div class="form-group"><label>Branch 1 Contact Name</label><input type="text" id="ev-branch_office_1_contact_name"></div>
+                                <div class="form-group"><label>Branch 1 Contact Number</label><input type="text" id="ev-branch_office_1_contact_number"></div>
+                                <div class="form-group full-width"><label>Branch 2 Address</label><input type="text" id="ev-branch_office_2_address"></div>
+                                <div class="form-group"><label>Branch 2 Contact Name</label><input type="text" id="ev-branch_office_2_contact_name"></div>
+                                <div class="form-group"><label>Branch 2 Contact Number</label><input type="text" id="ev-branch_office_2_contact_number"></div>
+                                <div class="form-group full-width"><label>Branch 3 Address</label><input type="text" id="ev-branch_office_3_address"></div>
+                                <div class="form-group"><label>Branch 3 Contact Name</label><input type="text" id="ev-branch_office_3_contact_name"></div>
+                                <div class="form-group"><label>Branch 3 Contact Number</label><input type="text" id="ev-branch_office_3_contact_number"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-section">
-                        <h3 class="form-section-title">Branch Offices</h3>
-                        <div class="form-grid">
-                            <div class="form-group full-width"><label>Branch 1 Address <span class="required-star">*</span></label><input type="text" id="ev-branch_office_1_address"></div>
-                            <div class="form-group"><label>Branch 1 Contact Name</label><input type="text" id="ev-branch_office_1_contact_name"></div>
-                            <div class="form-group"><label>Branch 1 Contact Number</label><input type="text" id="ev-branch_office_1_contact_number"></div>
-                            <div class="form-group full-width"><label>Branch 2 Address</label><input type="text" id="ev-branch_office_2_address"></div>
-                            <div class="form-group"><label>Branch 2 Contact Name</label><input type="text" id="ev-branch_office_2_contact_name"></div>
-                            <div class="form-group"><label>Branch 2 Contact Number</label><input type="text" id="ev-branch_office_2_contact_number"></div>
-                            <div class="form-group full-width"><label>Branch 3 Address</label><input type="text" id="ev-branch_office_3_address"></div>
-                            <div class="form-group"><label>Branch 3 Contact Name</label><input type="text" id="ev-branch_office_3_contact_name"></div>
-                            <div class="form-group"><label>Branch 3 Contact Number</label><input type="text" id="ev-branch_office_3_contact_number"></div>
+                        <!-- Turnover of Last Three Years (Editable by Admin) -->
+                        <div class="form-section">
+                            <h3 class="form-section-title">Turnover of Last Three Years</h3>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Turnover Year 1</label>
+                                    <input type="text" id="ev-turnover_year_1">
+                                </div>
+                                <div class="form-group">
+                                    <label id="ev-label-turnover_value_1">Turnover Value 1</label>
+                                    <input type="text" id="ev-turnover_value_1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Turnover Year 2</label>
+                                    <input type="text" id="ev-turnover_year_2">
+                                </div>
+                                <div class="form-group">
+                                    <label id="ev-label-turnover_value_2">Turnover Value 2</label>
+                                    <input type="text" id="ev-turnover_value_2">
+                                </div>
+                                <div class="form-group">
+                                    <label>Turnover Year 3</label>
+                                    <input type="text" id="ev-turnover_year_3">
+                                </div>
+                                <div class="form-group">
+                                    <label id="ev-label-turnover_value_3">Turnover Value 3</label>
+                                    <input type="text" id="ev-turnover_value_3">
+                                </div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Main save -->
-                    <div class="form-section">
-                        <button type="button" class="primary-button" id="saveVendorDetailsBtn">
-                            Save Vendor Details
-                        </button>
-                        <p id="editVendorMessage" style="margin-top:10px;color:#c00;"></p>
-                    </div>
+                        <!-- Documents Section (Editable and Uploadable by Admin) -->
+                        <div class="form-section">
+                            <h3 class="form-section-title">Documents</h3>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>GST Document</label>
+                                    <div class="ev-doc-preview" id="ev-prev-gst_document" style="margin-bottom:6px;"></div>
+                                    <input type="file" id="ev-doc-gst_document">
+                                </div>
+                                <div class="form-group">
+                                    <label>PAN Document</label>
+                                    <div class="ev-doc-preview" id="ev-prev-pan_document" style="margin-bottom:6px;"></div>
+                                    <input type="file" id="ev-doc-pan_document">
+                                </div>
+                                <div class="form-group">
+                                    <label>MSME Document</label>
+                                    <div class="ev-doc-preview" id="ev-prev-msme_document" style="margin-bottom:6px;"></div>
+                                    <input type="file" id="ev-doc-msme_document">
+                                </div>
+                                <div class="form-group">
+                                    <label id="ev-label-itr_last_year_document">Last Year ITR</label>
+                                    <div class="ev-doc-preview" id="ev-prev-itr_last_year_document" style="margin-bottom:6px;"></div>
+                                    <input type="file" id="ev-doc-itr_last_year_document">
+                                </div>
+                                <div class="form-group">
+                                    <label id="ev-label-itr_second_last_year_document">Second Last Year ITR</label>
+                                    <div class="ev-doc-preview" id="ev-prev-itr_second_last_year_document" style="margin-bottom:6px;"></div>
+                                    <input type="file" id="ev-doc-itr_second_last_year_document">
+                                </div>
+                                <div class="form-group">
+                                    <label id="ev-label-itr_third_last_year_document">Third Last Year ITR</label>
+                                    <div class="ev-doc-preview" id="ev-prev-itr_third_last_year_document" style="margin-bottom:6px;"></div>
+                                    <input type="file" id="ev-doc-itr_third_last_year_document">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- For Office Use Only -->
+                        <div class="form-section">
+                            <h3 class="form-section-title">For Office Use Only</h3>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Recommended By</label>
+                                    <input type="text" id="ev-recommended_by">
+                                </div>
+                                <div class="form-group">
+                                    <label>Approved By</label>
+                                    <input type="text" id="ev-approved_by">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Main save -->
+                        <div class="form-section">
+                            <button type="button" class="primary-button" id="saveVendorDetailsBtn">
+                                Save Vendor Details
+                            </button>
+                            <p id="editVendorMessage" style="margin-top:10px;color:#c00;"></p>
+                        </div>
 
                     <!-- Bank details — separate section with password -->
                     <div class="form-section" style="border-top:2px solid #e5e7eb;margin-top:24px;padding-top:24px;">
@@ -1489,18 +1538,6 @@
                                 </div>
                                 <span class="card-micro-desc">Customer Invoiced</span>
                             </div>
-                            <div class="finance-card-right">
-                                <svg class="sparkline-svg sparkline-blue" viewBox="0 0 100 40">
-                                    <defs>
-                                        <linearGradient id="gradSales" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.28"/>
-                                            <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.0"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M0,35 Q20,32 40,25 T80,10 T100,5 L100,40 L0,40 Z" fill="url(#gradSales)"/>
-                                    <path d="M0,35 Q20,32 40,25 T80,10 T100,5" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round"/>
-                                </svg>
-                            </div>
                         </div>
 
                         <!-- Procurement Value -->
@@ -1519,18 +1556,6 @@
                                     <strong id="insightProcurementValue">₹0.00</strong>
                                 </div>
                                 <span class="card-micro-desc">Vendor Direct Cost</span>
-                            </div>
-                            <div class="finance-card-right">
-                                <svg class="sparkline-svg sparkline-purple" viewBox="0 0 100 40">
-                                    <defs>
-                                        <linearGradient id="gradProc" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.28"/>
-                                            <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.0"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M0,28 Q25,20 50,30 T80,15 T100,18 L100,40 L0,40 Z" fill="url(#gradProc)"/>
-                                    <path d="M0,28 Q25,20 50,30 T80,15 T100,18" fill="none" stroke="#8b5cf6" stroke-width="2.2" stroke-linecap="round"/>
-                                </svg>
                             </div>
                         </div>
 
@@ -1551,18 +1576,6 @@
                                 </div>
                                 <span class="card-micro-desc">Net Return</span>
                             </div>
-                            <div class="finance-card-right">
-                                <svg class="sparkline-svg sparkline-emerald" viewBox="0 0 100 40">
-                                    <defs>
-                                        <linearGradient id="gradProfit" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#10b981" stop-opacity="0.28"/>
-                                            <stop offset="100%" stop-color="#10b981" stop-opacity="0.0"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M0,32 Q30,35 55,20 T80,12 T100,8 L100,40 L0,40 Z" fill="url(#gradProfit)"/>
-                                    <path d="M0,32 Q30,35 55,20 T80,12 T100,8" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round"/>
-                                </svg>
-                            </div>
                         </div>
 
                         <!-- Gross Margin -->
@@ -1579,18 +1592,6 @@
                                     <strong id="insightGrossMargin">0.00%</strong>
                                 </div>
                                 <span class="card-micro-desc">Margin Efficiency</span>
-                            </div>
-                            <div class="finance-card-right">
-                                <svg class="sparkline-svg sparkline-amber" viewBox="0 0 100 40">
-                                    <defs>
-                                        <linearGradient id="gradMargin" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.28"/>
-                                            <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.0"/>
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M0,30 Q25,28 50,22 T75,18 T100,12 L100,40 L0,40 Z" fill="url(#gradMargin)"/>
-                                    <path d="M0,30 Q25,28 50,22 T75,18 T100,12" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round"/>
-                                </svg>
                             </div>
                         </div>
 
@@ -1927,10 +1928,10 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Timestamp</th>
-                                    <th>Username</th>
-                                    <th>Action</th>
-                                    <th>Report</th>
+                                    <th style="width: 145px;">Timestamp</th>
+                                    <th style="width: 120px;">User</th>
+                                    <th style="width: 180px;">Action</th>
+                                    <th>Activity Report</th>
                                 </tr>
                             </thead>
                             <tbody id="reportLogsBody">
@@ -1945,11 +1946,11 @@
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Timestamp</th>
-                                    <th>Username</th>
-                                    <th>Action</th>
-                                    <th>Old Value</th>
-                                    <th>New Value</th>
+                                    <th style="width: 145px;">Timestamp</th>
+                                    <th style="width: 120px;">User</th>
+                                    <th style="width: 220px;">Action Taken</th>
+                                    <th style="min-width: 260px;">Previous State (Before)</th>
+                                    <th style="min-width: 260px;">Updated State (After)</th>
                                 </tr>
                             </thead>
                             <tbody id="auditLogsBody">
@@ -2036,37 +2037,37 @@
 
     <!-- ── Confirm Vendor Selection Modal ───────────────────── -->
     <div id="selectVendorModal" class="modal hidden">
-        <div class="modal-card" style="max-width: 480px;">
-            <div class="modal-header">
-                <h2>Confirm Vendor Selection</h2>
-                <button id="closeSelectVendorModal" class="close-button" type="button">&times;</button>
+        <div class="modal-card" style="max-width: 490px; padding: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);">
+            <div class="modal-header" style="padding: 20px 24px 16px 24px; margin-bottom: 0; border-bottom: 1px solid #eef2f6;">
+                <h2 style="font-size: 18px; font-weight: 700; color: #0f172a; margin: 0;">Confirm Vendor Selection</h2>
+                <button id="closeSelectVendorModal" class="close-button" type="button" title="Close" aria-label="Close modal">&times;</button>
             </div>
-            <div class="modal-body" style="font-size: 14px; color: #334155;">
-                <p style="margin-bottom: 14px; color: #475569;">
+            <div class="modal-body" style="padding: 20px 24px 20px 24px; font-size: 14px; color: #334155;">
+                <p style="margin-bottom: 16px; color: #64748b; font-size: 13.5px; line-height: 1.5;">
                     Please confirm that you want to select this vendor. Once selected, a draft Purchase Order will be created.
                 </p>
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #64748b; font-size: 13px;">PR Number:</span>
-                        <strong id="confirmPrNumber" style="color: #0f172a;">-</strong>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px;">
+                        <span style="color: #64748b; font-size: 13px; font-weight: 500;">PR Number:</span>
+                        <strong id="confirmPrNumber" style="color: #0f172a; font-size: 13.5px; font-weight: 600;">-</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #64748b; font-size: 13px;">Vendor:</span>
-                        <strong id="confirmVendorName" style="color: #0f172a; text-align: right; max-width: 280px;">-</strong>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px;">
+                        <span style="color: #64748b; font-size: 13px; font-weight: 500;">Vendor:</span>
+                        <strong id="confirmVendorName" style="color: #0f172a; text-align: right; max-width: 270px; font-size: 13.5px; font-weight: 600;">-</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #64748b; font-size: 13px;">Price / Unit:</span>
-                        <strong id="confirmUnitPrice" style="color: #0f172a;">-</strong>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px;">
+                        <span style="color: #64748b; font-size: 13px; font-weight: 500;">Price / Unit:</span>
+                        <strong id="confirmUnitPrice" style="color: #0f172a; font-size: 13.5px; font-weight: 600;">-</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 4px;">
-                        <span style="color: #475569; font-weight: 600; font-size: 13.5px;">Total Price:</span>
-                        <strong id="confirmTotalPrice" style="color: #16803c; font-size: 16px;">-</strong>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #cbd5e1; padding-top: 10px; margin-top: 6px;">
+                        <span style="color: #334155; font-weight: 600; font-size: 13.5px;">Total Price:</span>
+                        <strong id="confirmTotalPrice" style="color: #16803c; font-size: 16px; font-weight: 700;">-</strong>
                     </div>
                 </div>
-                <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                    <button id="cancelSelectVendorBtn" type="button" class="option-button" style="padding: 9px 18px;">Cancel</button>
-                    <button id="confirmSelectVendorBtn" type="button" class="primary-button" style="padding: 9px 20px; background: #0B57A4; color: #fff;">Confirm Selection</button>
-                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 16px 24px; border-top: 1px solid #e2e8f0; background: #f8fafc; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; box-sizing: border-box; width: 100%;">
+                <button id="cancelSelectVendorBtn" type="button" class="btn-modal-cancel" style="height: 42px; min-height: 42px; max-height: 42px; box-sizing: border-box; margin: 0; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; border-radius: 8px; line-height: 1; cursor: pointer; background: #ffffff; border: 1px solid #cbd5e1; color: #334155; min-width: 100px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); vertical-align: middle;">Cancel</button>
+                <button id="confirmSelectVendorBtn" type="button" class="btn-modal-confirm" style="height: 42px; min-height: 42px; max-height: 42px; box-sizing: border-box; margin: 0; padding: 0 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; border-radius: 8px; line-height: 1; cursor: pointer; background: #0B57A4; border: 1px solid #0B57A4; color: #ffffff; min-width: 160px; box-shadow: 0 1px 3px rgba(11, 87, 164, 0.25); vertical-align: middle;">Confirm Selection</button>
             </div>
         </div>
     </div>
@@ -2084,15 +2085,24 @@
                         <span id="vdModalEntityBadge" class="ev-tag-pill">-</span>
                     </div>
                 </div>
-                <div class="ev-modal-header-actions">
-                    <button type="button" id="vdModalEditVendorBtn" class="primary-button" style="padding: 7px 14px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px;">
+                <div class="ev-modal-header-actions" style="display: flex; gap: 8px; align-items: center;">
+                    <button type="button" id="vdModalDeleteVendorBtn" class="danger-button" style="height: 36px; min-height: 36px; max-height: 36px; margin: 0; margin-top: 0; padding: 0 14px; font-size: 13px; font-weight: 600; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; vertical-align: middle;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                        Delete Vendor
+                    </button>
+                    <button type="button" id="vdModalEditVendorBtn" class="primary-button" style="height: 36px; min-height: 36px; max-height: 36px; margin: 0; margin-top: 0; padding: 0 14px; font-size: 13px; font-weight: 600; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; vertical-align: middle; border: 1px solid #0B57A4;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                         </svg>
                         Edit This Vendor
                     </button>
-                    <button type="button" id="closeVendorDetailsModalBtn" class="close-button" title="Close" aria-label="Close modal">✕</button>
+                    <button type="button" id="closeVendorDetailsModalBtn" class="close-button" style="height: 36px; width: 36px; min-height: 36px; min-width: 36px; margin: 0; margin-top: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; border-radius: 8px; border: 1px solid transparent; line-height: 1; cursor: pointer; box-sizing: border-box;" title="Close" aria-label="Close modal">✕</button>
                 </div>
             </div>
 
@@ -2100,14 +2110,25 @@
                 <!-- Dynamically populated detail cards -->
             </div>
 
-            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; padding: 14px 24px; border-top: 1px solid #e2e8f0; background: #f8fafc; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
-                <button type="button" id="closeVendorDetailsModalFooterBtn" class="option-button" style="padding: 8px 18px;">Close</button>
-                <button type="button" id="vdModalEditVendorFooterBtn" class="primary-button" style="padding: 8px 18px;">Edit Vendor</button>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-top: 1px solid #e2e8f0; background: #f8fafc; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px;">
+                <button type="button" id="vdModalDeleteVendorFooterBtn" class="danger-button" style="height: 40px; min-height: 40px; max-height: 40px; margin: 0; margin-top: 0; padding: 0 18px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; border-radius: 8px; font-size: 14px; font-weight: 600; vertical-align: middle;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    Delete Vendor
+                </button>
+                <div style="display: flex; gap: 10px; align-items: center; margin: 0;">
+                    <button type="button" id="closeVendorDetailsModalFooterBtn" class="option-button" style="height: 40px; min-height: 40px; max-height: 40px; margin: 0; margin-top: 0; padding: 0 20px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 8px; font-size: 14px; font-weight: 600; vertical-align: middle;">Close</button>
+                    <button type="button" id="vdModalEditVendorFooterBtn" class="primary-button" style="height: 40px; min-height: 40px; max-height: 40px; margin: 0; margin-top: 0; padding: 0 22px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border-radius: 8px; font-size: 14px; font-weight: 600; vertical-align: middle; border: 1px solid #0B57A4;">Edit Vendor</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script src="/shared/js/workspace-dashboard.js"></script>
-    <script src="/admin/script.js?v=2.2"></script>
+    <script src="/admin/script.js?v=3.1"></script>
 </body>
 </html>

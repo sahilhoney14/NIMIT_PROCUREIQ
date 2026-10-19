@@ -5744,3 +5744,137 @@ td input.taxable-input {
     font-size: 12px;
     font-style: italic;
 }
+
+
+/* ─── Enterprise Modal Footer & Action Buttons ─── */
+.modal-footer {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 16px 24px !important;
+    border-top: 1px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    border-bottom-left-radius: 16px !important;
+    border-bottom-right-radius: 16px !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+}
+
+.btn-modal-cancel,
+.btn-modal-confirm,
+#cancelSelectVendorBtn,
+#confirmSelectVendorBtn,
+.modal-footer .option-button,
+.modal-footer .primary-button,
+.modal-footer .danger-button {
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    transition: all 0.15s ease-in-out !important;
+}
+
+.btn-modal-cancel,
+#cancelSelectVendorBtn,
+.modal-footer .option-button {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+    padding: 0 22px !important;
+    min-width: 100px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.btn-modal-cancel:hover,
+#cancelSelectVendorBtn:hover,
+.modal-footer .option-button:hover {
+    background: #f1f5f9 !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+}
+
+.btn-modal-confirm,
+#confirmSelectVendorBtn,
+.modal-footer .primary-button {
+    background: #0B57A4 !important;
+    border: 1px solid #0B57A4 !important;
+    color: #ffffff !important;
+    padding: 0 24px !important;
+    min-width: 160px !important;
+    box-shadow: 0 1px 3px rgba(11, 87, 164, 0.25) !important;
+}
+
+.btn-modal-confirm:hover,
+#confirmSelectVendorBtn:hover,
+.modal-footer .primary-button:hover {
+    background: #084482 !important;
+    border-color: #084482 !important;
+    box-shadow: 0 3px 8px rgba(11, 87, 164, 0.35) !important;
+}
+
+.modal-footer .danger-button {
+    background: #ef4444 !important;
+    border: 1px solid #ef4444 !important;
+    color: #ffffff !important;
+    padding: 0 20px !important;
+    min-width: 120px !important;
+    box-shadow: 0 1px 3px rgba(239, 68, 68, 0.25) !important;
+}
+
+.modal-footer .danger-button:hover {
+    background: #dc2626 !important;
+    border-color: #dc2626 !important;
+    box-shadow: 0 3px 8px rgba(239, 68, 68, 0.35) !important;
+}
+.po-btn-export {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 0 18px;
+    height: 42px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    font-family: inherit;
+    box-sizing: border-box;
+    white-space: nowrap;
+}
+
+.po-btn-export:hover {
+    background: #f8fafc;
+    border-color: #0B57A4;
+    color: #0B57A4;
+    box-shadow: 0 2px 6px rgba(11, 87, 164, 0.15);
+}
+
+.po-btn-export:active {
+    transform: translateY(1px);
+}
+
+.po-btn-export:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.po-btn-export svg {
+    stroke: currentColor;
+    flex-shrink: 0;
+}

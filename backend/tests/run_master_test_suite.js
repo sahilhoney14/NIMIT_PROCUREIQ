@@ -396,6 +396,41 @@ async function runAllTests() {
     // =========================================================================
     printHeader("SUITE 6: VENDOR MANAGEMENT & DIRECTORY FUNCTIONS");
 
+    let testVendorId = null;
+    try {
+        const [existingVendors] = await db.query("SELECT vendor_id FROM vendor_oem_masters ORDER BY vendor_id DESC LIMIT 1");
+        if (existingVendors.length > 0) {
+            testVendorId = existingVendors[0].vendor_id;
+        } else {
+            const [ins] = await db.execute(`
+                INSERT INTO vendor_oem_masters (
+                    vendor_code, registration_date, vendor_name, legal_entity, commercial_role, year_of_incorporation,
+                    director_or_ceo_or_management_name, director_or_ceo_or_management_designation, director_or_ceo_or_management_mobile_no, director_or_ceo_or_management_email,
+                    sales_team_name, sales_team_contact, sales_team_email,
+                    accounts_team_name, accounts_team_contact, accounts_team_email,
+                    gst_number, pan_number, turnover_year_1, turnover_value_1,
+                    gst_document, pan_document, msme_document, itr_last_year_document, recommended_by, approved_by,
+                    office_address, office_contact_name, office_contact_number,
+                    bank_name, bank_account_no, bank_branch, bank_account_type, bank_ifsc,
+                    branch_office_1_address
+                ) VALUES (
+                    'NEE2627V999', '2026-04-01', 'Test Vendor Solutions Pvt Ltd', 'Private Limited', 'OEM / Manufacturer', '2018',
+                    'Rajesh Sharma', 'Managing Director', '9876543210', 'director@testvendor.com',
+                    'Amit Verma', '9876543211', 'sales@testvendor.com',
+                    'Suresh Patel', '9876543212', 'accounts@testvendor.com',
+                    '24AAACS1429B1ZB', 'AAACS1429B', '2024-25', '15000000',
+                    'gst_test.pdf', 'pan_test.pdf', 'msme_test.pdf', 'itr_test.pdf', 'Procurement Dept', 'Admin',
+                    'Plot 12, GIDC Industrial Estate, Vadodara, Gujarat', 'Karan Mehta', '9876543213',
+                    'State Bank of India', '38492019482', 'Alkapuri Vadodara', 'CURRENT', 'SBIN0001234',
+                    'Branch 1, Ahmedabad, Gujarat'
+                )
+            `);
+            testVendorId = ins.insertId;
+        }
+    } catch (e) {
+        console.error("Setup vendor error:", e.message);
+    }
+
     try {
         const res = await apiRequest({ method: "GET", path: "/vendors", token: procurementToken });
         assert.strictEqual(res.status, 200);
@@ -411,7 +446,7 @@ async function runAllTests() {
     } catch (e) { fail("GET /vendors/all", e); }
 
     try {
-        const res = await apiRequest({ method: "GET", path: "/vendors/1", token: procurementToken });
+        const res = await apiRequest({ method: "GET", path: `/vendors/${testVendorId}`, token: procurementToken });
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.data.success, true);
         assert(!!res.data.vendor);
@@ -419,7 +454,7 @@ async function runAllTests() {
     } catch (e) { fail("GET /vendors/:id", e); }
 
     try {
-        const res = await apiRequest({ method: "GET", path: "/vendors/check-gst?gst_number=10ONTPS7131G1ZI", token: procurementToken });
+        const res = await apiRequest({ method: "GET", path: "/vendors/check-gst?gst_number=24AAACS1429B1ZB", token: procurementToken });
         assert.strictEqual(res.status, 200);
         assert(res.data.exists === true || res.data.exists === false);
         pass("GET /vendors/check-gst checks GST number presence in registry");
@@ -460,6 +495,41 @@ async function runAllTests() {
     // SUITE 7: PURCHASE REQUESTS & ORDER TRACKING
     // =========================================================================
     printHeader("SUITE 7: PURCHASE REQUESTS & ORDER TRACKING SUITE");
+
+    let testPrId = null;
+    let testPrNumber = null;
+    let testInquiryId = null;
+
+    try {
+        const res = await apiRequest({
+            method: "POST",
+            path: "/purchase-requests",
+            token: procurementToken,
+            body: {
+                pr_date: "2026-10-19",
+                party_name: "Test Infrastructure Ltd",
+                location: "Dahej",
+                territory: "West",
+                product_category: "Electrical",
+                item_name: "Test LED Bay Light 200W",
+                product_remarks: "High Bay Industrial Lighting",
+                make: "Philips",
+                model: "BY698P",
+                qty: 20,
+                unit: "number",
+                sales_rate: 3500
+            }
+        });
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.data.success, true);
+        testPrId = res.data.pr_id;
+        testPrNumber = res.data.pr_number;
+        const [inqRows] = await db.execute("SELECT inquiry_id FROM vendor_inquiries WHERE pr_id = ? LIMIT 1", [testPrId]);
+        if (inqRows.length > 0) {
+            testInquiryId = inqRows[0].inquiry_id;
+        }
+        pass("POST /purchase-requests creates sequential PR and auto-opens vendor inquiry", testPrNumber);
+    } catch (e) { fail("POST /purchase-requests", e); }
 
     try {
         const res = await apiRequest({ method: "GET", path: "/order-tracking?page=1", token: procurementToken });
@@ -505,12 +575,33 @@ async function runAllTests() {
     } catch (e) { fail("GET /vendor-inquiries", e); }
 
     try {
-        const res = await apiRequest({ method: "GET", path: "/vendor-inquiries/41", token: procurementToken });
+        const res = await apiRequest({ method: "GET", path: `/vendor-inquiries/${testInquiryId}`, token: procurementToken });
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.data.success, true);
         assert(!!res.data.inquiry);
         pass("GET /vendor-inquiries/:id retrieves RFQ details and participating vendors");
     } catch (e) { fail("GET /vendor-inquiries/:id", e); }
+
+    let testInquiryVendorId = null;
+    try {
+        const res = await apiRequest({
+            method: "POST",
+            path: `/vendor-inquiries/${testInquiryId}/vendors`,
+            token: procurementToken,
+            body: {
+                vendor_id: testVendorId,
+                price_per_unit: 2800,
+                expected_delivery_date: "2026-11-15",
+                payment_type: "CREDIT",
+                balance_due_days: 30,
+                remarks: "Test quotation submission"
+            }
+        });
+        assert.strictEqual(res.status, 201);
+        assert.strictEqual(res.data.success, true);
+        testInquiryVendorId = res.data.inquiry_vendor_id;
+        pass("POST /vendor-inquiries/:id/vendors adds vendor quote to RFQ inquiry");
+    } catch (e) { fail("POST /vendor-inquiries/:id/vendors", e); }
 
     try {
         const res = await apiRequest({ method: "GET", path: "/quotation-comparisons", token: procurementToken });
@@ -519,6 +610,27 @@ async function runAllTests() {
         assert(Array.isArray(res.data.inquiries));
         pass("GET /quotation-comparisons returns multi-vendor quote comparison matrices");
     } catch (e) { fail("GET /quotation-comparisons", e); }
+
+    let testPoId = null;
+    let testPoNumber = null;
+    try {
+        const res = await apiRequest({
+            method: "POST",
+            path: `/vendor-inquiries/${testInquiryId}/select-vendor`,
+            token: adminToken,
+            body: {
+                inquiry_vendor_id: testInquiryVendorId
+            }
+        });
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.data.success, true);
+        testPoNumber = res.data.po_number;
+        const [poRows] = await db.execute("SELECT po_id FROM purchase_orders WHERE pr_id = ? LIMIT 1", [testPrId]);
+        if (poRows.length > 0) {
+            testPoId = poRows[0].po_id;
+        }
+        pass("POST /vendor-inquiries/:id/select-vendor selects winner and generates Purchase Order", testPoNumber);
+    } catch (e) { fail("POST /vendor-inquiries/:id/select-vendor", e); }
 
 
     // =========================================================================
@@ -535,7 +647,27 @@ async function runAllTests() {
     } catch (e) { fail("GET /purchase-orders", e); }
 
     try {
-        const res = await apiRequest({ method: "GET", path: "/purchase-orders/1/download", token: procurementToken });
+        const res = await apiRequest({ method: "GET", path: "/purchase-orders/export", token: procurementToken });
+        assert.strictEqual(res.status, 200);
+        assert(res.headers["content-type"].includes("spreadsheetml"));
+        assert(res.data instanceof Buffer && res.data.length > 500);
+        pass("GET /purchase-orders/export exports Purchase Orders Excel summary report", `${res.data.length} bytes`);
+    } catch (e) { fail("GET /purchase-orders/export", e); }
+
+    try {
+        const res = await apiRequest({
+            method: "POST",
+            path: `/purchase-orders/${testPoId}/issue`,
+            token: procurementToken,
+            headers: { "Accept": "application/json" }
+        });
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(res.data.success, true);
+        pass("POST /purchase-orders/:id/issue marks Purchase Order as ISSUED");
+    } catch (e) { fail("POST /purchase-orders/:id/issue", e); }
+
+    try {
+        const res = await apiRequest({ method: "GET", path: `/purchase-orders/${testPoId}/download`, token: procurementToken });
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.headers["content-type"], "application/pdf");
         assert(res.data instanceof Buffer && res.data.toString("utf8", 0, 4) === "%PDF");
@@ -557,11 +689,28 @@ async function runAllTests() {
     } catch (e) { fail("GET /goods-received", e); }
 
     try {
-        const res = await apiRequest({ method: "GET", path: "/goods-received/1", token: procurementToken });
+        const res = await apiRequest({ method: "GET", path: `/goods-received/${testPoId}`, token: procurementToken });
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.data.success, true);
         pass("GET /goods-received/:po_id returns specific PO receipt history");
     } catch (e) { fail("GET /goods-received/:po_id", e); }
+
+    try {
+        const res = await apiRequest({
+            method: "POST",
+            path: "/goods-received",
+            token: procurementToken,
+            body: {
+                po_id: testPoId,
+                received_quantity: 15,
+                receipt_date: "2026-10-19",
+                remarks: "Initial 15 units received at warehouse"
+            }
+        });
+        assert.strictEqual(res.status, 201);
+        assert.strictEqual(res.data.success, true);
+        pass("POST /goods-received records delivery receipt and updates remaining qty");
+    } catch (e) { fail("POST /goods-received", e); }
 
 
     // =========================================================================
@@ -578,7 +727,7 @@ async function runAllTests() {
     } catch (e) { fail("GET /vendor-performance", e); }
 
     try {
-        const res = await apiRequest({ method: "GET", path: "/vendor-performance/1", token: procurementToken });
+        const res = await apiRequest({ method: "GET", path: `/vendor-performance/${testVendorId}`, token: procurementToken });
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.data.success, true);
         assert(!!res.data.profile && !!res.data.kpis);
@@ -600,7 +749,7 @@ async function runAllTests() {
     } catch (e) { fail("GET /past-price-reference/models", e); }
 
     try {
-        const res = await apiRequest({ method: "GET", path: "/past-price-reference?model=CP-UNC-DA41L3", token: procurementToken });
+        const res = await apiRequest({ method: "GET", path: "/past-price-reference?model=BY698P", token: procurementToken });
         assert.strictEqual(res.status, 200);
         assert.strictEqual(res.data.success, true);
         assert(Array.isArray(res.data.purchases));
@@ -663,14 +812,14 @@ async function runAllTests() {
     const modularRoutes = [
         { path: "/api/users", token: adminToken },
         { path: "/api/vendors", token: procurementToken },
-        { path: "/api/vendors/1", token: procurementToken },
+        { path: `/api/vendors/${testVendorId}`, token: procurementToken },
         { path: "/api/purchase-orders", token: procurementToken },
-        { path: "/api/purchase-orders/1", token: procurementToken },
+        { path: `/api/purchase-orders/${testPoId}`, token: procurementToken },
         { path: "/api/goods-received", token: procurementToken },
-        { path: "/api/goods-received/1", token: procurementToken },
+        { path: `/api/goods-received/${testPoId}`, token: procurementToken },
         { path: "/api/approvals", token: adminToken },
         { path: "/api/inquiries", token: procurementToken },
-        { path: "/api/inquiries/41", token: procurementToken },
+        { path: `/api/inquiries/${testInquiryId}`, token: procurementToken },
         { path: "/api/report-logs", token: adminToken },
         { path: "/api/pr", token: procurementToken }
     ];
@@ -683,6 +832,26 @@ async function runAllTests() {
         } catch (e) { fail(`GET ${r.path}`, e); }
     }
 
+    // Clean up temporary test workflow records
+    try {
+        if (testPoId) {
+            await db.execute("DELETE FROM goods_received WHERE po_id = ?", [testPoId]);
+            await db.execute("DELETE FROM purchase_orders WHERE po_id = ?", [testPoId]);
+        }
+        if (testInquiryId) {
+            await db.execute("DELETE FROM vendor_inquiry_vendors WHERE inquiry_id = ?", [testInquiryId]);
+            await db.execute("DELETE FROM vendor_inquiries WHERE inquiry_id = ?", [testInquiryId]);
+        }
+        if (testPrId) {
+            await db.execute("DELETE FROM purchase_requests WHERE id = ?", [testPrId]);
+        }
+        if (testVendorId) {
+            await db.execute("DELETE FROM vendor_oem_masters WHERE vendor_id = ?", [testVendorId]);
+        }
+        pass("Temporary test procurement workflow records cleaned up successfully");
+    } catch (e) {
+        console.warn("Cleanup warning:", e.message);
+    }
 
     // =========================================================================
     // SUITE 16: TOKEN REVOCATION & CLEAN LOGOUT
