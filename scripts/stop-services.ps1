@@ -1,7 +1,7 @@
 # ProcureIQ Service Stopper
-Write-Host "Stopping ProcureIQ services on ports 3000, 3001, 3002, 3003..." -ForegroundColor Cyan
+Write-Host "Stopping ProcureIQ services on ports 5000, 3000, 3001, 3002, 3003..." -ForegroundColor Cyan
 
-$ports = @(3000, 3001, 3002, 3003)
+$ports = @(5000, 3000, 3001, 3002, 3003)
 foreach ($port in $ports) {
     $connections = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
     if ($connections) {
