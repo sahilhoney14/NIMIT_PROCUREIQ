@@ -71,7 +71,7 @@ app.use(express.json());
 app.use(express.urlencoded({extended:false}));
 app.use(cookieParser());
 
-const SESSION_MAX_AGE = env.SESSION_MAX_AGE || (12 * 60 * 60 * 1000); // 12 hours
+const SESSION_MAX_AGE = env.SESSION_MAX_AGE || (6 * 24 * 60 * 60 * 1000); // 6 days
 
 app.use(session({
     name: "login_session",
@@ -545,20 +545,7 @@ const VENDOR_DOCUMENT_FIELDS = [
 // Checks that all required vendor fields (marked with * in import) are filled
 function validateVendorData(data, files) {
     const requiredFields = [
-        "vendor_name",
-        "gst_number",
-        "pan_number",
-        "legal_entity",
-        "commercial_role",
-        "office_address",
-        "office_contact_name",
-        "office_contact_number",
-        "director_or_ceo_or_management_name",
-        "director_or_ceo_or_management_mobile_no",
-        "director_or_ceo_or_management_email",
-        "bank_name",
-        "bank_account_no",
-        "bank_ifsc"
+        "vendor_name"
     ];
     const missingFields = requiredFields.filter(field => !cleanValue(data?.[field]));
     const requiredDocuments = []; // All documents are optional

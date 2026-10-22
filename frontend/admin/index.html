@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin – ProcureIQ</title>
     <script src="/shared/js/auth-guard.js" data-allowed-roles="ADMIN"></script>
-    <link rel="stylesheet" href="/admin/style.css?v=3.1">
-    <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=2.8">
+    <link rel="stylesheet" href="/admin/style.css?v=3.4">
+    <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=2.9">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -459,7 +459,46 @@
                             </div>
                             <div class="form-group">
                                 <label>Product Category <span class="required-star">*</span></label>
-                                <input type="text" id="product_category" required>
+                                <select id="product_category" required>
+                                    <option value="" disabled selected>Select Category</option>
+                                    <option value="Cable">Cable</option>
+                                    <option value="Accessories">Accessories</option>
+                                    <option value="Networking">Networking</option>
+                                    <option value="Rack">Rack</option>
+                                    <option value="Access Control System">Access Control System</option>
+                                    <option value="Surveillance System">Surveillance System</option>
+                                    <option value="Fire Alarm System">Fire Alarm System</option>
+                                    <option value="Pole">Pole</option>
+                                    <option value="Conference System">Conference System</option>
+                                    <option value="PA System">PA System</option>
+                                    <option value="Card">Card</option>
+                                    <option value="Attendance System">Attendance System</option>
+                                    <option value="License">License</option>
+                                    <option value="Software">Software</option>
+                                    <option value="Boom Barrier">Boom Barrier</option>
+                                    <option value="AMC">AMC</option>
+                                    <option value="Power Fence">Power Fence</option>
+                                    <option value="PPEs">PPEs</option>
+                                    <option value="Nurse Calling System">Nurse Calling System</option>
+                                    <option value="EPABX System">EPABX System</option>
+                                    <option value="Gate">Gate</option>
+                                    <option value="Services">Services</option>
+                                    <option value="Fire Hydrant System">Fire Hydrant System</option>
+                                    <option value="Security System">Security System</option>
+                                    <option value="CCC">CCC</option>
+                                    <option value="Gate Frisking System">Gate Frisking System</option>
+                                    <option value="MSV">MSV</option>
+                                    <option value="Bell">Bell</option>
+                                    <option value="Display">Display</option>
+                                    <option value="Tracking">Tracking</option>
+                                    <option value="BMS">BMS</option>
+                                    <option value="UPS">UPS</option>
+                                    <option value="Projector">Projector</option>
+                                    <option value="Sensor">Sensor</option>
+                                    <option value="Tower">Tower</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                                <input type="text" id="product_category_other" placeholder="Please specify product category" style="display: none; margin-top: 6px;">
                             </div>
                             <div class="form-group">
                                 <label>Item Name <span class="required-star">*</span></label>
@@ -2129,6 +2168,6 @@
     </div>
 
     <script src="/shared/js/workspace-dashboard.js"></script>
-    <script src="/admin/script.js?v=3.1"></script>
+    <script src="/admin/script.js?v=3.4"></script>
 </body>
 </html>

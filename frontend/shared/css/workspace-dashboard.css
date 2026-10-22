@@ -24,11 +24,11 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 3px 10px;
+    padding: 4px 12px;
     background: #e0f2fe;
     color: #0369a1;
     border-radius: 999px;
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.02em;
     width: fit-content;
@@ -50,7 +50,7 @@
 }
 
 .wd-main-title {
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 800;
     color: #0f172a;
     letter-spacing: -0.025em;
@@ -58,7 +58,7 @@
 }
 
 .wd-subtitle {
-    font-size: 13.5px;
+    font-size: 14.5px;
     color: #64748b;
     margin: 0;
     font-weight: 400;
@@ -83,7 +83,7 @@
 }
 
 .wd-filter-label {
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 700;
     color: #64748b;
     text-transform: uppercase;
@@ -106,7 +106,7 @@
     border: none;
     outline: none;
     background: transparent;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: #0f172a;
     cursor: pointer;
@@ -120,11 +120,11 @@
 .wd-refresh-btn, .wd-action-btn {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    font-size: 13px;
+    gap: 8px;
+    font-size: 14px;
     font-weight: 600;
     border-radius: 9px;
-    padding: 8px 16px;
+    padding: 9px 18px;
     cursor: pointer;
     transition: all 0.18s ease;
 }
@@ -198,9 +198,9 @@
 }
 
 .pipeline-icon-circle {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -208,8 +208,8 @@
 }
 
 .pipeline-icon-circle svg {
-    width: 15px;
-    height: 15px;
+    width: 17px;
+    height: 17px;
 }
 
 .pipeline-metric-block {
@@ -218,7 +218,7 @@
 }
 
 .pipeline-metric-block strong {
-    font-size: 24px;
+    font-size: 27px;
     font-weight: 800;
     color: #0f172a;
     line-height: 1.1;
@@ -227,14 +227,14 @@
 }
 
 .pipeline-title {
-    font-size: 12px;
+    font-size: 13.5px;
     font-weight: 700;
     color: #1e293b;
-    line-height: 1.2;
+    line-height: 1.25;
 }
 
 .pipeline-desc {
-    font-size: 10.5px;
+    font-size: 12px;
     color: #64748b;
     font-weight: 500;
     margin-top: 2px;
@@ -332,12 +332,12 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 18px;
+    padding: 11px 20px;
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
     color: #64748b;
-    font-size: 13.5px;
+    font-size: 14.5px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -359,9 +359,9 @@
 
 .wd-tab-count {
     display: inline-block;
-    padding: 2px 7px;
+    padding: 3px 8px;
     border-radius: 12px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     background: #f1f5f9;
     color: #475569;
@@ -420,7 +420,7 @@
     outline: none;
     background: transparent;
     width: 100%;
-    font-size: 13px;
+    font-size: 14px;
     color: #0f172a;
 }
 
@@ -432,12 +432,12 @@
 }
 
 .wd-filter-pill {
-    padding: 6px 12px;
+    padding: 7px 14px;
     border: 1px solid #e2e8f0;
     background: #ffffff;
     color: #64748b;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.15s ease;
@@ -471,21 +471,22 @@
 .wd-table th {
     background: #f8fafc;
     color: #475569;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
-    padding: 12px 16px;
+    letter-spacing: 0.04em;
+    padding: 13px 18px;
     border-bottom: 1px solid #e2e8f0;
     white-space: nowrap;
 }
 
 .wd-table td {
-    padding: 13px 16px;
+    padding: 14px 18px;
     border-bottom: 1px solid #f1f5f9;
-    font-size: 13px;
+    font-size: 14px;
     color: #1e293b;
     vertical-align: middle;
+    line-height: 1.45;
 }
 
 .wd-table tr:hover td {
@@ -495,22 +496,22 @@
 .user-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 8px;
+    gap: 7px;
+    padding: 4px 10px;
     background: #f1f5f9;
     color: #334155;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
 }
 
 .user-avatar-tiny {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     background: #0B57A4;
     color: #ffffff;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     display: inline-flex;
     align-items: center;
@@ -520,10 +521,10 @@
 .status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 3px 9px;
+    gap: 5px;
+    padding: 4px 11px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.02em;
     text-transform: uppercase;

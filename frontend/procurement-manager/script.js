@@ -6,6 +6,8 @@ const excelButton         = document.getElementById("excelButton");
 const manualSection       = document.getElementById("manualSection");
 const excelSection        = document.getElementById("excelSection");
 const manualForm          = document.getElementById("manualForm");
+const productCategorySelect   = document.getElementById("product_category");
+const productCategoryOther    = document.getElementById("product_category_other");
 const qtyInput            = document.getElementById("qty");
 const salesRateInput      = document.getElementById("sales_rate");
 const taxableValueInput   = document.getElementById("taxable_value");
@@ -378,6 +380,32 @@ excelButton.addEventListener("click", () => {
     showMessage("");
 });
 
+// ─── Product Category 'Other' Toggle ───────────────────────────────────────────
+
+productCategorySelect?.addEventListener("change", () => {
+    if (productCategorySelect.value === "Other") {
+        if (productCategoryOther) {
+            productCategoryOther.style.display = "block";
+            productCategoryOther.required = true;
+            productCategoryOther.focus();
+        }
+    } else {
+        if (productCategoryOther) {
+            productCategoryOther.style.display = "none";
+            productCategoryOther.required = false;
+            productCategoryOther.value = "";
+        }
+    }
+});
+
+manualForm?.addEventListener("reset", () => {
+    if (productCategoryOther) {
+        productCategoryOther.style.display = "none";
+        productCategoryOther.required = false;
+        productCategoryOther.value = "";
+    }
+});
+
 // ─── PR Manual Form Submit ─────────────────────────────────────────────────────
 
 manualForm.addEventListener("submit", async event => {
@@ -388,7 +416,7 @@ manualForm.addEventListener("submit", async event => {
         party_name:       document.getElementById("party_name").value,
         location:         document.getElementById("location").value,
         territory:        document.getElementById("territory").value,
-        product_category: document.getElementById("product_category").value,
+        product_category: (productCategorySelect?.value === "Other" ? (productCategoryOther?.value || "").trim() : (productCategorySelect?.value || "").trim()),
         item_name:        document.getElementById("item_name").value,
         product_remarks:  document.getElementById("product_remarks").value,
         make:             document.getElementById("make").value,
@@ -1504,11 +1532,33 @@ function renderVendorInquiries(inquiries) {
             <div class="add-vendor-form" id="addVendorForm-${id}" style="display:none">
                 <h3>Add Vendor Quotation</h3>
 
-                <div class="form-group">
+                                <div class="form-group vendor-search-form-group">
                     <label>Vendor</label>
-                    <select class="vendor-select" required>
-                        <option value="">Select</option>
-                    </select>
+                    <div class="vendor-search-wrap" id="vendorSearchWrap-${id}">
+                        <div class="vendor-search-input-box">
+                            <svg class="vendor-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <input
+                                type="text"
+                                class="vendor-search-input"
+                                placeholder="Type vendor name or code to search..."
+                                autocomplete="off"
+                            >
+                            <button type="button" class="vendor-search-clear-btn" title="Clear selection" style="display:none;">✕</button>
+                            <button type="button" class="vendor-search-toggle-btn" title="Show all registered vendors">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                        <input type="hidden" class="vendor-id-input" value="">
+                        <select class="vendor-select" style="display:none;" required>
+                            <option value="">Select Vendor</option>
+                        </select>
+                        <div class="vendor-search-dropdown hidden"></div>
+                    </div>
                 </div>
 
                 <div style="display:flex;gap:16px;align-items:flex-end;">
@@ -1638,7 +1688,14 @@ vendorInquiryList.addEventListener("click", async event => {
     const cancelBtn = event.target.closest(".cancel-vendor-btn");
     if (cancelBtn) {
         const inquiryId = cancelBtn.dataset.inquiryId;
-        document.getElementById(`addVendorForm-${inquiryId}`).style.display = "none";
+        const f = document.getElementById(`addVendorForm-${inquiryId}`);
+        if (f) {
+            f.style.display = "none";
+            const dd = f.querySelector(".vendor-search-dropdown");
+            const w = f.querySelector(".vendor-search-wrap");
+            if (dd) dd.classList.add("hidden");
+            if (w) w.classList.remove("open");
+        }
         return;
     }
 
@@ -1649,11 +1706,247 @@ vendorInquiryList.addEventListener("click", async event => {
     }
 });
 
+
+// ─── Vendor Inquiries: Searchable Vendor Combobox Helper ───────────────────────
+
+function escapeVendorRegex(str) {
+    return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightVendorMatch(text, query) {
+    if (!text) return "";
+    const escaped = escapeHtml(String(text));
+    const q = (query || "").trim();
+    if (!q) return escaped;
+    try {
+        const qEsc = escapeVendorRegex(q);
+        return escaped.replace(new RegExp(`(${qEsc})`, "gi"), '<mark class="vendor-search-mark">$1</mark>');
+    } catch {
+        return escaped;
+    }
+}
+
+function setupVendorSearch(form) {
+    if (!form || form.dataset.vendorSearchWired === "1") return;
+    form.dataset.vendorSearchWired = "1";
+
+    const wrap      = form.querySelector(".vendor-search-wrap");
+    const input     = form.querySelector(".vendor-search-input");
+    const clearBtn  = form.querySelector(".vendor-search-clear-btn");
+    const toggleBtn = form.querySelector(".vendor-search-toggle-btn");
+    const dropdown  = form.querySelector(".vendor-search-dropdown");
+    const idInput   = form.querySelector(".vendor-id-input");
+    const select    = form.querySelector(".vendor-select");
+    if (!wrap || !input || !dropdown) return;
+
+    let activeIndex = -1;
+
+    function renderList(query = "") {
+        const vendors = form._registeredVendors || [];
+        const q = (query || "").trim().toLowerCase();
+
+        const filtered = q
+            ? vendors.filter(v => {
+                const name = (v.vendor_name || "").toLowerCase();
+                const code = (v.vendor_code || "").toLowerCase();
+                const gst  = (v.gst_number || "").toLowerCase();
+                return name.includes(q) || code.includes(q) || gst.includes(q);
+            })
+            : vendors;
+
+        if (!filtered.length) {
+            dropdown.innerHTML = `<div class="vendor-search-empty">No registered vendors found${q ? ` for "<strong>${escapeHtml(query)}</strong>"` : ""}</div>`;
+            dropdown.classList.remove("hidden");
+            wrap.classList.add("open");
+            activeIndex = -1;
+            return;
+        }
+
+        const currentId = idInput?.value || select?.value || "";
+
+        dropdown.innerHTML = filtered.map((v, idx) => {
+            const isSelected = String(v.vendor_id) === String(currentId);
+            const codeStr = v.vendor_code ? ` (${v.vendor_code})` : "";
+            const fullLabel = `${v.vendor_name}${codeStr}`;
+            return `
+                <div class="vendor-search-item ${isSelected ? "selected" : ""}"
+                     data-id="${v.vendor_id}"
+                     data-name="${escapeHtml(v.vendor_name)}"
+                     data-code="${escapeHtml(v.vendor_code || "")}"
+                     data-index="${idx}">
+                    <span class="vendor-search-item-name">${highlightVendorMatch(fullLabel, q)}</span>
+                    ${isSelected ? `<span class="vendor-search-check">✓</span>` : ""}
+                </div>
+            `;
+        }).join("");
+
+        dropdown.classList.remove("hidden");
+        wrap.classList.add("open");
+        activeIndex = -1;
+    }
+
+    function selectVendorObj(vendor) {
+        if (!vendor) {
+            input.value = "";
+            if (idInput) idInput.value = "";
+            if (select) select.value = "";
+            clearBtn.style.display = "none";
+            dropdown.classList.add("hidden");
+            wrap.classList.remove("open");
+            return;
+        }
+
+        const codeStr = vendor.vendor_code ? ` (${vendor.vendor_code})` : "";
+        input.value = `${vendor.vendor_name}${codeStr}`;
+        if (idInput) idInput.value = String(vendor.vendor_id);
+        if (select) {
+            select.value = String(vendor.vendor_id);
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        clearBtn.style.display = "";
+        dropdown.classList.add("hidden");
+        wrap.classList.remove("open");
+
+        const msgEl = form.querySelector(".vendor-form-message");
+        if (msgEl && msgEl.textContent.includes("select a vendor")) {
+            msgEl.textContent = "";
+        }
+    }
+
+    // Input typing
+    input.addEventListener("input", () => {
+        clearBtn.style.display = input.value ? "" : "none";
+        if (idInput) idInput.value = "";
+        if (select) select.value = "";
+        renderList(input.value);
+    });
+
+    // Input focus - show dropdown
+    input.addEventListener("focus", () => {
+        renderList(input.value);
+    });
+
+    // Input click - if closed, open it
+    input.addEventListener("click", () => {
+        if (dropdown.classList.contains("hidden")) {
+            renderList(input.value);
+        }
+    });
+
+    // Toggle button (chevron)
+    toggleBtn?.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (dropdown.classList.contains("hidden")) {
+            input.focus();
+            renderList("");
+        } else {
+            dropdown.classList.add("hidden");
+            wrap.classList.remove("open");
+        }
+    });
+
+    // Clear button
+    clearBtn?.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectVendorObj(null);
+        input.focus();
+        renderList("");
+    });
+
+    // Keyboard navigation
+    input.addEventListener("keydown", e => {
+        const items = dropdown.querySelectorAll(".vendor-search-item");
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (dropdown.classList.contains("hidden")) {
+                renderList(input.value);
+                return;
+            }
+            if (items.length > 0) {
+                activeIndex = (activeIndex + 1) % items.length;
+                updateActiveItem(items);
+            }
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (items.length > 0) {
+                activeIndex = (activeIndex - 1 + items.length) % items.length;
+                updateActiveItem(items);
+            }
+        } else if (e.key === "Enter") {
+            if (!dropdown.classList.contains("hidden") && items.length > 0) {
+                e.preventDefault();
+                const target = activeIndex >= 0 ? items[activeIndex] : items[0];
+                if (target) {
+                    const id = target.dataset.id;
+                    const vendor = (form._registeredVendors || []).find(v => String(v.vendor_id) === String(id));
+                    if (vendor) selectVendorObj(vendor);
+                }
+            }
+        } else if (e.key === "Escape") {
+            dropdown.classList.add("hidden");
+            wrap.classList.remove("open");
+        }
+    });
+
+    function updateActiveItem(items) {
+        items.forEach((it, idx) => {
+            if (idx === activeIndex) {
+                it.classList.add("highlighted");
+                it.scrollIntoView({ block: "nearest" });
+            } else {
+                it.classList.remove("highlighted");
+            }
+        });
+    }
+
+    // Item click
+    dropdown.addEventListener("click", e => {
+        const item = e.target.closest(".vendor-search-item");
+        if (!item) return;
+        const id = item.dataset.id;
+        const vendor = (form._registeredVendors || []).find(v => String(v.vendor_id) === String(id));
+        if (vendor) {
+            selectVendorObj(vendor);
+        }
+    });
+
+    // Close on outside click
+    document.addEventListener("click", e => {
+        if (!wrap.contains(e.target)) {
+            dropdown.classList.add("hidden");
+            wrap.classList.remove("open");
+
+            if (input.value.trim() && (!idInput?.value || !select?.value)) {
+                const q = input.value.trim().toLowerCase();
+                const exact = (form._registeredVendors || []).find(v => 
+                    (v.vendor_name || "").toLowerCase() === q ||
+                    `${v.vendor_name} (${v.vendor_code})`.toLowerCase() === q ||
+                    (v.vendor_code && v.vendor_code.toLowerCase() === q)
+                );
+                if (exact) {
+                    selectVendorObj(exact);
+                }
+            }
+        }
+    });
+}
+
 // ─── Vendor Inquiries: Populate Vendor Dropdown ────────────────────────────────
 
 async function loadVendorsIntoDropdown(selectElement, excludeIds = []) {
-    const previous = selectElement.value;
+    const form = selectElement.closest(".add-vendor-form");
+    const previous = form?.querySelector(".vendor-id-input")?.value || selectElement.value;
     selectElement.innerHTML = '<option value="">Loading vendors...</option>';
+
+    if (form) {
+        setupVendorSearch(form);
+        const searchInput = form.querySelector(".vendor-search-input");
+        if (searchInput && !previous) {
+            searchInput.placeholder = "Loading registered vendors...";
+        }
+    }
 
     try {
         const response = await apiFetch("/vendors");
@@ -1666,10 +1959,22 @@ async function loadVendorsIntoDropdown(selectElement, excludeIds = []) {
 
         const vendors = (result.vendors || [])
             .filter(v => !excludeIds.includes(String(v.vendor_id)))
-            .sort((a, b) => a.vendor_id - b.vendor_id);
+            .sort((a, b) => (a.vendor_name || "").localeCompare(b.vendor_name || ""));
+
+        if (form) {
+            form._registeredVendors = vendors;
+            const searchInput = form.querySelector(".vendor-search-input");
+            if (searchInput) {
+                searchInput.placeholder = "Type vendor name or code to search...";
+            }
+        }
 
         if (!vendors.length) {
             selectElement.innerHTML = '<option value="">No eligible vendors available</option>';
+            if (form) {
+                const searchInput = form.querySelector(".vendor-search-input");
+                if (searchInput) searchInput.placeholder = "No eligible vendors available";
+            }
             return;
         }
 
@@ -1682,12 +1987,27 @@ async function loadVendorsIntoDropdown(selectElement, excludeIds = []) {
             selectElement.appendChild(option);
         });
 
-        if (previous && vendors.some(v => String(v.vendor_id) === previous)) {
-            selectElement.value = previous;
+        if (previous) {
+            const matched = vendors.find(v => String(v.vendor_id) === String(previous));
+            if (matched) {
+                selectElement.value = previous;
+                if (form) {
+                    const searchInput = form.querySelector(".vendor-search-input");
+                    const idInput = form.querySelector(".vendor-id-input");
+                    const clearBtn = form.querySelector(".vendor-search-clear-btn");
+                    if (idInput) idInput.value = String(matched.vendor_id);
+                    if (searchInput) searchInput.value = `${matched.vendor_name}${matched.vendor_code ? ` (${matched.vendor_code})` : ""}`;
+                    if (clearBtn) clearBtn.style.display = "";
+                }
+            }
         }
 
     } catch {
         selectElement.innerHTML = '<option value="">Failed to load vendors</option>';
+        if (form) {
+            const searchInput = form.querySelector(".vendor-search-input");
+            if (searchInput) searchInput.placeholder = "Failed to load vendors";
+        }
     }
 }
 
@@ -1696,6 +2016,8 @@ async function loadVendorsIntoDropdown(selectElement, excludeIds = []) {
 async function saveVendorForInquiry(inquiryId) {
     const form             = document.getElementById(`addVendorForm-${inquiryId}`);
     const select           = form.querySelector(".vendor-select");
+    const vendorIdInput    = form.querySelector(".vendor-id-input");
+    const searchInput      = form.querySelector(".vendor-search-input");
     const priceEl          = form.querySelector(".vendor-price");
     const deliveryDateEl   = form.querySelector(".vendor-delivery-date");
     const advancePctEl     = form.querySelector(".vendor-advance-pct");
@@ -1705,8 +2027,8 @@ async function saveVendorForInquiry(inquiryId) {
     const msgEl            = form.querySelector(".vendor-form-message");
     const saveBtn          = form.querySelector(".save-vendor-btn");
 
-    const vendorId   = select.value;
-    const vendorName = select.options[select.selectedIndex]?.text || "";
+    const vendorId   = vendorIdInput?.value || select?.value;
+    const vendorName = searchInput?.value || select?.options[select?.selectedIndex]?.text || "";
     const price      = Number(priceEl.value);
     const advancePct = advancePctEl.value !== "" ? Number(advancePctEl.value) : null;
 

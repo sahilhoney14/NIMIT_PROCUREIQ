@@ -9,7 +9,7 @@ const {
     resolveAuthUser 
 } = require("../../services/jwt.service");
 const { SESSION_MAX_AGE } = require("../../config/env");
-const COOKIE_MAX_AGE = SESSION_MAX_AGE || (12 * 60 * 60 * 1000); // 12 hours
+const COOKIE_MAX_AGE = SESSION_MAX_AGE || (6 * 24 * 60 * 60 * 1000); // 6 days
 
 const roleUrls = {
     ADMIN: "/admin",

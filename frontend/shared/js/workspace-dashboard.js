@@ -246,7 +246,7 @@ window.WorkspaceDashboard = (function () {
                     <td>${escapeHtml(pr.party_name)}</td>
                     <td>
                         <div style="font-weight: 600; color: #0f172a;">${escapeHtml(pr.item_name)}</div>
-                        <div style="font-size: 11.5px; color: #64748b;">${escapeHtml(pr.make || "-")} / ${escapeHtml(pr.model || "-")}</div>
+                        <div style="font-size: 12.5px; color: #64748b; margin-top: 2px;">${escapeHtml(pr.make || "-")} / ${escapeHtml(pr.model || "-")}</div>
                     </td>
                     <td>${escapeHtml(pr.qty)} ${escapeHtml(pr.unit || "")}</td>
                     <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatCurrency(pr.taxable_value)}</td>
@@ -323,7 +323,7 @@ window.WorkspaceDashboard = (function () {
                     <td>${escapeHtml(gr.vendor_name)}</td>
                     <td>
                         <div style="font-weight: 600; color: #0f172a;">${escapeHtml(gr.item_name)}</div>
-                        <div style="font-size: 11.5px; color: #64748b;">${escapeHtml(gr.make || "-")} / ${escapeHtml(gr.model || "-")}</div>
+                        <div style="font-size: 12.5px; color: #64748b; margin-top: 2px;">${escapeHtml(gr.make || "-")} / ${escapeHtml(gr.model || "-")}</div>
                     </td>
                     <td><strong style="color: #059669;">+${escapeHtml(gr.received_quantity)}</strong> ${escapeHtml(gr.unit || "")}</td>
                     <td style="text-align: center;">${defHtml}</td>
@@ -356,13 +356,13 @@ window.WorkspaceDashboard = (function () {
                             <span style="font-weight: 700; color: #0f172a;">${escapeHtml(u.username)}</span>
                         </div>
                     </td>
-                    <td><span style="font-size: 12px; font-weight: 600; color: #64748b;">${escapeHtml(roleName)}</span></td>
+                    <td><span style="font-size: 13px; font-weight: 600; color: #64748b;">${escapeHtml(roleName)}</span></td>
                     <td style="text-align: center; font-weight: 700;">${Number(u.pr_count).toLocaleString("en-IN")}</td>
                     <td style="text-align: right; font-weight: 700; color: #0f172a;">${formatCurrency(u.total_pr_value)}</td>
                     <td style="text-align: center; font-weight: 700;">${Number(u.gr_count).toLocaleString("en-IN")}</td>
                     <td style="text-align: center; font-weight: 700; color: #059669;">${Number(u.total_received_qty).toLocaleString("en-IN")}</td>
                     <td style="text-align: center;">
-                        <button type="button" class="option-button wd-filter-user-btn" data-user-id="${u.user_id}" style="padding: 4px 10px; font-size: 12px;">
+                        <button type="button" class="option-button wd-filter-user-btn" data-user-id="${u.user_id}" style="padding: 5px 12px; font-size: 13px;">
                             View Activity
                         </button>
                     </td>
