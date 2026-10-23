@@ -1,44 +1,278 @@
-.primary-button {
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: var(--radius-md);
-    padding: 8px 16px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.15s ease-in-out;
+/**
+ * ProcureIQ Reusable UI Component Library
+ * Core modular classes for cards, filter bars, search boxes, badges, buttons, and tables.
+ */
+
+/* ─── 1. Filter Bars & Toolbars ──────────────────────────────── */
+.c-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 14px 18px;
+    margin-bottom: var(--space-3);
+    box-shadow: var(--shadow-xs);
 }
 
-.primary-button:hover {
+.c-filter-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+/* ─── 2. Search Inputs & Boxes ───────────────────────────────── */
+.c-search-box {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-width: 260px;
+}
+
+.c-search-box svg {
+    position: absolute;
+    left: 12px;
+    color: var(--text-muted);
+    pointer-events: none;
+    width: 16px;
+    height: 16px;
+}
+
+.c-search-input {
+    width: 100%;
+    padding: 9px 14px 9px 36px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    color: var(--text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.c-search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-focus);
+}
+
+/* ─── 3. Badges & Counter Pills ──────────────────────────────── */
+.c-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: var(--radius-full);
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.c-badge-counter {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    background: var(--primary-50);
+    color: var(--primary-800);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-full);
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: var(--shadow-xs);
+}
+
+.c-badge-blue {
+    background: var(--primary-50);
+    color: var(--primary-700);
+    border-color: var(--primary-200);
+}
+
+.c-badge-green {
+    background: var(--success-bg);
+    color: var(--success-text);
+    border-color: var(--success-border);
+}
+
+.c-badge-amber {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    border-color: var(--warning-border);
+}
+
+.c-badge-red {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+    border-color: var(--danger-border);
+}
+
+.c-badge-slate {
+    background: var(--slate-100);
+    color: var(--slate-700);
+    border-color: var(--slate-200);
+}
+
+/* ─── 4. Buttons ─────────────────────────────────────────────── */
+.c-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.25;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.c-btn:active {
+    transform: translateY(1px);
+}
+
+.c-btn-sm {
+    padding: 6px 12px;
+    font-size: 12.5px;
+    border-radius: var(--radius-sm);
+}
+
+.c-btn-primary {
+    background-color: var(--primary-color);
+    color: var(--text-inverse);
+    border-color: transparent;
+}
+
+.c-btn-primary:hover {
     background-color: var(--primary-hover);
 }
 
-.secondary-button {
-    background-color: transparent;
+.c-btn-secondary {
+    background-color: var(--bg-card);
     color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 8px 16px;
-    font-weight: 500;
-    cursor: pointer;
+    border-color: var(--border-color);
 }
 
-.card {
+.c-btn-secondary:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--border-strong);
+}
+
+.c-btn-danger {
+    background-color: var(--danger-color);
+    color: var(--text-inverse);
+}
+
+.c-btn-danger:hover {
+    background-color: var(--danger-hover);
+}
+
+.c-btn-outline {
+    background: transparent;
+    color: var(--primary-color);
+    border-color: var(--primary-border);
+}
+
+.c-btn-outline:hover {
+    background: var(--primary-50);
+}
+
+/* ─── 5. Cards & Containers ──────────────────────────────────── */
+.c-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
     padding: 20px;
+    margin-bottom: var(--space-4);
 }
 
-.logo h2 {
-    font-size: 22px;
-    font-weight: 800;
-    color: #0f172a;
-    letter-spacing: -0.03em;
+.c-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 16px;
 }
 
-.logo h2 span {
-    color: #0B57A4;
-    font-weight: 800;
+.c-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* ─── 6. Tables ──────────────────────────────────────────────── */
+.c-table-container {
+    width: 100%;
+    overflow-x: auto;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+}
+
+.c-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    text-align: left;
+}
+
+.c-table th {
+    background: var(--slate-50);
+    color: var(--text-secondary);
+    font-weight: 700;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.c-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+}
+
+.c-table tbody tr:hover {
+    background: var(--bg-hover);
+}
+
+/* ─── 7. Form Controls ───────────────────────────────────────── */
+.c-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.c-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.c-input,
+.c-select {
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 13.5px;
+    color: var(--text-primary);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.c-input:focus,
+.c-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-focus);
 }

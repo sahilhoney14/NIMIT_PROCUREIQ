@@ -2,7 +2,7 @@ const { logDb } = require("../config/db");
 const { log } = require("../utils/logger");
 
 async function getActor(req) {
-    return req.session?.user?.username || "SYSTEM";
+    return req.user?.username || req.session?.user?.username || "SYSTEM";
 }
 
 async function writeReportLog(req, action, report) {

@@ -1,24 +1,122 @@
+/**
+ * ProcureIQ Enterprise Design Tokens & Theme Variables
+ * Shared across Admin and Procurement portals.
+ */
+
 :root {
-    --primary-color: #0B57A4;
-    --primary-hover: #084482;
-    --primary-light: #e8f0fe;
-    --bg-main: #f8fafc;
+    /* Brand & Primary Palette */
+    --primary-50: #eff6ff;
+    --primary-100: #dbeafe;
+    --primary-200: #bfdbfe;
+    --primary-300: #93c5fd;
+    --primary-400: #60a5fa;
+    --primary-500: #3b82f6;
+    --primary-600: #0B57A4; /* Core ProcureIQ Brand Blue */
+    --primary-700: #084482;
+    --primary-800: #1e40af;
+    --primary-900: #1e3a8a;
+
+    --primary-color: var(--primary-600);
+    --primary-hover: var(--primary-700);
+    --primary-light: var(--primary-50);
+    --primary-border: var(--primary-200);
+
+    /* Neutral Slate Scale */
+    --slate-50: #f8fafc;
+    --slate-100: #f1f5f9;
+    --slate-200: #e2e8f0;
+    --slate-300: #cbd5e1;
+    --slate-400: #94a3b8;
+    --slate-500: #64748b;
+    --slate-600: #475569;
+    --slate-700: #334155;
+    --slate-800: #1e293b;
+    --slate-900: #0f172a;
+
+    /* Surfaces & Layout Backgrounds */
+    --bg-main: var(--slate-50);
     --bg-card: #ffffff;
-    --text-primary: #1e293b;
-    --text-secondary: #64748b;
-    --text-muted: #94a3b8;
-    --border-color: #e2e8f0;
-    --border-focus: #0B57A4;
+    --bg-hover: var(--slate-100);
+    --bg-subtle: #f8fafc;
+    --bg-backdrop: rgba(15, 23, 42, 0.45);
+
+    /* Typography & Content Colors */
+    --text-primary: var(--slate-900);
+    --text-secondary: var(--slate-600);
+    --text-muted: var(--slate-400);
+    --text-inverse: #ffffff;
+
+    /* Border Colors */
+    --border-color: var(--slate-200);
+    --border-subtle: var(--slate-100);
+    --border-strong: var(--slate-300);
+    --border-focus: var(--primary-600);
+
+    /* Semantic States (Success, Warning, Danger, Info) */
     --success-color: #10b981;
+    --success-hover: #059669;
     --success-bg: #ecfdf5;
+    --success-border: #a7f3d0;
+    --success-text: #065f46;
+
     --warning-color: #f59e0b;
+    --warning-hover: #d97706;
     --warning-bg: #fffbeb;
+    --warning-border: #fde68a;
+    --warning-text: #92400e;
+
     --danger-color: #ef4444;
+    --danger-hover: #dc2626;
     --danger-bg: #fef2f2;
-    --radius-sm: 4px;
+    --danger-border: #fecaca;
+    --danger-text: #991b1b;
+
+    --info-color: #0284c7;
+    --info-hover: #0369a1;
+    --info-bg: #f0f9ff;
+    --info-border: #bae6fd;
+    --info-text: #075985;
+
+    /* Radii */
+    --radius-xs: 4px;
+    --radius-sm: 6px;
     --radius-md: 8px;
     --radius-lg: 12px;
-    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    /* Shadows */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    --shadow-focus: 0 0 0 3px rgba(11, 87, 164, 0.18);
+
+    /* Spacing Units */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+
+    /* Typography */
+    --font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+    /* Transitions */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Z-Index Hierarchy */
+    --z-base: 1;
+    --z-sticky: 100;
+    --z-dropdown: 500;
+    --z-backdrop: 900;
+    --z-modal: 1000;
+    --z-toast: 1100;
 }

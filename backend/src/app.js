@@ -1,7 +1,4 @@
 const path = require("path");
-require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
-require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
-require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const cookieParser = require("cookie-parser");
@@ -2014,11 +2011,17 @@ app.get("/order-tracking", verifyProcurement, async (req, res) => {
         }
 
         if (fromDate) {
+            if (!isRealDate(fromDate)) {
+                return res.status(400).json({ success: false, message: "Invalid from_date format (YYYY-MM-DD required)" });
+            }
             whereClauses.push("COALESCE(pr_date, DATE(created_at)) >= ?");
             params.push(fromDate);
         }
 
         if (toDate) {
+            if (!isRealDate(toDate)) {
+                return res.status(400).json({ success: false, message: "Invalid to_date format (YYYY-MM-DD required)" });
+            }
             whereClauses.push("COALESCE(pr_date, DATE(created_at)) <= ?");
             params.push(toDate);
         }
@@ -2196,11 +2199,17 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         }
 
         if (fromDate) {
+            if (!isRealDate(fromDate)) {
+                return res.status(400).json({ success: false, message: "Invalid from_date format (YYYY-MM-DD required)" });
+            }
             whereClauses.push("COALESCE(pr_date, DATE(created_at)) >= ?");
             params.push(fromDate);
         }
 
         if (toDate) {
+            if (!isRealDate(toDate)) {
+                return res.status(400).json({ success: false, message: "Invalid to_date format (YYYY-MM-DD required)" });
+            }
             whereClauses.push("COALESCE(pr_date, DATE(created_at)) <= ?");
             params.push(toDate);
         }
@@ -4640,11 +4649,17 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
         }
 
         if (fromDate) {
+            if (!isRealDate(fromDate)) {
+                return res.status(400).json({ success: false, message: "Invalid from_date format (YYYY-MM-DD required)" });
+            }
             whereClauses.push("COALESCE(po.po_date, DATE(po.created_at)) >= ?");
             params.push(fromDate);
         }
 
         if (toDate) {
+            if (!isRealDate(toDate)) {
+                return res.status(400).json({ success: false, message: "Invalid to_date format (YYYY-MM-DD required)" });
+            }
             whereClauses.push("COALESCE(po.po_date, DATE(po.created_at)) <= ?");
             params.push(toDate);
         }
