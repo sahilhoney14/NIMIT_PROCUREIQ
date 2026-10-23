@@ -5032,6 +5032,9 @@ async function completePO(poId, btn) {
 // ─── Vendor Performance ────────────────────────────────────────────────────────
 
 let allVendorPerformance = [];
+let vpFilteredVendors    = [];
+let vpCurrentPage        = 1;
+const VP_PAGE_SIZE       = 10;
 let vpFiltersInitialized = false;
 
 async function loadVendorPerformance() {
@@ -5055,6 +5058,7 @@ async function loadVendorPerformance() {
 
         msg.textContent = "";
         allVendorPerformance = result.vendors || [];
+        vpCurrentPage = 1;
         filterAndRenderVendorPerformance();
 
     } catch {
@@ -5133,16 +5137,47 @@ function filterAndRenderVendorPerformance() {
         }
     });
 
+    vpFilteredVendors = filtered;
+    vpCurrentPage = 1;
+    renderVendorPerformancePage();
+}
+
+function renderVendorPerformancePage() {
+    const totalVendors = vpFilteredVendors.length;
+    const totalPages   = Math.max(1, Math.ceil(totalVendors / VP_PAGE_SIZE));
+
+    if (vpCurrentPage > totalPages) vpCurrentPage = totalPages;
+    if (vpCurrentPage < 1) vpCurrentPage = 1;
+
+    const startIndex  = (vpCurrentPage - 1) * VP_PAGE_SIZE;
+    const endIndex    = Math.min(startIndex + VP_PAGE_SIZE, totalVendors);
+    const pageVendors = vpFilteredVendors.slice(startIndex, endIndex);
+
     const countEl = document.getElementById("vpResultsCount");
     if (countEl) {
-        if (filtered.length === allVendorPerformance.length) {
-            countEl.textContent = `Showing all ${filtered.length} vendor${filtered.length === 1 ? "" : "s"}`;
+        if (totalVendors === 0) {
+            countEl.textContent = "Showing 0 vendors";
+        } else if (totalVendors === allVendorPerformance.length) {
+            countEl.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalVendors} vendors`;
         } else {
-            countEl.textContent = `Showing ${filtered.length} of ${allVendorPerformance.length} vendor${allVendorPerformance.length === 1 ? "" : "s"}`;
+            countEl.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalVendors} vendors (filtered from ${allVendorPerformance.length})`;
         }
     }
 
-    renderVendorPerformance(filtered);
+    const prevBtn            = document.getElementById("vpPrevBtn");
+    const nextBtn            = document.getElementById("vpNextBtn");
+    const pageLabel          = document.getElementById("vpPageLabel");
+    const paginationControls = document.getElementById("vpPaginationControls");
+
+    if (prevBtn) prevBtn.disabled = vpCurrentPage <= 1;
+    if (nextBtn) nextBtn.disabled = vpCurrentPage >= totalPages;
+    if (pageLabel) pageLabel.textContent = `Page ${vpCurrentPage} of ${totalPages}`;
+
+    if (paginationControls) {
+        paginationControls.style.display = totalVendors > 0 ? "flex" : "none";
+    }
+
+    renderVendorPerformance(pageVendors);
 }
 
 function initVendorPerformanceFilters() {
@@ -5154,6 +5189,32 @@ function initVendorPerformanceFilters() {
     const statusSel   = document.getElementById("vpStatusFilter");
     const sortSel     = document.getElementById("vpSortFilter");
     const resetBtn    = document.getElementById("vpResetFiltersBtn");
+    const prevBtn = document.getElementById("vpPrevBtn");
+    const nextBtn = document.getElementById("vpNextBtn");
+
+    prevBtn?.addEventListener("click", () => {
+        if (vpCurrentPage > 1) {
+            vpCurrentPage--;
+            renderVendorPerformancePage();
+            const tableContainer = document.querySelector("#vendorPerformanceList .table-container");
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    });
+
+    nextBtn?.addEventListener("click", () => {
+        const totalPages = Math.max(1, Math.ceil(vpFilteredVendors.length / VP_PAGE_SIZE));
+        if (vpCurrentPage < totalPages) {
+            vpCurrentPage++;
+            renderVendorPerformancePage();
+            const tableContainer = document.querySelector("#vendorPerformanceList .table-container");
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    });
+
 
     if (!searchInput) return;
 
@@ -7792,80 +7853,7 @@ document.getElementById("evResetFiltersBtn")?.addEventListener("click", () => {
     applyVendorFilters();
 });
 
-// Export dropdown toggle & actions
-const evExportDropdown = document.getElementById("evExportDropdown");
-const evExportDropdownBtn = document.getElementById("evExportDropdownBtn");
-const evExportMenu = document.getElementById("evExportMenu");
-
-evExportDropdownBtn?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const isOpen = evExportDropdown?.classList.toggle("open");
-    evExportMenu?.classList.toggle("hidden", !isOpen);
-});
-
-// Close menu when clicking anywhere outside
-document.addEventListener("click", (e) => {
-    if (evExportDropdown && !evExportDropdown.contains(e.target)) {
-        evExportDropdown.classList.remove("open");
-        evExportMenu?.classList.add("hidden");
-    }
-});
-
-async function exportVendorDirectory(format) {
-    evExportDropdown?.classList.remove("open");
-    evExportMenu?.classList.add("hidden");
-
-    const searchInput = document.getElementById("evSearchInput");
-    const roleFilter = document.getElementById("evRoleFilter");
-    const entityFilter = document.getElementById("evEntityFilter");
-
-    const query = (searchInput?.value || "").trim();
-    const role = (roleFilter?.value || "").trim();
-    const entity = (entityFilter?.value || "").trim();
-
-    const params = new URLSearchParams();
-    if (query) params.append("search", query);
-    if (role) params.append("role", role);
-    if (entity) params.append("entity", entity);
-
-    const exportBtn = document.getElementById("evExportDropdownBtn");
-    const originalContent = exportBtn ? exportBtn.innerHTML : "";
-    if (exportBtn) {
-        exportBtn.disabled = true;
-        exportBtn.innerHTML = `<span>Exporting...</span>`;
-    }
-
-    try {
-        const url = `/vendors/export/${format}?${params.toString()}`;
-        const response = await apiFetch(url);
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            alert(err.message || `Failed to export ${format.toUpperCase()} file`);
-            return;
-        }
-
-        const blob = await response.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = downloadUrl;
-        const now = new Date().toISOString().slice(0, 10);
-        a.download = `Vendor_Directory_${now}.${format === "excel" ? "xlsx" : "pdf"}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(downloadUrl);
-    } catch (err) {
-        alert(`Failed to download ${format.toUpperCase()} file: ${err.message}`);
-    } finally {
-        if (exportBtn) {
-            exportBtn.disabled = false;
-            exportBtn.innerHTML = originalContent;
-        }
-    }
-}
-
-document.getElementById("evExportExcelBtn")?.addEventListener("click", () => exportVendorDirectory("excel"));
-document.getElementById("evExportPdfBtn")?.addEventListener("click", () => exportVendorDirectory("pdf"));
+// (Vendor Detail export functionality removed)
 
 document.getElementById("evBackToListBtn")?.addEventListener("click", backToVendorList);
 document.getElementById("closeVendorDetailsModalBtn")?.addEventListener("click", closeVendorDetailsModal);

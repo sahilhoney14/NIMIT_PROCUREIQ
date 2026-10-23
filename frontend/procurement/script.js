@@ -4333,6 +4333,9 @@ vendorPerformanceList.addEventListener("click", async event => {
 });
 
 let allVendorPerformance = [];
+let vpFilteredVendors    = [];
+let vpCurrentPage        = 1;
+const VP_PAGE_SIZE       = 10;
 let vpFiltersInitialized = false;
 
 async function loadVendorPerformance() {
@@ -4356,6 +4359,7 @@ async function loadVendorPerformance() {
 
         msg.textContent = "";
         allVendorPerformance = result.vendors || [];
+        vpCurrentPage = 1;
         filterAndRenderVendorPerformance();
 
     } catch {
@@ -4434,16 +4438,47 @@ function filterAndRenderVendorPerformance() {
         }
     });
 
+    vpFilteredVendors = filtered;
+    vpCurrentPage = 1;
+    renderVendorPerformancePage();
+}
+
+function renderVendorPerformancePage() {
+    const totalVendors = vpFilteredVendors.length;
+    const totalPages   = Math.max(1, Math.ceil(totalVendors / VP_PAGE_SIZE));
+
+    if (vpCurrentPage > totalPages) vpCurrentPage = totalPages;
+    if (vpCurrentPage < 1) vpCurrentPage = 1;
+
+    const startIndex  = (vpCurrentPage - 1) * VP_PAGE_SIZE;
+    const endIndex    = Math.min(startIndex + VP_PAGE_SIZE, totalVendors);
+    const pageVendors = vpFilteredVendors.slice(startIndex, endIndex);
+
     const countEl = document.getElementById("vpResultsCount");
     if (countEl) {
-        if (filtered.length === allVendorPerformance.length) {
-            countEl.textContent = `Showing all ${filtered.length} vendor${filtered.length === 1 ? "" : "s"}`;
+        if (totalVendors === 0) {
+            countEl.textContent = "Showing 0 vendors";
+        } else if (totalVendors === allVendorPerformance.length) {
+            countEl.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalVendors} vendors`;
         } else {
-            countEl.textContent = `Showing ${filtered.length} of ${allVendorPerformance.length} vendor${allVendorPerformance.length === 1 ? "" : "s"}`;
+            countEl.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalVendors} vendors (filtered from ${allVendorPerformance.length})`;
         }
     }
 
-    renderVendorPerformance(filtered);
+    const prevBtn            = document.getElementById("vpPrevBtn");
+    const nextBtn            = document.getElementById("vpNextBtn");
+    const pageLabel          = document.getElementById("vpPageLabel");
+    const paginationControls = document.getElementById("vpPaginationControls");
+
+    if (prevBtn) prevBtn.disabled = vpCurrentPage <= 1;
+    if (nextBtn) nextBtn.disabled = vpCurrentPage >= totalPages;
+    if (pageLabel) pageLabel.textContent = `Page ${vpCurrentPage} of ${totalPages}`;
+
+    if (paginationControls) {
+        paginationControls.style.display = totalVendors > 0 ? "flex" : "none";
+    }
+
+    renderVendorPerformance(pageVendors);
 }
 
 function initVendorPerformanceFilters() {
@@ -4455,6 +4490,32 @@ function initVendorPerformanceFilters() {
     const statusSel   = document.getElementById("vpStatusFilter");
     const sortSel     = document.getElementById("vpSortFilter");
     const resetBtn    = document.getElementById("vpResetFiltersBtn");
+    const prevBtn = document.getElementById("vpPrevBtn");
+    const nextBtn = document.getElementById("vpNextBtn");
+
+    prevBtn?.addEventListener("click", () => {
+        if (vpCurrentPage > 1) {
+            vpCurrentPage--;
+            renderVendorPerformancePage();
+            const tableContainer = document.querySelector("#vendorPerformanceList .table-container");
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    });
+
+    nextBtn?.addEventListener("click", () => {
+        const totalPages = Math.max(1, Math.ceil(vpFilteredVendors.length / VP_PAGE_SIZE));
+        if (vpCurrentPage < totalPages) {
+            vpCurrentPage++;
+            renderVendorPerformancePage();
+            const tableContainer = document.querySelector("#vendorPerformanceList .table-container");
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    });
+
 
     if (!searchInput) return;
 
@@ -4484,6 +4545,8 @@ function initVendorPerformanceFilters() {
 }
 
 function renderVendorPerformance(vendors) {
+    vendorPerformanceList.innerHTML = "";
+
     if (!vendors.length) {
         vendorPerformanceList.innerHTML = `
             <div class="ev-no-results" style="padding: 40px 20px; text-align: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;">

@@ -4247,6 +4247,9 @@ async function completePO(poId, btn) {
 // ─── Vendor Performance ────────────────────────────────────────────────────────
 
 let allVendorPerformance = [];
+let vpFilteredVendors    = [];
+let vpCurrentPage        = 1;
+const VP_PAGE_SIZE       = 10;
 let vpFiltersInitialized = false;
 
 async function loadVendorPerformance() {
@@ -4270,6 +4273,7 @@ async function loadVendorPerformance() {
 
         msg.textContent = "";
         allVendorPerformance = result.vendors || [];
+        vpCurrentPage = 1;
         filterAndRenderVendorPerformance();
 
     } catch {
@@ -4348,16 +4352,47 @@ function filterAndRenderVendorPerformance() {
         }
     });
 
+    vpFilteredVendors = filtered;
+    vpCurrentPage = 1;
+    renderVendorPerformancePage();
+}
+
+function renderVendorPerformancePage() {
+    const totalVendors = vpFilteredVendors.length;
+    const totalPages   = Math.max(1, Math.ceil(totalVendors / VP_PAGE_SIZE));
+
+    if (vpCurrentPage > totalPages) vpCurrentPage = totalPages;
+    if (vpCurrentPage < 1) vpCurrentPage = 1;
+
+    const startIndex  = (vpCurrentPage - 1) * VP_PAGE_SIZE;
+    const endIndex    = Math.min(startIndex + VP_PAGE_SIZE, totalVendors);
+    const pageVendors = vpFilteredVendors.slice(startIndex, endIndex);
+
     const countEl = document.getElementById("vpResultsCount");
     if (countEl) {
-        if (filtered.length === allVendorPerformance.length) {
-            countEl.textContent = `Showing all ${filtered.length} vendor${filtered.length === 1 ? "" : "s"}`;
+        if (totalVendors === 0) {
+            countEl.textContent = "Showing 0 vendors";
+        } else if (totalVendors === allVendorPerformance.length) {
+            countEl.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalVendors} vendors`;
         } else {
-            countEl.textContent = `Showing ${filtered.length} of ${allVendorPerformance.length} vendor${allVendorPerformance.length === 1 ? "" : "s"}`;
+            countEl.textContent = `Showing ${startIndex + 1}–${endIndex} of ${totalVendors} vendors (filtered from ${allVendorPerformance.length})`;
         }
     }
 
-    renderVendorPerformance(filtered);
+    const prevBtn            = document.getElementById("vpPrevBtn");
+    const nextBtn            = document.getElementById("vpNextBtn");
+    const pageLabel          = document.getElementById("vpPageLabel");
+    const paginationControls = document.getElementById("vpPaginationControls");
+
+    if (prevBtn) prevBtn.disabled = vpCurrentPage <= 1;
+    if (nextBtn) nextBtn.disabled = vpCurrentPage >= totalPages;
+    if (pageLabel) pageLabel.textContent = `Page ${vpCurrentPage} of ${totalPages}`;
+
+    if (paginationControls) {
+        paginationControls.style.display = totalVendors > 0 ? "flex" : "none";
+    }
+
+    renderVendorPerformance(pageVendors);
 }
 
 function initVendorPerformanceFilters() {
@@ -4369,6 +4404,32 @@ function initVendorPerformanceFilters() {
     const statusSel   = document.getElementById("vpStatusFilter");
     const sortSel     = document.getElementById("vpSortFilter");
     const resetBtn    = document.getElementById("vpResetFiltersBtn");
+    const prevBtn = document.getElementById("vpPrevBtn");
+    const nextBtn = document.getElementById("vpNextBtn");
+
+    prevBtn?.addEventListener("click", () => {
+        if (vpCurrentPage > 1) {
+            vpCurrentPage--;
+            renderVendorPerformancePage();
+            const tableContainer = document.querySelector("#vendorPerformanceList .table-container");
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    });
+
+    nextBtn?.addEventListener("click", () => {
+        const totalPages = Math.max(1, Math.ceil(vpFilteredVendors.length / VP_PAGE_SIZE));
+        if (vpCurrentPage < totalPages) {
+            vpCurrentPage++;
+            renderVendorPerformancePage();
+            const tableContainer = document.querySelector("#vendorPerformanceList .table-container");
+            if (tableContainer) {
+                tableContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        }
+    });
+
 
     if (!searchInput) return;
 
@@ -4396,6 +4457,89 @@ function initVendorPerformanceFilters() {
         filterAndRenderVendorPerformance();
     });
 }
+
+async function toggleVendorBlacklist(vendorId, vendorName, isBlacklisted, btn) {
+    const action = isBlacklisted ? "unblacklist" : "blacklist";
+    const verb   = isBlacklisted ? "remove this vendor from the blacklist" : "blacklist this vendor";
+
+    const reason = prompt(`Enter a reason to ${verb} (optional):`, "");
+    if (reason === null) return;
+
+    if (!confirm(`Are you sure you want to ${verb}?\n\nVendor: ${vendorName}`)) return;
+
+    if (btn) btn.disabled = true;
+
+    try {
+        const response = await apiFetch(`/vendor-performance/${vendorId}/${action}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reason: reason.trim() || null })
+        });
+        if (!response) return;
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            alert(result.message || `Failed to ${action} vendor.`);
+            if (btn) btn.disabled = false;
+            return;
+        }
+
+        alert(isBlacklisted ? "Vendor removed from blacklist successfully." : "Vendor blacklisted successfully.");
+        await loadVendorPerformance();
+
+    } catch {
+        alert("Failed to connect to procurement service.");
+        if (btn) btn.disabled = false;
+    }
+}
+
+document.getElementById("vendorPerformanceList")?.addEventListener("click", async event => {
+    const list = event.currentTarget;
+
+    const blacklistBtn = event.target.closest(".vp-blacklist-btn");
+    if (blacklistBtn) {
+        const vendorId      = blacklistBtn.dataset.vendorId;
+        const vendorName    = blacklistBtn.dataset.vendorName;
+        const isBlacklisted = blacklistBtn.dataset.blacklisted === "1";
+        await toggleVendorBlacklist(vendorId, vendorName, isBlacklisted, blacklistBtn);
+        return;
+    }
+
+    const btn = event.target.closest(".vp-drill-btn");
+    if (!btn) return;
+
+    const vendorId  = btn.dataset.vendorId;
+    const detailRow = document.getElementById(`vpDetail-${vendorId}`);
+    const content   = document.getElementById(`vpDetailContent-${vendorId}`);
+    const isOpen    = detailRow.style.display !== "none";
+
+    list.querySelectorAll(".vp-detail-row").forEach(r => r.style.display = "none");
+    list.querySelectorAll(".vp-drill-btn").forEach(b => b.textContent = "Details ▾");
+
+    if (isOpen) return;
+
+    btn.textContent         = "Details ▴";
+    detailRow.style.display = "";
+    content.innerHTML       = "Loading...";
+
+    try {
+        const response = await apiFetch(`/vendor-performance/${vendorId}`);
+        if (!response) return;
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            content.innerHTML = escapeHtml(result.message || "Failed to load details");
+            return;
+        }
+
+        renderVendorPerformanceDetail(content, result);
+
+    } catch {
+        content.innerHTML = "Failed to connect to procurement service";
+    }
+});
 
 function renderVendorPerformance(vendors) {
     const list = document.getElementById("vendorPerformanceList");
