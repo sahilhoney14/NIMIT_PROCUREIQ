@@ -152,10 +152,10 @@
     box-shadow: 0 2px 8px rgba(11, 87, 164, 0.25);
 }
 
-/* ── Metrics Grid (6-Card Procurement Pipeline) ── */
+/* ── Metrics Grid (5-Card Procurement Pipeline) ── */
 .wd-metrics-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 12px;
     margin-bottom: 24px;
 }

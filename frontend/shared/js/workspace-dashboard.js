@@ -126,8 +126,8 @@ window.WorkspaceDashboard = (function () {
 
         } else {
             const myName = data.current_user?.username || "My Workspace";
-            if (titleEl) titleEl.textContent = "My Workspace Dashboard";
-            if (subtitleEl) subtitleEl.textContent = `Welcome, ${myName}! Review and manage your purchase requests and goods received.`;
+            if (titleEl) titleEl.textContent = "Company Workspace Dashboard";
+            if (subtitleEl) subtitleEl.textContent = "Overview of company-wide purchase requests and goods received activity";
 
             if (backToTeamBtn) backToTeamBtn.classList.add("hidden");
             if (resetFilterBtn) resetFilterBtn.classList.add("hidden");
@@ -135,8 +135,8 @@ window.WorkspaceDashboard = (function () {
             if (teamTabBtn) teamTabBtn.classList.add("hidden");
             if (newPrBtn) newPrBtn.classList.remove("hidden");
 
-            if (thPrCreator) thPrCreator.classList.add("hidden");
-            if (thGrReceiver) thGrReceiver.classList.add("hidden");
+            if (thPrCreator) thPrCreator.classList.remove("hidden");
+            if (thGrReceiver) thGrReceiver.classList.remove("hidden");
         }
 
         // Metrics - 6-Card Procurement Pipeline
@@ -146,12 +146,13 @@ window.WorkspaceDashboard = (function () {
             if (el) el.textContent = val;
         };
 
+        const totalValidPos = (Number(m.draft_pos || 0) + Number(m.issued_pos || 0) + Number(m.completed_pos || 0));
+
         setText("wdTotalPrs", Number(m.total_prs || 0).toLocaleString("en-IN"));
-        setText("wdTotalPos", Number(m.total_pos || 0).toLocaleString("en-IN"));
+        setText("wdTotalPos", (m.total_pos !== undefined && Number(m.total_pos) <= totalValidPos ? Number(m.total_pos) : totalValidPos).toLocaleString("en-IN"));
         setText("wdDraftPos", Number(m.draft_pos || 0).toLocaleString("en-IN"));
         setText("wdIssuedPos", Number(m.issued_pos || 0).toLocaleString("en-IN"));
         setText("wdCompletedPos", Number(m.completed_pos || 0).toLocaleString("en-IN"));
-        setText("wdCancelledPos", Number(m.cancelled_pos || 0).toLocaleString("en-IN"));
 
         // Fallback elements if present
         if (document.getElementById("wdTotalPrValue")) {
@@ -229,14 +230,14 @@ window.WorkspaceDashboard = (function () {
         }
 
         tbody.innerHTML = filtered.map(pr => {
-            const creatorHtml = isAdmin ? `
+            const creatorHtml = `
                 <td>
                     <span class="user-pill">
                         <span class="user-avatar-tiny">${(pr.creator_username || "U")[0].toUpperCase()}</span>
                         <span>${escapeHtml(pr.creator_username || "Unknown")}</span>
                     </span>
                 </td>
-            ` : "";
+            `;
 
             return `
                 <tr>

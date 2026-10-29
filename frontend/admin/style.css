@@ -3790,11 +3790,13 @@ td input.taxable-input {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
-    padding: 16px 14px;
+    padding: 20px 14px;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
-    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 110px;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
     transition: all 0.2s ease;
 }
@@ -3806,46 +3808,45 @@ td input.taxable-input {
 }
 
 .pipeline-icon-circle {
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.pipeline-icon-circle svg {
-    width: 15px;
-    height: 15px;
+    display: none !important;
 }
 
 .pipeline-metric-block {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
 }
 
 .pipeline-metric-block strong {
-    font-size: 24px;
+    font-size: 28px;
     font-weight: 800;
     color: #0f172a;
     line-height: 1.1;
-    margin-bottom: 3px;
+    margin-bottom: 6px;
     font-variant-numeric: tabular-nums;
+    text-align: center;
+    display: block;
 }
 
 .pipeline-title {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     color: #1e293b;
     line-height: 1.2;
+    text-align: center;
+    display: block;
 }
 
 .pipeline-desc {
-    font-size: 10.5px;
+    font-size: 11px;
     color: #64748b;
     font-weight: 500;
-    margin-top: 2px;
+    margin-top: 3px;
+    text-align: center;
+    display: block;
 }
 
 /* Pipeline Subtle Backgrounds */

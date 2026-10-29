@@ -1496,7 +1496,7 @@ app.get(["/workspace/dashboard", "/api/workspace/dashboard"], verifyProcurement,
 
         const [poMetricsRows] = await db.execute(
             `SELECT 
-                COUNT(po.po_id) AS total_pos,
+                COALESCE(SUM(po.status != 'CANCELLED'), 0) AS total_pos,
                 COALESCE(SUM(po.status = 'DRAFT'), 0) AS draft_pos,
                 COALESCE(SUM(po.status = 'ISSUED'), 0) AS issued_pos,
                 COALESCE(SUM(po.status = 'COMPLETED'), 0) AS completed_pos,
@@ -4278,7 +4278,7 @@ app.get("/quotation-comparisons", verifyProcurement, async (req, res) => {
 });
 
 // POST /vendor-inquiries/:inquiry_id/select-vendor - Finalizes the chosen vendor quotation and creates a DRAFT purchase order from it
-app.post("/vendor-inquiries/:inquiry_id/select-vendor", verifyManager, async (req, res) => {
+app.post("/vendor-inquiries/:inquiry_id/select-vendor", verifyProcurement, async (req, res) => {
     const inquiryId = Number(req.params.inquiry_id);
     const { inquiry_vendor_id } = req.body;
     if (!Number.isInteger(inquiryId) || inquiryId <= 0)return res.status(400).json({ success: false, message: "Invalid inquiry ID" });

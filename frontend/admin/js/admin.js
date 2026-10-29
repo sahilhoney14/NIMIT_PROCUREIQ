@@ -4798,7 +4798,7 @@ function openReturnForm(poId) {
                 <input type="date" id="return-date-${poId}" value="${todayISO()}" required>
             </div>
             <div class="form-group full-width">
-                <label>Reason <span style="color:#c00;">*</span></label>
+                <label>Reason</label>
                 <textarea id="return-reason-${poId}" required placeholder="Enter reason for return"></textarea>
             </div>
         </div>

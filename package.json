@@ -6,7 +6,9 @@
   "scripts": {
     "start": "npm --prefix backend start",
     "dev": "npm --prefix backend run dev",
-    "install:all": "npm --prefix backend install"
+    "install:all": "npm --prefix backend install",
+    "clean:prs": "node scripts/clean-pr-data.js",
+    "clean:all": "node scripts/clean-database.js"
   },
   "keywords": [
     "procurement",

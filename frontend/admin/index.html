@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="/shared/css/variables.css">
     <link rel="stylesheet" href="/shared/css/components.css">
     <link rel="stylesheet" href="/admin/style.css?v=3.6">
-    <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=2.9">
+    <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=3.0">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -205,9 +205,7 @@
 
                 <div class="wd-metrics-grid">
                     <div class="pipeline-card">
-                        <div class="pipeline-icon-circle bg-blue-subtle text-blue">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>
-                        </div>
+                        
                         <div class="pipeline-metric-block">
                             <strong id="wdTotalPrs">0</strong>
                             <span class="pipeline-title">Requisitions</span>
@@ -216,9 +214,7 @@
                     </div>
 
                     <div class="pipeline-card">
-                        <div class="pipeline-icon-circle bg-purple-subtle text-purple">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-                        </div>
+                        
                         <div class="pipeline-metric-block">
                             <strong id="wdTotalPos">0</strong>
                             <span class="pipeline-title">Purchase Orders</span>
@@ -227,9 +223,7 @@
                     </div>
 
                     <div class="pipeline-card">
-                        <div class="pipeline-icon-circle bg-amber-subtle text-amber">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        </div>
+                        
                         <div class="pipeline-metric-block">
                             <strong id="wdDraftPos">0</strong>
                             <span class="pipeline-title">Draft POs</span>
@@ -238,9 +232,7 @@
                     </div>
 
                     <div class="pipeline-card">
-                        <div class="pipeline-icon-circle bg-sky-subtle text-sky">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        </div>
+                        
                         <div class="pipeline-metric-block">
                             <strong id="wdIssuedPos">0</strong>
                             <span class="pipeline-title">Issued POs</span>
@@ -249,24 +241,11 @@
                     </div>
 
                     <div class="pipeline-card">
-                        <div class="pipeline-icon-circle bg-emerald-subtle text-emerald">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                        </div>
+                        
                         <div class="pipeline-metric-block">
                             <strong id="wdCompletedPos">0</strong>
                             <span class="pipeline-title">Completed POs</span>
                             <span class="pipeline-desc">Fulfilled &amp; Received</span>
-                        </div>
-                    </div>
-
-                    <div class="pipeline-card">
-                        <div class="pipeline-icon-circle bg-rose-subtle text-rose">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
-                        </div>
-                        <div class="pipeline-metric-block">
-                            <strong id="wdCancelledPos">0</strong>
-                            <span class="pipeline-title">Cancelled POs</span>
-                            <span class="pipeline-desc">Voided / Revoked</span>
                         </div>
                     </div>
                 </div>
@@ -2139,7 +2118,7 @@
 
     <script src="/shared/js/utils.js"></script>
     <script src="/shared/js/api.js"></script>
-    <script src="/shared/js/workspace-dashboard.js"></script>
-    <script src="/admin/script.js?v=3.6"></script>
+    <script src="/shared/js/workspace-dashboard.js?v=3.0"></script>
+    <script src="/admin/script.js?v=3.7"></script>
 </body>
 </html>

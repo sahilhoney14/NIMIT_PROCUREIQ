@@ -236,34 +236,58 @@ function calculateTaxableValue() {
 if (qtyInput)       qtyInput.addEventListener("input", calculateTaxableValue);
 if (salesRateInput) salesRateInput.addEventListener("input", calculateTaxableValue);
 
-// ─── Sidebar Navigation ────────────────────────────────────────────────────────
+// ─── Sidebar Dropdown Navigation ────────────────────────────────────────────────────────
 
-document.querySelectorAll(".main-menu").forEach(button => {
-    button.addEventListener("click", () => {
-        const sectionId = button.dataset.section;
-        const section   = document.getElementById(sectionId);
+// Dropdown Toggles (Workspace, Vendors, Intelligence)
+document.querySelectorAll(".nav-dropdown-toggle").forEach(button => {
+    button.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const group = button.closest(".nav-dropdown-group");
+        if (!group) return;
 
-        document.querySelectorAll(".main-menu").forEach(b => b.classList.remove("active"));
-        document.querySelectorAll(".submenu").forEach(s => s.classList.remove("open"));
+        const wasOpen = group.classList.contains("open");
 
-        button.classList.add("active");
-        if (section) section.classList.add("open");
+        // Accordion behavior: close other open dropdowns
+        document.querySelectorAll(".nav-dropdown-group").forEach(g => {
+            if (g !== group) {
+                g.classList.remove("open");
+            }
+        });
 
-        if (sectionId === "workspace") {
-            const wsBtn = section?.querySelector('[data-page="workspace-dashboard"]');
-            if (wsBtn) wsBtn.click();
+        // Toggle this dropdown
+        if (wasOpen) {
+            group.classList.remove("open");
+        } else {
+            group.classList.add("open");
         }
     });
 });
 
 document.querySelectorAll(".submenu-item").forEach(button => {
     button.addEventListener("click", () => {
-        if (button.classList.contains("disabled")) return;
+        if (button.classList.contains("disabled") || button.disabled) return;
 
         document.querySelectorAll(".submenu-item").forEach(b => b.classList.remove("active"));
         document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
 
         button.classList.add("active");
+
+        // Maintain dropdown toggle active-parent state
+        document.querySelectorAll(".nav-dropdown-toggle").forEach(t => t.classList.remove("active-parent"));
+        document.querySelectorAll(".nav-direct-item").forEach(d => d.classList.remove("active"));
+
+        const parentGroup = button.closest(".nav-dropdown-group");
+        if (parentGroup) {
+            parentGroup.classList.add("open");
+            const parentToggle = parentGroup.querySelector(".nav-dropdown-toggle");
+            if (parentToggle) parentToggle.classList.add("active-parent");
+
+            // Close other dropdowns for a clean accordion look
+            document.querySelectorAll(".nav-dropdown-group").forEach(g => {
+                if (g !== parentGroup) g.classList.remove("open");
+            });
+        }
 
         const page = button.dataset.page;
 
@@ -2440,6 +2464,7 @@ function renderQuotationComparisons(inquiries) {
                                     <th>Delivery Date</th>
                                     <th>Balance Due (days)</th>
                                     <th>Remarks</th>
+                                    <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2458,6 +2483,18 @@ function renderQuotationComparisons(inquiries) {
                                             <td>${formatDate(v.expected_delivery_date)}</td>
                                             <td>${v.balance_due_days != null ? escapeHtml(String(v.balance_due_days)) : "-"}</td>
                                             <td>${formatRemarks(v)}</td>
+                                            <td>
+                                                ${v.is_selected
+                                                    ? `<span style="color:#16803c;font-weight:600;">✓ Selected</span>`
+                                                    : `<button
+                                                            type="button"
+                                                            class="primary-button select-vendor-btn"
+                                                            data-inquiry-id="${inquiry.inquiry_id}"
+                                                            data-inquiry-vendor-id="${v.inquiry_vendor_id}">
+                                                            Select
+                                                       </button>`
+                                                }
+                                            </td>
                                         </tr>
                                     `;
                                 }).join("")}
@@ -2475,6 +2512,125 @@ function renderQuotationComparisons(inquiries) {
         list.appendChild(card);
     });
 }
+
+// ─── Quotation & Comparisons: Select Vendor ────────────────────────────────────
+
+function confirmVendorSelection({ prNumber, vendorName, vendorCode, pricePerUnit, totalPrice }) {
+    return new Promise(resolve => {
+        const modal = document.getElementById("selectVendorModal");
+        if (!modal) {
+            const ok = confirm(
+                `Confirm Vendor Selection:\n\n` +
+                `PR Number: ${prNumber}\n` +
+                `Vendor: ${vendorName} (${vendorCode})\n` +
+                `Price / Unit: ${pricePerUnit}\n` +
+                `Total Price: ${totalPrice}\n\n` +
+                `Are you sure you want to select this vendor? A draft Purchase Order will be created.`
+            );
+            return resolve(ok);
+        }
+
+        const prEl = document.getElementById("confirmPrNumber");
+        const vendorEl = document.getElementById("confirmVendorName");
+        const unitEl = document.getElementById("confirmUnitPrice");
+        const totalEl = document.getElementById("confirmTotalPrice");
+        const confirmBtn = document.getElementById("confirmSelectVendorBtn");
+        const cancelBtn = document.getElementById("cancelSelectVendorBtn");
+        const closeBtn = document.getElementById("closeSelectVendorModal");
+
+        if (prEl) prEl.textContent = prNumber;
+        if (vendorEl) vendorEl.textContent = vendorCode && vendorCode !== "-" ? `${vendorName} (${vendorCode})` : vendorName;
+        if (unitEl) unitEl.textContent = pricePerUnit;
+        if (totalEl) totalEl.textContent = totalPrice;
+
+        modal.classList.remove("hidden");
+
+        const cleanup = (result) => {
+            modal.classList.add("hidden");
+            confirmBtn?.removeEventListener("click", onConfirm);
+            cancelBtn?.removeEventListener("click", onCancel);
+            closeBtn?.removeEventListener("click", onCancel);
+            modal.removeEventListener("click", onBackdrop);
+            document.removeEventListener("keydown", onKeydown);
+            resolve(result);
+        };
+
+        const onConfirm = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(false); };
+        const onKeydown = (e) => { if (e.key === "Escape") cleanup(false); };
+
+        confirmBtn?.addEventListener("click", onConfirm);
+        cancelBtn?.addEventListener("click", onCancel);
+        closeBtn?.addEventListener("click", onCancel);
+        modal.addEventListener("click", onBackdrop);
+        document.addEventListener("keydown", onKeydown);
+    });
+}
+
+document.getElementById("quotationList")?.addEventListener("click", async event => {
+    const btn = event.target.closest(".select-vendor-btn");
+    if (!btn) return;
+
+    const inquiryId       = btn.dataset.inquiryId;
+    const inquiryVendorId = btn.dataset.inquiryVendorId;
+
+    // Read PR and vendor details from card and row before opening confirmation
+    const card       = btn.closest(".inquiry-card");
+    const prNumber   = card?.querySelector(".inquiry-card-item .inquiry-card-label")
+        ? (() => {
+            for (const item of card.querySelectorAll(".inquiry-card-item")) {
+                if (item.querySelector(".inquiry-card-label")?.textContent?.trim() === "PR Number") {
+                    return item.querySelector(".inquiry-card-value")?.textContent?.trim() || "-";
+                }
+            }
+            return "-";
+        })()
+        : "-";
+    const row = btn.closest("tr");
+    const vendorCode = row?.querySelector("td:nth-child(1)")?.textContent?.trim() || "-";
+    const vendorName = row?.querySelector("td:nth-child(2)")?.textContent?.trim() || "-";
+    const pricePerUnit = row?.querySelector("td:nth-child(3)")?.textContent?.trim() || "-";
+    const totalPrice = row?.querySelector("td:nth-child(4)")?.textContent?.trim() || "-";
+
+    // 2nd-time confirmation step
+    const confirmed = await confirmVendorSelection({
+        prNumber,
+        vendorName,
+        vendorCode,
+        pricePerUnit,
+        totalPrice
+    });
+
+    if (!confirmed) return;
+
+    btn.disabled = true;
+    btn.textContent = "Selecting...";
+
+    try {
+        const response = await apiFetch(`/vendor-inquiries/${inquiryId}/select-vendor`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ inquiry_vendor_id: Number(inquiryVendorId) })
+        });
+        if (!response) return;
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            alert(result.message || "Failed to select vendor");
+            btn.disabled = false;
+            btn.textContent = "Select";
+            return;
+        }
+
+        await loadQuotationComparisons();
+    } catch {
+        alert("Failed to connect to procurement service");
+        btn.disabled = false;
+        btn.textContent = "Select";
+    }
+});
 
 // ─── Order Tracking: Load a Page ───────────────────────────────────────────────
 
@@ -4058,7 +4214,7 @@ function openReturnForm(poId) {
                 <input type="date" id="return-date-${poId}" value="${todayISO()}" max="${todayISO()}" required>
             </div>
             <div class="form-group full-width">
-                <label>Reason <span style="color:#c00;">*</span></label>
+                <label>Reason</label>
                 <textarea id="return-reason-${poId}" required placeholder="Enter reason for return"></textarea>
             </div>
         </div>

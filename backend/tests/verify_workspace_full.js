@@ -20,7 +20,8 @@ async function verify() {
     // 1. Verify HTML pages include Workspace Dashboard
     console.log("\n[1] Verifying Portal HTML Structure...");
 
-    const resAdminHtml = await fetch("http://localhost:3000/admin", {
+    const port = process.env.PORT || 5000;
+    const resAdminHtml = await fetch(`http://localhost:${port}/admin`, {
         headers: { Authorization: `Bearer ${adminToken}` }
     });
     const adminHtml = await resAdminHtml.text();
@@ -30,7 +31,7 @@ async function verify() {
                          adminHtml.includes('data-page="workspace-dashboard"');
     console.log(" - Admin Portal has Workspace Dashboard elements:", hasAdminDash ? "PASS" : "FAIL");
 
-    const resProcHtml = await fetch("http://localhost:3000/procurement", {
+    const resProcHtml = await fetch(`http://localhost:${port}/procurement`, {
         headers: { Authorization: `Bearer ${procToken}` }
     });
     const procHtml = await resProcHtml.text();
@@ -42,7 +43,7 @@ async function verify() {
 
     // 2. Verify Admin Company-Wide Dashboard API
     console.log("\n[2] Verifying Admin Company-Wide API Data...");
-    const resAdminDash = await fetch("http://localhost:3000/workspace/dashboard", {
+    const resAdminDash = await fetch(`http://localhost:${port}/workspace/dashboard`, {
         headers: { Authorization: `Bearer ${adminToken}` }
     });
     const adminData = await resAdminDash.json();
@@ -64,7 +65,7 @@ async function verify() {
 
     // 3. Verify Admin User Filter (?user_id=3)
     console.log("\n[3] Verifying Admin Drill-down Filter (?user_id=3)...");
-    const resFiltered = await fetch(`http://localhost:3000/workspace/dashboard?user_id=${proc.user_id}`, {
+    const resFiltered = await fetch(`http://localhost:${port}/workspace/dashboard?user_id=${proc.user_id}`, {
         headers: { Authorization: `Bearer ${adminToken}` }
     });
     const filteredData = await resFiltered.json();
@@ -76,7 +77,7 @@ async function verify() {
 
     // 4. Verify Procurement User Isolated Dashboard API
     console.log("\n[4] Verifying Procurement User Personal API Data...");
-    const resProcDash = await fetch("http://localhost:3000/workspace/dashboard", {
+    const resProcDash = await fetch(`http://localhost:${port}/workspace/dashboard`, {
         headers: { Authorization: `Bearer ${procToken}` }
     });
     const procData = await resProcDash.json();
@@ -94,7 +95,7 @@ async function verify() {
 
     // 5. Verify Security Tampering Protection
     console.log("\n[5] Verifying Security Protection Against Query Tampering...");
-    const resTamper = await fetch(`http://localhost:3000/workspace/dashboard?user_id=${admin.user_id}`, {
+    const resTamper = await fetch(`http://localhost:${port}/workspace/dashboard?user_id=${admin.user_id}`, {
         headers: { Authorization: `Bearer ${procToken}` }
     });
     const tamperData = await resTamper.json();
