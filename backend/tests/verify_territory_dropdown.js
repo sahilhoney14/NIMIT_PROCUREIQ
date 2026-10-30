@@ -4,8 +4,7 @@ const path = require('path');
 const rootDir = path.resolve(__dirname, '../../');
 const files = [
     'frontend/admin/index.html',
-    'frontend/procurement/index.html',
-    'frontend/procurement-manager/index.html'
+    'frontend/procurement/index.html'
 ];
 
 const expectedOptions = [

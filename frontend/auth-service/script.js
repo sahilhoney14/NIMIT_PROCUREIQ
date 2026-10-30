@@ -16,7 +16,12 @@ document.addEventListener("DOMContentLoaded", () => {
     // Handle reason banner from route guard
     const urlParams = new URLSearchParams(window.location.search);
     const reason = urlParams.get("reason");
-    if (reason === "session_expired") {
+    if (reason === "logged_in_elsewhere") {
+        showMessage("Your account was logged in from another device or window. You have been signed out.", "warning");
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem("auth_user");
+    } else if (reason === "session_expired") {
         showMessage("Your session has expired. Please sign in again.", "info");
         localStorage.removeItem("auth_token");
         localStorage.removeItem("refresh_token");

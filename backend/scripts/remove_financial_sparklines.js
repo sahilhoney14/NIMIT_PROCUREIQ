@@ -5,7 +5,6 @@ const rootDir = path.resolve(__dirname, "../..");
 
 const files = [
     "frontend/admin/index.html",
-    "frontend/procurement-manager/index.html"
 ];
 
 for (const rel of files) {

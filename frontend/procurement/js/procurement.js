@@ -408,6 +408,26 @@ manualForm.addEventListener("submit", async event => {
         sales_rate:       document.getElementById("sales_rate").value
     };
 
+        // Validate subcategory if category has subcategories registered
+    const subCatWrap = document.getElementById("subCatSearchWrap");
+    const availableSubs = subCatWrap?._subcategories || [];
+    const enteredSub = (document.getElementById("sub_product_category")?.value || "").trim();
+
+    if (availableSubs.length > 0) {
+        if (!enteredSub) {
+            showMessage("Please select a Sub Product Category");
+            document.getElementById("sub_product_category")?.focus();
+            return;
+        }
+        const matching = availableSubs.find(s => (s.subcategory_name || "").toLowerCase() === enteredSub.toLowerCase());
+        if (!matching) {
+            showMessage(`Sub Product Category "${enteredSub}" does not belong to selected category "${data.product_category}"`);
+            document.getElementById("sub_product_category")?.focus();
+            return;
+        }
+        data.sub_product_category = matching.subcategory_name;
+    }
+
     const submitBtn = manualForm.querySelector("button[type='submit']");
 
     try {
@@ -522,6 +542,72 @@ importButton.addEventListener("click", async () => {
         showMessage("Failed to connect to procurement service");
     } finally {
         importButton.disabled = false;
+    }
+});
+
+// ─── PR Excel: Template & Bulk Export ──────────────────────────────────────────
+
+const downloadPrTemplateBtn = document.getElementById("downloadPrTemplateBtn");
+downloadPrTemplateBtn?.addEventListener("click", async () => {
+    try {
+        downloadPrTemplateBtn.disabled = true;
+        showMessage("Downloading purchase request import template...");
+        const response = await apiFetch("/purchase-requests/template");
+        if (!response || !response.ok) {
+            window.location.href = "/purchase-requests/template";
+            return;
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "Purchase_Request_Import_Template.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showMessage("Purchase request import template downloaded.");
+    } catch {
+        window.location.href = "/purchase-requests/template";
+    } finally {
+        downloadPrTemplateBtn.disabled = false;
+    }
+});
+
+const exportAllPrsBtn = document.getElementById("exportAllPrsBtn");
+exportAllPrsBtn?.addEventListener("click", async () => {
+    const originalContent = exportAllPrsBtn.innerHTML;
+    try {
+        exportAllPrsBtn.disabled = true;
+        exportAllPrsBtn.innerHTML = `
+            <svg class="spin-animation" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.85"></path>
+            </svg>
+            <span>Exporting PRs...</span>
+        `;
+        showMessage("Generating bulk Purchase Requests export...");
+
+        const response = await apiFetch("/purchase-requests/export");
+        if (!response || !response.ok) {
+            throw new Error("Bulk export request failed");
+        }
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const now = new Date().toISOString().slice(0, 10);
+        a.download = `Purchase_Requests_Export_${now}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showMessage("Purchase Requests exported successfully.");
+    } catch (err) {
+        showMessage("Failed to export Purchase Requests: " + (err.message || "Network error"));
+    } finally {
+        exportAllPrsBtn.disabled = false;
+        exportAllPrsBtn.innerHTML = originalContent;
     }
 });
 
@@ -1763,13 +1849,20 @@ vendorInquiryList.addEventListener("click", async event => {
         const form = document.getElementById(`addVendorForm-${inquiryId}`);
         if (!form) return;
 
+        if (form.style.display !== "none") {
+            form.style.display = "none";
+            resetVendorQuotationForm(form);
+            return;
+        }
+
+        resetVendorQuotationForm(form);
         form.style.display = "";
 
-        // FIX: load vendors and filter out already-quoted ones.
-        // The /vendor-inquiries/:id response includes vendor_id on each row.
         const select = form.querySelector(".vendor-select");
         await loadVendorsIntoDropdown(select, inquiryId);
 
+        const searchInput = form.querySelector(".vendor-search-input");
+        if (searchInput) searchInput.focus();
         return;
     }
 
@@ -1780,10 +1873,7 @@ vendorInquiryList.addEventListener("click", async event => {
         const form = document.getElementById(`addVendorForm-${inquiryId}`);
         if (form) {
             form.style.display = "none";
-            const dd = form.querySelector(".vendor-search-dropdown");
-            const w = form.querySelector(".vendor-search-wrap");
-            if (dd) dd.classList.add("hidden");
-            if (w) w.classList.remove("open");
+            resetVendorQuotationForm(form);
         }
         return;
     }
@@ -1876,6 +1966,7 @@ function setupVendorSearch(form) {
         activeIndex = -1;
     }
 
+    form._resetVendorSearch = () => selectVendorObj(null);
     function selectVendorObj(vendor) {
         if (!vendor) {
             input.value = "";
@@ -2026,6 +2117,64 @@ function setupVendorSearch(form) {
 
 // ─── Vendor Inquiries: Populate Vendor Dropdown ────────────────────────────────
 
+function resetVendorQuotationForm(form) {
+    if (!form) return;
+
+    const idInput = form.querySelector(".vendor-id-input");
+    if (idInput) idInput.value = "";
+
+    const searchInput = form.querySelector(".vendor-search-input");
+    if (searchInput) {
+        searchInput.value = "";
+        searchInput.placeholder = "Type vendor name or code to search...";
+    }
+
+    const clearBtn = form.querySelector(".vendor-search-clear-btn");
+    if (clearBtn) clearBtn.style.display = "none";
+
+    const dropdown = form.querySelector(".vendor-search-dropdown");
+    if (dropdown) dropdown.classList.add("hidden");
+
+    const wrap = form.querySelector(".vendor-search-wrap");
+    if (wrap) wrap.classList.remove("open");
+
+    const select = form.querySelector(".vendor-select");
+    if (select) select.value = "";
+
+    const priceEl = form.querySelector(".vendor-price");
+    if (priceEl) priceEl.value = "";
+
+    const totalDisplayEl = form.querySelector(".vendor-total-display");
+    if (totalDisplayEl) totalDisplayEl.value = "";
+
+    const deliveryDateEl = form.querySelector(".vendor-delivery-date");
+    if (deliveryDateEl) deliveryDateEl.value = "";
+
+    const advancePctEl = form.querySelector(".vendor-advance-pct");
+    if (advancePctEl) advancePctEl.value = "";
+
+    const advancePreviewGp = form.querySelector(".vendor-advance-preview-group");
+    if (advancePreviewGp) advancePreviewGp.style.display = "none";
+
+    const advancePreviewEl = form.querySelector(".vendor-advance-preview");
+    if (advancePreviewEl) advancePreviewEl.value = "";
+
+    const balanceDaysGp = form.querySelector(".balance-days-group");
+    if (balanceDaysGp) balanceDaysGp.style.display = "none";
+
+    const balanceDaysEl = form.querySelector(".vendor-balance-days");
+    if (balanceDaysEl) balanceDaysEl.value = "";
+
+    const paymentRemarksEl = form.querySelector(".vendor-payment-remarks");
+    if (paymentRemarksEl) paymentRemarksEl.value = "";
+
+    const msgEl = form.querySelector(".vendor-form-message");
+    if (msgEl) msgEl.textContent = "";
+
+    if (typeof form._resetVendorSearch === "function") {
+        form._resetVendorSearch();
+    }
+}
 async function loadVendorsIntoDropdown(selectElement, inquiryId) {
     const form = selectElement.closest(".add-vendor-form");
     const previous = form?.querySelector(".vendor-id-input")?.value || selectElement.value;
@@ -2101,6 +2250,32 @@ async function loadVendorsIntoDropdown(selectElement, inquiryId) {
                     if (searchInput) searchInput.value = `${matched.vendor_name}${matched.vendor_code ? ` (${matched.vendor_code})` : ""}`;
                     if (clearBtn) clearBtn.style.display = "";
                 }
+            } else {
+                selectElement.value = "";
+                if (form) {
+                    const searchInput = form.querySelector(".vendor-search-input");
+                    const idInput = form.querySelector(".vendor-id-input");
+                    const clearBtn = form.querySelector(".vendor-search-clear-btn");
+                    if (idInput) idInput.value = "";
+                    if (searchInput) {
+                        searchInput.value = "";
+                        searchInput.placeholder = "Type vendor name or code to search...";
+                    }
+                    if (clearBtn) clearBtn.style.display = "none";
+                }
+            }
+        } else {
+            selectElement.value = "";
+            if (form) {
+                const searchInput = form.querySelector(".vendor-search-input");
+                const idInput = form.querySelector(".vendor-id-input");
+                const clearBtn = form.querySelector(".vendor-search-clear-btn");
+                if (idInput) idInput.value = "";
+                if (searchInput) {
+                    searchInput.value = "";
+                    searchInput.placeholder = "Type vendor name or code to search...";
+                }
+                if (clearBtn) clearBtn.style.display = "none";
             }
         }
 
@@ -2201,22 +2376,15 @@ async function saveVendorForInquiry(inquiryId) {
 
         msgEl.textContent = "";
 
-        // Reset form fields.
-        select.value           = "";
-        priceEl.value          = "";
-        deliveryDateEl.value   = "";
-        advancePctEl.value     = "";
-        balanceDaysEl.value    = "";
-        paymentRemarksEl.value = "";
-        form.querySelector(".balance-days-group").style.display           = "none";
-        form.querySelector(".vendor-advance-preview-group").style.display = "none";
-        form.querySelector(".vendor-advance-preview").value               = "";
-        form.querySelector(".vendor-total-display").value                 = "";
-
+        // Best Practice: Reset form completely and hide it after successful addition
+        resetVendorQuotationForm(form);
         form.style.display = "none";
 
         // Reload the quotations table for this card.
         await loadInquiryVendors(inquiryId);
+
+        // Background-refresh dropdown for next open
+        if (select) await loadVendorsIntoDropdown(select, inquiryId);
 
     } catch (error) {
         msgEl.textContent = error.message || "Failed to connect to procurement service";
@@ -3304,8 +3472,9 @@ function renderOrderTracking(rows) {
                 </div>
                 ${poNumberDisplay}
                 <div class="po-row-field">
-                    <span class="inquiry-card-label">Party Name</span>
-                    <span class="inquiry-card-value">${escapeHtml(row.party_name || "-")}</span>
+                    <span class="inquiry-card-label">${row.vendor_name ? "Vendor Name" : "Party Name"}</span>
+                    <span class="inquiry-card-value">${escapeHtml(row.vendor_name || row.party_name || "-")}</span>
+                    ${row.vendor_name && row.party_name ? `<span style="font-size:11px;color:#64748b;display:block;margin-top:2px;">Party: ${escapeHtml(row.party_name)}</span>` : ""}
                 </div>
                 <div class="po-row-field">
                     <span class="inquiry-card-label">Item Name</span>
@@ -3337,8 +3506,9 @@ function renderOrderTracking(rows) {
                         <span class="inquiry-card-value">${formatDate(row.pr_date)}</span>
                     </div>
                     <div class="inquiry-card-item">
-                        <span class="inquiry-card-label">Party Name</span>
-                        <span class="inquiry-card-value">${escapeHtml(row.party_name || "-")}</span>
+                        <span class="inquiry-card-label">${row.vendor_name ? "Vendor Name" : "Party Name"}</span>
+                        <span class="inquiry-card-value">${escapeHtml(row.vendor_name || row.party_name || "-")}</span>
+                        ${row.vendor_name && row.party_name ? `<span style="font-size:11px;color:#64748b;display:block;margin-top:2px;">Party: ${escapeHtml(row.party_name)}</span>` : ""}
                     </div>
                     <div class="inquiry-card-item">
                         <span class="inquiry-card-label">Location</span>
@@ -3830,9 +4000,9 @@ function renderPurchaseOrders(orders) {
                     ${po.po_date ? `<span class="ot-row-date">${formatDate(po.po_date)}</span>` : ""}
                 </div>
                 <div class="po-row-field">
-                    <span class="inquiry-card-label">Party Name</span>
-                    <span class="inquiry-card-value">${escapeHtml(po.party_name || "-")}</span>
-                    ${po.vendor_name ? `<span style="font-size:11px;color:#64748b;display:block;margin-top:2px;">Vendor: ${escapeHtml(po.vendor_name)}</span>` : ""}
+                    <span class="inquiry-card-label">${po.vendor_name ? "Vendor Name" : "Party Name"}</span>
+                    <span class="inquiry-card-value">${escapeHtml(po.vendor_name || po.party_name || "-")}</span>
+                    ${po.vendor_name && po.party_name ? `<span style="font-size:11px;color:#64748b;display:block;margin-top:2px;">Party: ${escapeHtml(po.party_name)}</span>` : ""}
                 </div>
                 <div class="po-row-field">
                     <span class="inquiry-card-label">Item Name</span>
@@ -3866,8 +4036,9 @@ function renderPurchaseOrders(orders) {
                         <span class="inquiry-card-value">${formatDate(po.pr_date)}</span>
                     </div>
                     <div class="inquiry-card-item">
-                        <span class="inquiry-card-label">Party Name</span>
-                        <span class="inquiry-card-value">${escapeHtml(po.party_name || "-")}</span>
+                        <span class="inquiry-card-label">${po.vendor_name ? "Vendor Name" : "Party Name"}</span>
+                        <span class="inquiry-card-value">${escapeHtml(po.vendor_name || po.party_name || "-")}</span>
+                        ${po.vendor_name && po.party_name ? `<span style="font-size:11px;color:#64748b;display:block;margin-top:2px;">Party: ${escapeHtml(po.party_name)}</span>` : ""}
                     </div>
                     <div class="inquiry-card-item">
                         <span class="inquiry-card-label">Location</span>
@@ -5301,57 +5472,276 @@ if (window.WorkspaceDashboard) {
     window.WorkspaceDashboard.load();
 }
 
-// ─── Setup PR Dependent Subcategory Dropdown ──────────────────────────────────
+// ─── Setup PR Dependent Subcategory Searchable Combobox ──────────────────────
 function setupPrDependentSubcategory() {
     const catSelect = document.getElementById("product_category");
-    const subCatSelect = document.getElementById("sub_product_category");
-    if (!catSelect || !subCatSelect) return;
+    const subCatInput = document.getElementById("sub_product_category");
+    const subCatWrap = document.getElementById("subCatSearchWrap");
+    const subCatDropdown = document.getElementById("subCatDropdown");
+    const subCatClearBtn = document.getElementById("subCatClearBtn");
+    const subCatCopyBtn = document.getElementById("subCatCopyBtn");
+    const subCatToggleBtn = document.getElementById("subCatToggleBtn");
 
-    subCatSelect.required = false;
+    if (!catSelect || !subCatInput || !subCatWrap || !subCatDropdown) return;
 
-    catSelect.addEventListener("change", async () => {
-        const selectedCategory = (catSelect.value || "").trim();
-        subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
-        subCatSelect.required = false;
+    let subcategories = [];
+    let activeHighlightIndex = -1;
 
-        if (!selectedCategory) {
+    function escapeRegex(str) {
+        return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function highlightMatch(text, query) {
+        if (!text) return "";
+        const escaped = typeof escapeHtml === "function" ? escapeHtml(String(text)) : String(text);
+        const q = (query || "").trim();
+        if (!q) return escaped;
+        try {
+            const qEsc = escapeRegex(q);
+            return escaped.replace(new RegExp(`(${qEsc})`, "gi"), '<mark class="subcat-search-mark">$1</mark>');
+        } catch {
+            return escaped;
+        }
+    }
+
+    function updateActionButtons() {
+        const val = (subCatInput.value || "").trim();
+        if (subCatClearBtn) subCatClearBtn.style.display = val ? "flex" : "none";
+        if (subCatCopyBtn) subCatCopyBtn.style.display = val ? "flex" : "none";
+    }
+
+    function closeDropdown() {
+        subCatDropdown.classList.add("hidden");
+        subCatWrap.classList.remove("open");
+        activeHighlightIndex = -1;
+    }
+
+    function openDropdown() {
+        renderList(subCatInput.value || "");
+        subCatDropdown.classList.remove("hidden");
+        subCatWrap.classList.add("open");
+    }
+
+    function selectSubcategory(name) {
+        subCatInput.value = name;
+        updateActionButtons();
+        closeDropdown();
+        subCatInput.focus();
+        subCatInput.dispatchEvent(new Event("input", { bubbles: true }));
+        subCatInput.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    function renderList(query = "") {
+        const selectedCat = (catSelect.value || "").trim();
+        if (!selectedCat) {
+            subCatDropdown.innerHTML = '<div class="subcat-search-empty">Please select a Product Category first</div>';
             return;
         }
+
+        if (subcategories.length === 0) {
+            subCatDropdown.innerHTML = '<div class="subcat-search-empty">No subcategories registered for this category</div>';
+            return;
+        }
+
+        const q = (query || "").trim().toLowerCase();
+        const filtered = q
+            ? subcategories.filter(s => (s.subcategory_name || "").toLowerCase().includes(q))
+            : subcategories;
+
+        if (filtered.length === 0) {
+            subCatDropdown.innerHTML = `<div class="subcat-search-empty">No matching subcategories for "<strong>${typeof escapeHtml === "function" ? escapeHtml(query) : query}</strong>"</div>`;
+            return;
+        }
+
+        const currentVal = (subCatInput.value || "").trim().toLowerCase();
+
+        subCatDropdown.innerHTML = filtered.map((sub, idx) => {
+            const isSelected = (sub.subcategory_name || "").trim().toLowerCase() === currentVal;
+            return `
+                <div class="subcat-search-item ${isSelected ? "selected" : ""}" data-name="${typeof escapeHtml === "function" ? escapeHtml(sub.subcategory_name) : sub.subcategory_name}" data-idx="${idx}">
+                    <span class="subcat-search-item-name">${highlightMatch(sub.subcategory_name, q)}</span>
+                    ${isSelected ? '<span class="subcat-search-check">✓</span>' : ''}
+                </div>
+            `;
+        }).join("");
+
+        // Attach click handlers to items
+        subCatDropdown.querySelectorAll(".subcat-search-item").forEach(item => {
+            item.addEventListener("click", () => {
+                const selection = window.getSelection().toString();
+                if (selection && selection.length > 0) return;
+                const name = item.dataset.name;
+                if (name) selectSubcategory(name);
+            });
+        });
+    }
+
+    // Copy button functionality
+    subCatCopyBtn?.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const val = (subCatInput.value || "").trim();
+        if (!val) return;
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(val);
+            } else {
+                const ta = document.createElement("textarea");
+                ta.value = val;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+            }
+            subCatCopyBtn.classList.add("show-copied");
+            setTimeout(() => subCatCopyBtn.classList.remove("show-copied"), 1500);
+        } catch (err) {
+            console.error("Failed to copy subcategory text:", err);
+        }
+    });
+
+    // Clear button functionality
+    subCatClearBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        subCatInput.value = "";
+        updateActionButtons();
+        subCatInput.focus();
+        if ((catSelect.value || "").trim()) {
+            openDropdown();
+        }
+        subCatInput.dispatchEvent(new Event("input", { bubbles: true }));
+        subCatInput.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    // Toggle button
+    subCatToggleBtn?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (subCatWrap.classList.contains("open")) {
+            closeDropdown();
+        } else {
+            openDropdown();
+            subCatInput.focus();
+        }
+    });
+
+    // Input events
+    subCatInput.addEventListener("focus", () => {
+        openDropdown();
+    });
+
+    subCatInput.addEventListener("click", () => {
+        if (!subCatWrap.classList.contains("open")) {
+            openDropdown();
+        }
+    });
+
+    subCatInput.addEventListener("input", () => {
+        updateActionButtons();
+        if (!subCatWrap.classList.contains("open")) {
+            subCatDropdown.classList.remove("hidden");
+            subCatWrap.classList.add("open");
+        }
+        renderList(subCatInput.value);
+    });
+
+    // Keyboard navigation
+    subCatInput.addEventListener("keydown", (e) => {
+        const items = subCatDropdown.querySelectorAll(".subcat-search-item");
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (!subCatWrap.classList.contains("open")) {
+                openDropdown();
+                return;
+            }
+            if (items.length > 0) {
+                activeHighlightIndex = (activeHighlightIndex + 1) % items.length;
+                items.forEach((it, idx) => it.classList.toggle("highlighted", idx === activeHighlightIndex));
+                items[activeHighlightIndex]?.scrollIntoView({ block: "nearest" });
+            }
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!subCatWrap.classList.contains("open")) {
+                openDropdown();
+                return;
+            }
+            if (items.length > 0) {
+                activeHighlightIndex = (activeHighlightIndex - 1 + items.length) % items.length;
+                items.forEach((it, idx) => it.classList.toggle("highlighted", idx === activeHighlightIndex));
+                items[activeHighlightIndex]?.scrollIntoView({ block: "nearest" });
+            }
+        } else if (e.key === "Enter") {
+            if (subCatWrap.classList.contains("open")) {
+                if (activeHighlightIndex >= 0 && items[activeHighlightIndex]) {
+                    e.preventDefault();
+                    const name = items[activeHighlightIndex].dataset.name;
+                    if (name) selectSubcategory(name);
+                } else if (items.length === 1) {
+                    e.preventDefault();
+                    const name = items[0].dataset.name;
+                    if (name) selectSubcategory(name);
+                }
+            }
+        } else if (e.key === "Escape" || e.key === "Tab") {
+            closeDropdown();
+        }
+    });
+
+    // Close on click outside
+    document.addEventListener("click", (e) => {
+        if (!subCatWrap.contains(e.target)) {
+            closeDropdown();
+        }
+    });
+
+    // Category change listener
+    catSelect.addEventListener("change", async () => {
+        const selectedCategory = (catSelect.value || "").trim();
+        subCatInput.value = "";
+        updateActionButtons();
+        closeDropdown();
+
+        if (!selectedCategory) {
+            subcategories = [];
+            subCatWrap._subcategories = [];
+            subCatInput.placeholder = "Select Product Category first";
+            return;
+        }
+
+        subCatInput.placeholder = "Loading subcategories...";
 
         try {
             const res = await apiFetch(`/sub-product-categories?category_name=${encodeURIComponent(selectedCategory)}&limit=all&status=Active`);
             if (res && res.ok) {
                 const data = await res.json();
-                const subcategories = data.data || [];
-                subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
+                subcategories = data.data || [];
+                subCatWrap._subcategories = subcategories;
+
                 if (subcategories.length === 0) {
-                    const opt = document.createElement("option");
-                    opt.value = "";
-                    opt.disabled = true;
-                    opt.textContent = "No subcategories registered";
-                    subCatSelect.appendChild(opt);
-                    subCatSelect.required = false;
+                    subCatInput.placeholder = "No subcategories registered (optional)";
                 } else {
-                    subCatSelect.required = true;
-                    subcategories.forEach(sub => {
-                        const opt = document.createElement("option");
-                        opt.value = sub.subcategory_name;
-                        opt.textContent = sub.subcategory_name;
-                        opt.dataset.subcategoryId = sub.subcategory_id;
-                        opt.dataset.categoryId = sub.category_id;
-                        subCatSelect.appendChild(opt);
-                    });
+                    subCatInput.placeholder = `Select or type to search (${subcategories.length} available)...`;
                 }
+            } else {
+                subcategories = [];
+                subCatWrap._subcategories = [];
+                subCatInput.placeholder = "Select or type to search subcategory...";
             }
         } catch (err) {
             console.error("Failed to load subcategories for category:", selectedCategory, err);
+            subcategories = [];
+            subCatWrap._subcategories = [];
+            subCatInput.placeholder = "Select or type to search subcategory...";
         }
     });
 
+    // Form reset listener
     const manualFormElem = document.getElementById("manualForm");
     manualFormElem?.addEventListener("reset", () => {
-        subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
-        subCatSelect.required = false;
+        subCatInput.value = "";
+        updateActionButtons();
+        closeDropdown();
+        subcategories = [];
+        subCatWrap._subcategories = [];
+        subCatInput.placeholder = "Select Product Category first";
     });
 }
 
@@ -5384,15 +5774,18 @@ async function loadPrProductCategories() {
             catSelect.appendChild(opt);
         });
 
-        
-
         if (currentVal && Array.from(catSelect.options).some(o => o.value === currentVal)) {
             catSelect.value = currentVal;
         } else {
             catSelect.value = "";
-            const subCatSelect = document.getElementById("sub_product_category");
-            if (subCatSelect) {
-                subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
+            const subCatInput = document.getElementById("sub_product_category");
+            if (subCatInput) {
+                subCatInput.value = "";
+                subCatInput.placeholder = "Select Product Category first";
+                const subCatClearBtn = document.getElementById("subCatClearBtn");
+                const subCatCopyBtn = document.getElementById("subCatCopyBtn");
+                if (subCatClearBtn) subCatClearBtn.style.display = "none";
+                if (subCatCopyBtn) subCatCopyBtn.style.display = "none";
             }
         }
     } catch (err) {
@@ -5400,585 +5793,3 @@ async function loadPrProductCategories() {
     }
 }
 window.loadPrProductCategories = loadPrProductCategories;
-
-
-
-// =============================================================================
-// ITEM MASTER: PRODUCT CATEGORIES & SUB CATEGORIES
-// =============================================================================
-
-let catCurrentPage = 1;
-let catTotalPages = 1;
-let catSearchTerm = "";
-
-let subCatCurrentPage = 1;
-let subCatTotalPages = 1;
-let subCatSearchTerm = "";
-let subCatFilterCatId = "";
-let subCatFilterStatusVal = "All";
-
-function formatDateIM(dateStr) {
-    if (!dateStr) return "-";
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return String(dateStr);
-    const day = String(d.getDate()).padStart(2, "0");
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const month = months[d.getMonth()];
-    const year = d.getFullYear();
-    return `${day} ${month} ${year}`;
-}
-
-// ─── Product Categories Functions ─────────────────────────────────────────────
-
-async function loadProductCategories(page = 1) {
-    catCurrentPage = page;
-    const tbody = document.getElementById("productCategoriesTableBody");
-    const paginationInfo = document.getElementById("catPaginationInfo");
-    const paginationControls = document.getElementById("catPaginationControls");
-    if (!tbody) return;
-
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: #64748b;">Loading categories...</td></tr>`;
-
-    try {
-        const queryParams = new URLSearchParams({
-            page: catCurrentPage,
-            limit: 10
-        });
-        if (catSearchTerm.trim()) {
-            queryParams.append("search", catSearchTerm.trim());
-        }
-
-        const res = await apiFetch(`/product-categories?${queryParams.toString()}`);
-        if (!res || !res.ok) throw new Error("Failed to fetch product categories");
-
-        const result = await res.json();
-        const categories = result.data || [];
-        const pagination = result.pagination || { page: 1, limit: 10, total: categories.length, total_pages: 1 };
-        catTotalPages = pagination.total_pages || 1;
-
-        if (categories.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: #64748b;">No product categories found</td></tr>`;
-            if (paginationInfo) paginationInfo.textContent = "Showing 0 to 0 of 0 entries";
-            if (paginationControls) paginationControls.innerHTML = "";
-            return;
-        }
-
-        const startIndex = (catCurrentPage - 1) * 10;
-        tbody.innerHTML = categories.map((cat, idx) => {
-            const slNo = startIndex + idx + 1;
-            const createdOn = formatDateIM(cat.created_at);
-            const statusBadge = cat.status === "Active"
-                ? `<span class="im-badge-active">Active</span>`
-                : `<span class="im-badge-inactive">Inactive</span>`;
-
-            return `
-                <tr>
-                    <td style="color: #64748b; font-weight: 500;">${slNo}</td>
-                    <td style="color: #0f172a; font-weight: 600;">${escapeHtml(cat.category_name)}</td>
-                    <td style="color: #475569;">${createdOn}</td>
-                    <td>${statusBadge}</td>
-                    <td style="text-align: center; white-space: nowrap;">
-                        <div class="im-actions-wrap">
-                            <button type="button" class="im-action-btn edit btn-edit-category" data-id="${cat.category_id}" data-name="${escapeHtml(cat.category_name)}" data-status="${cat.status}" title="Edit Category">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 20h9"></path>
-                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                                </svg>
-                            </button>
-                            <button type="button" class="im-action-btn delete btn-delete-category" data-id="${cat.category_id}" data-name="${escapeHtml(cat.category_name)}" title="Delete Category">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                                </svg>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join("");
-
-        const endItem = Math.min(catCurrentPage * 10, pagination.total);
-        const startItem = startIndex + 1;
-        if (paginationInfo) {
-            paginationInfo.textContent = `Showing ${startItem} to ${endItem} of ${pagination.total} entries`;
-        }
-
-        renderPaginationControls(paginationControls, catCurrentPage, catTotalPages, (newPage) => {
-            loadProductCategories(newPage);
-        });
-
-    } catch (err) {
-        console.error("Error loading product categories:", err);
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: #ef4444;">Failed to load product categories</td></tr>`;
-    }
-}
-
-// ─── Sub Categories Functions ─────────────────────────────────────────────────
-
-async function loadSubCategories(page = 1) {
-    subCatCurrentPage = page;
-    const tbody = document.getElementById("subCategoriesTableBody");
-    const paginationInfo = document.getElementById("subCatPaginationInfo");
-    const paginationControls = document.getElementById("subCatPaginationControls");
-    if (!tbody) return;
-
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: #64748b;">Loading subcategories...</td></tr>`;
-
-    try {
-        const queryParams = new URLSearchParams({
-            page: subCatCurrentPage,
-            limit: 10
-        });
-        if (subCatSearchTerm.trim()) {
-            queryParams.append("search", subCatSearchTerm.trim());
-        }
-        if (subCatFilterCatId) {
-            queryParams.append("category_id", subCatFilterCatId);
-        }
-        if (subCatFilterStatusVal && subCatFilterStatusVal !== "All") {
-            queryParams.append("status", subCatFilterStatusVal);
-        }
-
-        const res = await apiFetch(`/sub-product-categories?${queryParams.toString()}`);
-        if (!res || !res.ok) throw new Error("Failed to fetch subcategories");
-
-        const result = await res.json();
-        const subcategories = result.data || [];
-        const pagination = result.pagination || { page: 1, limit: 10, total: subcategories.length, total_pages: 1 };
-        subCatTotalPages = pagination.total_pages || 1;
-
-        if (subcategories.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: #64748b;">No sub product categories found</td></tr>`;
-            if (paginationInfo) paginationInfo.textContent = "Showing 0 to 0 of 0 entries";
-            if (paginationControls) paginationControls.innerHTML = "";
-            return;
-        }
-
-        const startIndex = (subCatCurrentPage - 1) * 10;
-        tbody.innerHTML = subcategories.map((sub, idx) => {
-            const slNo = startIndex + idx + 1;
-            const createdOn = formatDateIM(sub.created_at);
-            const statusBadge = sub.status === "Active"
-                ? `<span class="im-badge-active">Active</span>`
-                : `<span class="im-badge-inactive">Inactive</span>`;
-
-            return `
-                <tr>
-                    <td style="color: #64748b; font-weight: 500;">${slNo}</td>
-                    <td style="color: #0f172a; font-weight: 600;">${escapeHtml(sub.subcategory_name)}</td>
-                    <td style="color: #475569;">${escapeHtml(sub.parent_category || "-")}</td>
-                    <td>${statusBadge}</td>
-                    <td style="color: #475569;">${createdOn}</td>
-                    <td style="text-align: center; white-space: nowrap;">
-                        <div class="im-actions-wrap">
-                            <button type="button" class="im-action-btn edit btn-edit-subcategory" 
-                                data-id="${sub.subcategory_id}" 
-                                data-cat-id="${sub.category_id}" 
-                                data-name="${escapeHtml(sub.subcategory_name)}" 
-                                data-status="${sub.status}" 
-                                title="Edit Subcategory">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 20h9"></path>
-                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                                </svg>
-                            </button>
-                            <button type="button" class="im-action-btn delete btn-delete-subcategory" 
-                                data-id="${sub.subcategory_id}" 
-                                data-name="${escapeHtml(sub.subcategory_name)}" 
-                                title="Delete Subcategory">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                    <line x1="10" y1="11" x2="10" y2="17"></line>
-                                    <line x1="14" y1="11" x2="14" y2="17"></line>
-                                </svg>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join("");
-
-        const endItem = Math.min(subCatCurrentPage * 10, pagination.total);
-        const startItem = startIndex + 1;
-        if (paginationInfo) {
-            paginationInfo.textContent = `Showing ${startItem} to ${endItem} of ${pagination.total} entries`;
-        }
-
-        renderPaginationControls(paginationControls, subCatCurrentPage, subCatTotalPages, (newPage) => {
-            loadSubCategories(newPage);
-        });
-
-    } catch (err) {
-        console.error("Error loading subcategories:", err);
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: #ef4444;">Failed to load subcategories</td></tr>`;
-    }
-}
-
-function renderPaginationControls(container, currentPage, totalPages, onPageClick) {
-    if (!container) return;
-    if (totalPages <= 1) {
-        container.innerHTML = "";
-        return;
-    }
-
-    let html = "";
-    html += `<button type="button" class="im-page-btn" ${currentPage === 1 ? "disabled" : ""} data-target-page="${currentPage - 1}">&lt;</button>`;
-
-    let startP = Math.max(1, currentPage - 2);
-    let endP = Math.min(totalPages, startP + 4);
-    if (endP - startP < 4) {
-        startP = Math.max(1, endP - 4);
-    }
-
-    for (let p = startP; p <= endP; p++) {
-        html += `<button type="button" class="im-page-btn ${p === currentPage ? "active" : ""}" data-target-page="${p}">${p}</button>`;
-    }
-
-    html += `<button type="button" class="im-page-btn" ${currentPage === totalPages ? "disabled" : ""} data-target-page="${currentPage + 1}">&gt;</button>`;
-
-    container.innerHTML = html;
-
-    container.querySelectorAll(".im-page-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const target = parseInt(btn.dataset.targetPage, 10);
-            if (!isNaN(target) && target >= 1 && target <= totalPages && target !== currentPage) {
-                onPageClick(target);
-            }
-        });
-    });
-}
-
-async function loadCategoriesForSubCatFilter() {
-    const filterSelect = document.getElementById("subCatFilterCategory");
-    const formSelect = document.getElementById("subCatParentSelect");
-    if (!filterSelect && !formSelect) return;
-
-    try {
-        const res = await apiFetch("/product-categories?limit=all&status=Active");
-        if (!res || !res.ok) return;
-        const result = await res.json();
-        const categories = result.data || [];
-
-        if (filterSelect) {
-            filterSelect.innerHTML = `<option value="">Select Category</option>`;
-            categories.forEach(c => {
-                const opt = document.createElement("option");
-                opt.value = c.category_id;
-                opt.textContent = c.category_name;
-                filterSelect.appendChild(opt);
-            });
-        }
-
-        if (formSelect) {
-            formSelect.innerHTML = `<option value="" disabled selected>Select Category</option>`;
-            categories.forEach(c => {
-                const opt = document.createElement("option");
-                opt.value = c.category_id;
-                opt.textContent = c.category_name;
-                formSelect.appendChild(opt);
-            });
-        }
-    } catch (e) {
-        console.error("Failed to populate categories dropdowns:", e);
-    }
-}
-
-// ─── Setup Item Master Event Listeners ─────────────────────────────────────────
-
-function setupItemMasterEvents() {
-    // 1. Category Search
-    const catSearch = document.getElementById("catSearchInput");
-    const catReset = document.getElementById("catResetBtn");
-    let catSearchTimer = null;
-
-    catSearch?.addEventListener("input", () => {
-        clearTimeout(catSearchTimer);
-        catSearchTimer = setTimeout(() => {
-            catSearchTerm = catSearch.value.trim();
-            loadProductCategories(1);
-        }, 300);
-    });
-
-    catReset?.addEventListener("click", () => {
-        if (catSearch) catSearch.value = "";
-        catSearchTerm = "";
-        loadProductCategories(1);
-    });
-
-    // 2. Category Modal Add / Edit
-    const categoryModal = document.getElementById("categoryModal");
-    const btnAddCategory = document.getElementById("btnAddProductCategory");
-    const closeCatModalBtn = document.getElementById("closeCategoryModalBtn");
-    const cancelCatModalBtn = document.getElementById("cancelCategoryModalBtn");
-    const categoryForm = document.getElementById("categoryForm");
-    const categoryEditId = document.getElementById("categoryEditId");
-    const categoryNameInput = document.getElementById("categoryNameInput");
-    const categoryStatusSelect = document.getElementById("categoryStatusSelect");
-    const categoryModalTitle = document.getElementById("categoryModalTitle");
-
-    btnAddCategory?.addEventListener("click", () => {
-        if (categoryEditId) categoryEditId.value = "";
-        if (categoryNameInput) categoryNameInput.value = "";
-        if (categoryStatusSelect) categoryStatusSelect.value = "Active";
-        if (categoryModalTitle) categoryModalTitle.textContent = "Add Product Category";
-        categoryModal?.classList.remove("hidden");
-        setTimeout(() => categoryNameInput?.focus(), 50);
-    });
-
-    function closeCategoryModal() {
-        categoryModal?.classList.add("hidden");
-    }
-
-    closeCatModalBtn?.addEventListener("click", closeCategoryModal);
-    cancelCatModalBtn?.addEventListener("click", closeCategoryModal);
-
-    categoryForm?.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const editId = categoryEditId?.value;
-        const name = (categoryNameInput?.value || "").trim();
-        const status = categoryStatusSelect?.value || "Active";
-
-        if (!name) {
-            alert("Category name is required");
-            return;
-        }
-
-        try {
-            const url = editId ? `/product-categories/${editId}` : "/product-categories";
-            const method = editId ? "PUT" : "POST";
-            const res = await apiFetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ category_name: name, status })
-            });
-
-            if (!res) return;
-            const data = await res.json();
-
-            if (!res.ok) {
-                alert(data.message || "Failed to save category");
-                return;
-            }
-
-            closeCategoryModal();
-            loadProductCategories(catCurrentPage);
-            loadCategoriesForSubCatFilter();
-            if (typeof loadPrProductCategories === "function") {
-                loadPrProductCategories();
-            }
-        } catch (err) {
-            console.error("Error saving category:", err);
-            alert("Network error occurred while saving category");
-        }
-    });
-
-    // Delegated edit & delete for categories table
-    document.getElementById("productCategoriesTableBody")?.addEventListener("click", async (e) => {
-        const editBtn = e.target.closest(".btn-edit-category");
-        if (editBtn) {
-            const id = editBtn.dataset.id;
-            const name = editBtn.dataset.name;
-            const status = editBtn.dataset.status;
-
-            if (categoryEditId) categoryEditId.value = id;
-            if (categoryNameInput) categoryNameInput.value = name;
-            if (categoryStatusSelect) categoryStatusSelect.value = status || "Active";
-            if (categoryModalTitle) categoryModalTitle.textContent = "Edit Product Category";
-            categoryModal?.classList.remove("hidden");
-            return;
-        }
-
-        const deleteBtn = e.target.closest(".btn-delete-category");
-        if (deleteBtn) {
-            const id = deleteBtn.dataset.id;
-            const name = deleteBtn.dataset.name;
-            if (!confirm(`Are you sure you want to delete category "${name}"?\n\nThis will also remove any linked subcategories.`)) {
-                return;
-            }
-
-            try {
-                const res = await apiFetch(`/product-categories/${id}`, { method: "DELETE" });
-                if (!res) return;
-                const data = await res.json();
-                if (!res.ok) {
-                    alert(data.message || "Failed to delete category");
-                    return;
-                }
-                loadProductCategories(catCurrentPage);
-                loadCategoriesForSubCatFilter();
-                if (typeof loadPrProductCategories === "function") {
-                    loadPrProductCategories();
-                }
-            } catch (err) {
-                console.error("Error deleting category:", err);
-                alert("Failed to delete product category");
-            }
-        }
-    });
-
-    // 3. Sub Category Filter & Search
-    const subCatSearch = document.getElementById("subCatSearchInput");
-    const subCatFilterCat = document.getElementById("subCatFilterCategory");
-    const subCatFilterStatus = document.getElementById("subCatFilterStatus");
-    const subCatReset = document.getElementById("subCatResetBtn");
-    let subCatSearchTimer = null;
-
-    subCatSearch?.addEventListener("input", () => {
-        clearTimeout(subCatSearchTimer);
-        subCatSearchTimer = setTimeout(() => {
-            subCatSearchTerm = subCatSearch.value.trim();
-            loadSubCategories(1);
-        }, 300);
-    });
-
-    subCatFilterCat?.addEventListener("change", () => {
-        subCatFilterCatId = subCatFilterCat.value;
-        loadSubCategories(1);
-    });
-
-    subCatFilterStatus?.addEventListener("change", () => {
-        subCatFilterStatusVal = subCatFilterStatus.value;
-        loadSubCategories(1);
-    });
-
-    subCatReset?.addEventListener("click", () => {
-        if (subCatSearch) subCatSearch.value = "";
-        if (subCatFilterCat) subCatFilterCat.value = "";
-        if (subCatFilterStatus) subCatFilterStatus.value = "All";
-        subCatSearchTerm = "";
-        subCatFilterCatId = "";
-        subCatFilterStatusVal = "All";
-        loadSubCategories(1);
-    });
-
-    // 4. Sub Category Side Panel (Add / Edit)
-    const sidePanel = document.getElementById("subCategorySidePanel");
-    const btnAddSubCategory = document.getElementById("btnAddSubCategory");
-    const closeSidePanelBtn = document.getElementById("closeSubCatPanelBtn");
-    const cancelSidePanelBtn = document.getElementById("cancelSubCatBtn");
-    const subCategoryForm = document.getElementById("subCategoryForm");
-    const subCatEditId = document.getElementById("subCatEditId");
-    const subCatParentSelect = document.getElementById("subCatParentSelect");
-    const subCatNameInput = document.getElementById("subCatNameInput");
-    const subCatStatusSelect = document.getElementById("subCatStatusSelect");
-    const subCatPanelTitle = document.getElementById("subCatPanelTitle");
-
-    function openSubCatSidePanel(isEdit = false, data = {}) {
-        if (!sidePanel) return;
-        sidePanel.classList.remove("hidden");
-        loadCategoriesForSubCatFilter();
-        if (typeof loadPrProductCategories === "function") {
-            loadPrProductCategories();
-        }
-
-        if (isEdit) {
-            if (subCatPanelTitle) subCatPanelTitle.textContent = "Edit Sub Product Category";
-            if (subCatEditId) subCatEditId.value = data.id || "";
-            if (subCatParentSelect) subCatParentSelect.value = data.catId || "";
-            if (subCatNameInput) subCatNameInput.value = data.name || "";
-            if (subCatStatusSelect) subCatStatusSelect.value = data.status || "Active";
-        } else {
-            if (subCatPanelTitle) subCatPanelTitle.textContent = "Add Sub Product Category";
-            if (subCatEditId) subCatEditId.value = "";
-            if (subCatParentSelect) subCatParentSelect.value = "";
-            if (subCatNameInput) subCatNameInput.value = "";
-            if (subCatStatusSelect) subCatStatusSelect.value = "Active";
-        }
-        setTimeout(() => subCatNameInput?.focus(), 50);
-    }
-
-    function closeSubCatSidePanel() {
-        sidePanel?.classList.add("hidden");
-    }
-
-    btnAddSubCategory?.addEventListener("click", () => openSubCatSidePanel(false));
-    closeSidePanelBtn?.addEventListener("click", closeSubCatSidePanel);
-    cancelSidePanelBtn?.addEventListener("click", closeSubCatSidePanel);
-
-    subCategoryForm?.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const editId = subCatEditId?.value;
-        const categoryId = subCatParentSelect?.value;
-        const subName = (subCatNameInput?.value || "").trim();
-        const status = subCatStatusSelect?.value || "Active";
-
-        if (!categoryId) {
-            alert("Please select a parent product category");
-            return;
-        }
-        if (!subName) {
-            alert("Sub category name is required");
-            return;
-        }
-
-        try {
-            const url = editId ? `/sub-product-categories/${editId}` : "/sub-product-categories";
-            const method = editId ? "PUT" : "POST";
-            const res = await apiFetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ category_id: categoryId, subcategory_name: subName, status })
-            });
-
-            if (!res) return;
-            const data = await res.json();
-            if (!res.ok) {
-                alert(data.message || "Failed to save subcategory");
-                return;
-            }
-
-            closeSubCatSidePanel();
-            loadSubCategories(subCatCurrentPage);
-        } catch (err) {
-            console.error("Error saving subcategory:", err);
-            alert("Network error occurred while saving subcategory");
-        }
-    });
-
-    // Delegated edit & delete for subcategories table
-    document.getElementById("subCategoriesTableBody")?.addEventListener("click", async (e) => {
-        const editBtn = e.target.closest(".btn-edit-subcategory");
-        if (editBtn) {
-            openSubCatSidePanel(true, {
-                id: editBtn.dataset.id,
-                catId: editBtn.dataset.catId,
-                name: editBtn.dataset.name,
-                status: editBtn.dataset.status
-            });
-            return;
-        }
-
-        const deleteBtn = e.target.closest(".btn-delete-subcategory");
-        if (deleteBtn) {
-            const id = deleteBtn.dataset.id;
-            const name = deleteBtn.dataset.name;
-            if (!confirm(`Are you sure you want to delete subcategory "${name}"?`)) {
-                return;
-            }
-
-            try {
-                const res = await apiFetch(`/sub-product-categories/${id}`, { method: "DELETE" });
-                if (!res) return;
-                const data = await res.json();
-                if (!res.ok) {
-                    alert(data.message || "Failed to delete subcategory");
-                    return;
-                }
-                loadSubCategories(subCatCurrentPage);
-            } catch (err) {
-                console.error("Error deleting subcategory:", err);
-                alert("Failed to delete subcategory");
-            }
-        }
-    });
-}
-
-// Auto-init on load
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", setupItemMasterEvents);
-} else {
-    setupItemMasterEvents();
-}

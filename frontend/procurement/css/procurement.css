@@ -5836,3 +5836,220 @@ td input.taxable-input {
     box-sizing: border-box !important;
     line-height: 1 !important;
 }
+
+
+/* =============================================================================
+   SEARCHABLE & COPYABLE SUB PRODUCT CATEGORY COMBOBOX
+   ============================================================================= */
+.subcat-search-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.subcat-search-input-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    transition: all 0.15s ease-in-out;
+}
+
+.subcat-search-input-box:focus-within {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 2.5px rgba(37, 99, 235, 0.15);
+}
+
+.subcat-search-icon {
+    position: absolute;
+    left: 11px;
+    color: #94a3b8;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+}
+
+.subcat-search-input {
+    width: 100%;
+    border: none !important;
+    background: transparent !important;
+    padding: 9px 85px 9px 34px !important;
+    font-size: 13.5px !important;
+    color: #0f172a !important;
+    outline: none !important;
+    box-shadow: none !important;
+    border-radius: 6px !important;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.subcat-search-input::placeholder {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.subcat-copy-btn {
+    position: absolute;
+    right: 56px;
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.subcat-copy-btn:hover {
+    color: #2563eb;
+    background: #eff6ff;
+}
+
+.subcat-copied-tooltip {
+    position: absolute;
+    top: -26px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.subcat-copy-btn.show-copied .subcat-copied-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+}
+
+.subcat-search-clear-btn {
+    position: absolute;
+    right: 32px;
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.subcat-search-clear-btn:hover {
+    color: #ef4444;
+    background: #fee2e2;
+}
+
+.subcat-search-toggle-btn {
+    position: absolute;
+    right: 6px;
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 6px;
+    line-height: 1;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease, transform 0.2s ease;
+}
+
+.subcat-search-toggle-btn:hover {
+    color: #0f172a;
+    background: #f1f5f9;
+}
+
+.subcat-search-wrap.open .subcat-search-toggle-btn {
+    transform: rotate(180deg);
+}
+
+.subcat-search-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.subcat-search-dropdown.hidden {
+    display: none;
+}
+
+.subcat-search-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    min-height: 36px;
+    box-sizing: border-box;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    user-select: text;
+    -webkit-user-select: text;
+    transition: background 0.15s ease;
+}
+
+.subcat-search-item:last-child {
+    border-bottom: none;
+}
+
+.subcat-search-item:hover,
+.subcat-search-item.highlighted {
+    background: #eff6ff;
+}
+
+.subcat-search-item.selected {
+    background: #e0f2fe;
+    font-weight: 600;
+}
+
+.subcat-search-item-name {
+    font-size: 13px;
+    color: #0f172a;
+    flex: 1;
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.subcat-search-check {
+    color: #2563eb;
+    font-weight: 700;
+    font-size: 13px;
+    margin-left: 8px;
+}
+
+.subcat-search-mark {
+    background: #fef08a;
+    color: #854d0e;
+    padding: 0 2px;
+    border-radius: 2px;
+    font-weight: 700;
+}
+
+.subcat-search-empty {
+    padding: 14px 12px;
+    font-size: 13px;
+    color: #94a3b8;
+    text-align: center;
+}

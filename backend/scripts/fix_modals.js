@@ -31,8 +31,6 @@ if (adminHtml.includes('View Modal ───────────────
     console.log('admin index.html does not have corrupt tag');
 }
 
-// 2. Fix procurement-manager index.html
-const pmPath = path.join(rootDir, 'frontend', 'procurement-manager', 'index.html');
 let pmHtml = fs.readFileSync(pmPath, 'utf8');
 
 const replacePm = `<button id="confirmSelectVendorBtn" type="button" class="btn-modal-confirm">Confirm Selection</button>
@@ -48,5 +46,4 @@ if (pmHtml.includes('src="/shared/js/workspace-dashboard.js"')) {
         replacePm
     );
     fs.writeFileSync(pmPath, pmHtml, 'utf8');
-    console.log('Successfully fixed procurement-manager index.html');
 }

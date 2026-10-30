@@ -55,7 +55,6 @@ function updateHtmlModal(filePath) {
 }
 
 updateHtmlModal(path.join(rootDir, 'frontend', 'admin', 'index.html'));
-updateHtmlModal(path.join(rootDir, 'frontend', 'procurement-manager', 'index.html'));
 
 // CSS styling for modal buttons
 const modalBtnCss = `
@@ -160,5 +159,3 @@ function appendCss(filePath) {
 
 appendCss(path.join(rootDir, 'frontend', 'admin', 'style.css'));
 appendCss(path.join(rootDir, 'frontend', 'admin', 'css', 'admin.css'));
-appendCss(path.join(rootDir, 'frontend', 'procurement-manager', 'style.css'));
-appendCss(path.join(rootDir, 'frontend', 'procurement-manager', 'css', 'manager.css'));

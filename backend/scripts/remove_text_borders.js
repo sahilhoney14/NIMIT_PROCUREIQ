@@ -92,8 +92,6 @@ const cssReplacement = `/* Activity Report Styling - Clean, Borderless Natural T
 const cssFiles = [
     "frontend/admin/style.css",
     "frontend/admin/css/admin.css",
-    "frontend/procurement-manager/style.css",
-    "frontend/procurement-manager/css/manager.css"
 ];
 
 for (const rel of cssFiles) {

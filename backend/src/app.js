@@ -2311,9 +2311,29 @@ app.post("/purchase-requests/import-preview", verifyProcurement, excelUpload.sin
         headers.forEach((header, index) => {
             if (header) columnIndex[header] = index;
         });
+        const PR_HEADER_ALIASES = {
+            pr_date: ["pr_date", "pr_date_yyyy_mm_dd", "date", "request_date", "prdate"],
+            party_name: ["party_name", "party", "client_name", "client", "customer_name", "customer"],
+            location: ["location", "site_location", "plant_location", "site", "city"],
+            territory: ["territory", "region", "zone"],
+            product_category: ["product_category", "category", "prod_cat"],
+            sub_product_category: ["sub_product_category", "sub_category", "subcategory", "sub_product_cat"],
+            item_name: ["item_name", "item", "item_description", "description", "product_name"],
+            product_remarks: ["product_remarks", "remarks", "remark", "notes", "specification", "item_remarks"],
+            make: ["make", "brand", "manufacturer", "oem"],
+            model: ["model", "model_no", "model_number", "part_number", "part_no"],
+            qty: ["qty", "quantity", "quantities", "quantity_req", "qty_nos"],
+            unit: ["unit", "uom", "unit_of_measure"],
+            sales_rate: ["sales_rate", "rate", "price", "unit_price", "sales_rate_inr", "sales_rate_rs", "rate_rs"]
+        };
         const getCell = (row, field) => {
-            if (columnIndex[field] === undefined) return null;
-            return cleanValue(row[columnIndex[field]]);
+            const aliases = PR_HEADER_ALIASES[field] || [field];
+            for (const key of aliases) {
+                if (columnIndex[key] !== undefined) {
+                    return cleanValue(row[columnIndex[key]]);
+                }
+            }
+            return null;
         };
         const rows = excelRows.slice(1).filter(row => row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== "")).map(row => {
             const quantity = cleanNumber(getCell(row, "qty"));
@@ -2466,6 +2486,553 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
         });
     } finally {
         connection.release();
+    }
+});
+
+// GET /purchase-requests/template - Downloads an Excel (.xlsx) template with standard headers and sample data for bulk purchase request import
+app.get(["/purchase-requests/template", "/api/purchase-requests/template", "/purchase-requests/import-template"], verifyProcurement, async (req, res) => {
+    try {
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "ProcureIQ Enterprise";
+        workbook.lastModifiedBy = "ProcureIQ Enterprise";
+        workbook.created = new Date();
+        workbook.modified = new Date();
+
+        // Sheet 1: PR Import Template
+        const sheet = workbook.addWorksheet("PR Import Template", {
+            views: [{ state: "frozen", ySplit: 1, showGridLines: true }],
+            properties: { defaultRowHeight: 22 }
+        });
+
+        const columns = [
+            { header: "PR Date (YYYY-MM-DD)", key: "pr_date", width: 22 },
+            { header: "Party Name *", key: "party_name", width: 28 },
+            { header: "Location *", key: "location", width: 20 },
+            { header: "Territory *", key: "territory", width: 20 },
+            { header: "Product Category *", key: "product_category", width: 24 },
+            { header: "Sub Product Category", key: "sub_product_category", width: 26 },
+            { header: "Item Name *", key: "item_name", width: 30 },
+            { header: "Make *", key: "make", width: 20 },
+            { header: "Model *", key: "model", width: 20 },
+            { header: "Quantity *", key: "qty", width: 14 },
+            { header: "Unit *", key: "unit", width: 14 },
+            { header: "Sales Rate *", key: "sales_rate", width: 18 },
+            { header: "Product Remarks", key: "product_remarks", width: 32 }
+        ];
+
+        sheet.columns = columns.map(c => ({ header: c.header, key: c.key, width: c.width }));
+
+        // Style Header Row (Row 1)
+        const headerRow = sheet.getRow(1);
+        headerRow.height = 32;
+        headerRow.eachCell((cell) => {
+            cell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FFFFFFFF" } };
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FF0B57A4" }
+            };
+            cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+            cell.border = {
+                top: { style: "thin", color: { argb: "FF94A3B8" } },
+                left: { style: "thin", color: { argb: "FF94A3B8" } },
+                bottom: { style: "medium", color: { argb: "FF0F172A" } },
+                right: { style: "thin", color: { argb: "FF94A3B8" } }
+            };
+        });
+
+        const today = new Date().toISOString().slice(0, 10);
+
+        // Sample Row 1
+        const sample1 = sheet.addRow({
+            pr_date: today,
+            party_name: "Reliance Industries Limited",
+            location: "Jamnagar",
+            territory: "Pan India",
+            product_category: "Surveillance System",
+            sub_product_category: "PTZ CAMERA",
+            item_name: "Speed Dome PTZ Camera",
+            make: "Honeywell",
+            model: "I-HMP123",
+            qty: 10,
+            unit: "number",
+            sales_rate: 155275,
+            product_remarks: "High-priority requirement for plant perimeter security"
+        });
+
+        // Sample Row 2
+        const sample2 = sheet.addRow({
+            pr_date: today,
+            party_name: "JSW Steel Limited",
+            location: "Bellary",
+            territory: "West",
+            product_category: "Networking",
+            sub_product_category: "SWITCH",
+            item_name: "24 Port Managed Gigabit PoE Switch",
+            make: "Cisco",
+            model: "CBS350-24T-4G",
+            qty: 5,
+            unit: "number",
+            sales_rate: 42500,
+            product_remarks: "Standard 3-year OEM enterprise warranty required"
+        });
+
+        [sample1, sample2].forEach((row) => {
+            row.height = 24;
+            row.eachCell((cell, colNumber) => {
+                cell.font = { name: "Segoe UI", size: 9.5, italic: true, color: { argb: "FF334155" } };
+                cell.fill = {
+                    type: "pattern",
+                    pattern: "solid",
+                    fgColor: { argb: "FFF8FAFC" }
+                };
+                cell.border = {
+                    top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    right: { style: "thin", color: { argb: "FFE2E8F0" } }
+                };
+                if (colNumber === 1 || colNumber === 11) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                } else if (colNumber === 10 || colNumber === 12) {
+                    cell.alignment = { vertical: "middle", horizontal: "right" };
+                } else {
+                    cell.alignment = { vertical: "middle", horizontal: "left" };
+                }
+            });
+        });
+
+        // Sheet 2: Guidelines & Reference
+        const guideSheet = workbook.addWorksheet("Instructions & Guide", {
+            views: [{ showGridLines: true }],
+            properties: { defaultRowHeight: 22 }
+        });
+
+        guideSheet.mergeCells("A1:D1");
+        const guideTitle = guideSheet.getCell("A1");
+        guideTitle.value = "PURCHASE REQUEST BULK IMPORT GUIDELINES";
+        guideTitle.font = { name: "Segoe UI", size: 13, bold: true, color: { argb: "FFFFFFFF" } };
+        guideTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B57A4" } };
+        guideTitle.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+        guideSheet.getRow(1).height = 30;
+
+        const guideHeaders = ["Field Name", "Requirement", "Allowed Values / Format", "Description / Example"];
+        const guideHeaderRow = guideSheet.getRow(2);
+        guideHeaderRow.height = 26;
+        guideHeaders.forEach((gh, idx) => {
+            const cell = guideHeaderRow.getCell(idx + 1);
+            cell.value = gh;
+            cell.font = { name: "Segoe UI", size: 10, bold: true, color: { argb: "FF0F172A" } };
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+            cell.alignment = { vertical: "middle", horizontal: "left" };
+        });
+
+        const guideRows = [
+            ["PR Date", "Optional", "YYYY-MM-DD or DD-MM-YYYY", "Defaults to today's date if left blank"],
+            ["Party Name", "Mandatory (*)", "Text", "Client or party name, e.g. 'Reliance Industries'"],
+            ["Location", "Mandatory (*)", "Text", "Plant, delivery site, or city name, e.g. 'Jamnagar'"],
+            ["Territory", "Mandatory (*)", "North, South (Dahej), South (Bharuch), West, Central Projects, Central Services, Central Contracts, Ahmedabad, Pan India, Kutch, Surat", "Must match one of the standard territory names"],
+            ["Product Category", "Mandatory (*)", "Text", "Main category from Item Master (e.g. Surveillance System, Networking)"],
+            ["Sub Product Category", "Optional", "Text", "Subcategory for specific cataloging (e.g. PTZ CAMERA, SWITCH)"],
+            ["Item Name", "Mandatory (*)", "Text", "Full description of item required"],
+            ["Make", "Mandatory (*)", "Text", "Manufacturer or brand, e.g. 'Honeywell', 'Cisco', 'Schneider'"],
+            ["Model", "Mandatory (*)", "Text", "Model number, part number, or code"],
+            ["Quantity", "Mandatory (*)", "Positive Number (e.g. 10, 25.5)", "Must be greater than 0"],
+            ["Unit", "Mandatory (*)", "Number, Set, Meter, Lot", "Standard measuring unit"],
+            ["Sales Rate", "Mandatory (*)", "Positive Number (₹)", "Rate per unit in INR (without currency symbol)"],
+            ["Product Remarks", "Optional", "Text", "Technical specs, delivery deadlines, or instructions"]
+        ];
+
+        guideRows.forEach((r) => {
+            const row = guideSheet.addRow(r);
+            row.height = 22;
+            row.eachCell((cell) => {
+                cell.font = { name: "Segoe UI", size: 9.5, color: { argb: "FF334155" } };
+                cell.alignment = { vertical: "middle", horizontal: "left" };
+                cell.border = {
+                    top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    right: { style: "thin", color: { argb: "FFE2E8F0" } }
+                };
+            });
+        });
+
+        guideSheet.getColumn(1).width = 24;
+        guideSheet.getColumn(2).width = 16;
+        guideSheet.getColumn(3).width = 40;
+        guideSheet.getColumn(4).width = 50;
+
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", 'attachment; filename="Purchase_Request_Import_Template.xlsx"');
+        await workbook.xlsx.write(res);
+        return res.end();
+    } catch (error) {
+        log(`ERROR generating purchase request template: ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to generate Purchase Request import template"
+        });
+    }
+});
+
+// GET /purchase-requests/export - Export purchase requests matching applied filters as real Excel (.xlsx)
+app.get(["/purchase-requests/export", "/api/purchase-requests/export"], verifyProcurement, async (req, res) => {
+    const statusParam = (req.query.status || "").trim().toUpperCase();
+    const searchParam = (req.query.search || "").trim();
+    const partyParam = (req.query.party || req.query.vendor || "").trim();
+    const territoryParam = (req.query.territory || "").trim();
+    const singleDate = (req.query.date || "").trim();
+    const fromDate = (req.query.from_date || req.query.from || singleDate).trim();
+    const toDate = (req.query.to_date || req.query.to || singleDate).trim();
+
+    try {
+        const whereClauses = [];
+        const params = [];
+
+        if (statusParam && statusParam !== "ALL") {
+            whereClauses.push(`
+                (CASE
+                    WHEN po.status = 'COMPLETED' THEN 'CLOSED'
+                    WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
+                    WHEN vi.status IS NOT NULL THEN vi.status
+                    ELSE 'OPEN'
+                END) = ?
+            `);
+            params.push(statusParam);
+        }
+
+        if (partyParam && partyParam !== "ALL") {
+            whereClauses.push("(pr.party_name = ? OR po.vendor_name = ?)");
+            params.push(partyParam, partyParam);
+        }
+
+        if (territoryParam && territoryParam !== "ALL") {
+            whereClauses.push("pr.territory = ?");
+            params.push(territoryParam);
+        }
+
+        if (searchParam) {
+            whereClauses.push("(pr.pr_number LIKE ? OR po.po_number LIKE ? OR pr.party_name LIKE ? OR po.vendor_name LIKE ? OR pr.item_name LIKE ? OR pr.make LIKE ? OR pr.model LIKE ?)");
+            const wild = `%${searchParam}%`;
+            params.push(wild, wild, wild, wild, wild, wild, wild);
+        }
+
+        if (fromDate) {
+            if (!isRealDate(fromDate)) {
+                return res.status(400).json({ success: false, message: "Invalid from_date format (YYYY-MM-DD required)" });
+            }
+            whereClauses.push("COALESCE(pr.pr_date, DATE(pr.created_at)) >= ?");
+            params.push(fromDate);
+        }
+
+        if (toDate) {
+            if (!isRealDate(toDate)) {
+                return res.status(400).json({ success: false, message: "Invalid to_date format (YYYY-MM-DD required)" });
+            }
+            whereClauses.push("COALESCE(pr.pr_date, DATE(pr.created_at)) <= ?");
+            params.push(toDate);
+        }
+
+        const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+        const [rows] = await db.query(`
+            SELECT
+                pr.id AS pr_id,
+                pr.pr_number,
+                pr.pr_date,
+                pr.created_at,
+                pr.party_name,
+                pr.location,
+                pr.territory,
+                pr.product_category,
+                pr.sub_product_category,
+                pr.item_name,
+                pr.make,
+                pr.model,
+                pr.qty,
+                pr.unit,
+                pr.sales_rate,
+                pr.taxable_value,
+                pr.product_remarks,
+                pr.created_by,
+                COALESCE(u.username, 'admin') AS creator_username,
+                vi.inquiry_id,
+                vi.status AS vi_status,
+                po.po_id,
+                po.po_number,
+                po.po_date,
+                po.status AS po_status,
+                po.vendor_name,
+                po.price_per_unit AS po_unit_price,
+                po.total_price AS po_total_price,
+                CASE
+                    WHEN po.status = 'COMPLETED' THEN 'CLOSED'
+                    WHEN po.status = 'CANCELLED' THEN 'CANCELLED'
+                    WHEN vi.status IS NOT NULL THEN vi.status
+                    ELSE 'OPEN'
+                END AS status
+            FROM purchase_requests pr
+            LEFT JOIN users u ON u.user_id = pr.created_by
+            LEFT JOIN vendor_inquiries vi ON vi.pr_id = pr.id
+            LEFT JOIN purchase_orders po ON po.pr_id = pr.id
+            ${whereSql}
+            ORDER BY pr.id DESC
+        `, params);
+
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = "ProcureIQ Enterprise";
+        workbook.lastModifiedBy = "ProcureIQ Enterprise";
+        workbook.created = new Date();
+        workbook.modified = new Date();
+
+        const sheet = workbook.addWorksheet("Purchase Requests", {
+            views: [{ state: "frozen", ySplit: 4, showGridLines: true }],
+            properties: { defaultRowHeight: 22 }
+        });
+
+        // 1. Title Banner
+        sheet.mergeCells("A1:U1");
+        const titleCell = sheet.getCell("A1");
+        titleCell.value = "NIMIT — PROCUREIQ BULK PURCHASE REQUESTS REPORT";
+        titleCell.font = { name: "Segoe UI", size: 15, bold: true, color: { argb: "FFFFFFFF" } };
+        titleCell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF0B57A4" }
+        };
+        titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+        sheet.getRow(1).height = 36;
+
+        // 2. Metadata / Filter Subtitle
+        sheet.mergeCells("A2:U2");
+        const metaCell = sheet.getCell("A2");
+        const now = new Date();
+        const dateTag = now.toISOString().slice(0, 10);
+        const filterStatusText = (statusParam && statusParam !== "ALL") ? statusParam : "All Statuses";
+        const filterDateText = (fromDate || toDate) ? `From: ${fromDate || "Start"} To: ${toDate || "Present"}` : "All Dates";
+        const filterPartyText = partyParam && partyParam !== "ALL" ? ` | Party/Vendor: "${partyParam}"` : "";
+        const filterTerritoryText = territoryParam && territoryParam !== "ALL" ? ` | Territory: "${territoryParam}"` : "";
+        const filterSearchText = searchParam ? ` | Search: "${searchParam}"` : "";
+        metaCell.value = `Exported: ${now.toLocaleDateString("en-IN")} ${now.toLocaleTimeString("en-IN")} | Status: ${filterStatusText} | Period: ${filterDateText}${filterTerritoryText}${filterPartyText}${filterSearchText} | Total Records: ${rows.length}`;
+        metaCell.font = { name: "Segoe UI", size: 10, italic: true, color: { argb: "FF334155" } };
+        metaCell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFF1F5F9" }
+        };
+        metaCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+        sheet.getRow(2).height = 24;
+
+        sheet.getRow(3).height = 10; // Spacer
+
+        // 3. Table Column Headers
+        const columns = [
+            { header: "S.No", key: "sno", width: 8, align: "center" },
+            { header: "PR Number", key: "pr_number", width: 22, align: "center" },
+            { header: "PR Date", key: "pr_date", width: 14, align: "center" },
+            { header: "Status", key: "status", width: 18, align: "center" },
+            { header: "Party / Client Name", key: "party_name", width: 28, align: "left" },
+            { header: "Vendor Name", key: "vendor_name", width: 28, align: "left" },
+            { header: "PO Number", key: "po_number", width: 22, align: "center" },
+            { header: "Location", key: "location", width: 18, align: "left" },
+            { header: "Territory", key: "territory", width: 18, align: "left" },
+            { header: "Product Category", key: "product_category", width: 24, align: "left" },
+            { header: "Sub Product Category", key: "sub_product_category", width: 22, align: "left" },
+            { header: "Item Name", key: "item_name", width: 34, align: "left" },
+            { header: "Make", key: "make", width: 18, align: "left" },
+            { header: "Model", key: "model", width: 20, align: "left" },
+            { header: "Quantity", key: "qty", width: 14, align: "right" },
+            { header: "Unit", key: "unit", width: 12, align: "center" },
+            { header: "Sales Rate (₹)", key: "sales_rate", width: 18, align: "right" },
+            { header: "Taxable Value (₹)", key: "taxable_value", width: 20, align: "right" },
+            { header: "PO Rate (₹)", key: "po_rate", width: 18, align: "right" },
+            { header: "Product Remarks", key: "product_remarks", width: 32, align: "left" },
+            { header: "Created By", key: "created_by", width: 16, align: "center" }
+        ];
+
+        const headerRow = sheet.getRow(4);
+        headerRow.height = 28;
+        columns.forEach((col, idx) => {
+            const cell = headerRow.getCell(idx + 1);
+            cell.value = col.header;
+            cell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FFFFFFFF" } };
+            cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FF0B57A4" }
+            };
+            cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+            cell.border = {
+                top: { style: "medium", color: { argb: "FF0B57A4" } },
+                left: { style: "thin", color: { argb: "FF94A3B8" } },
+                bottom: { style: "medium", color: { argb: "FF0F172A" } },
+                right: { style: "thin", color: { argb: "FF94A3B8" } }
+            };
+            sheet.getColumn(idx + 1).width = col.width;
+        });
+
+        // 4. Data Rows
+        let currentRowIdx = 5;
+        let totalQty = 0;
+        let totalTaxableValue = 0;
+
+        rows.forEach((row, idx) => {
+            const dataRow = sheet.getRow(currentRowIdx);
+            dataRow.height = 22;
+
+            let prDateStr = "—";
+            if (row.pr_date) {
+                prDateStr = row.pr_date instanceof Date ? row.pr_date.toISOString().slice(0, 10) : String(row.pr_date).slice(0, 10);
+            } else if (row.created_at) {
+                prDateStr = row.created_at instanceof Date ? row.created_at.toISOString().slice(0, 10) : String(row.created_at).slice(0, 10);
+            }
+
+            const rawStatus = (row.status || "OPEN").toUpperCase();
+            const statusDisplay = row.status ? row.status.replace(/_/g, " ") : "OPEN";
+
+            const qty = Number(row.qty || 0);
+            const salesRate = Number(row.sales_rate || 0);
+            const taxableVal = Number(row.taxable_value || 0);
+            const poRate = row.po_unit_price !== null && row.po_unit_price !== undefined ? Number(row.po_unit_price) : null;
+
+            totalQty += qty;
+            totalTaxableValue += taxableVal;
+
+            const isEven = idx % 2 === 0;
+            const bgArgb = isEven ? "FFFFFFFF" : "FFF8FAFC";
+
+            const values = [
+                idx + 1,
+                row.pr_number || "—",
+                prDateStr,
+                statusDisplay,
+                row.party_name || "—",
+                row.vendor_name || "—",
+                row.po_number || "—",
+                row.location || "—",
+                row.territory || "—",
+                row.product_category || "—",
+                row.sub_product_category || "—",
+                row.item_name || "—",
+                row.make || "—",
+                row.model || "—",
+                qty,
+                row.unit || "—",
+                salesRate,
+                taxableVal,
+                poRate !== null ? poRate : "—",
+                row.product_remarks || "",
+                row.creator_username || "admin"
+            ];
+
+            values.forEach((val, colIdx) => {
+                const cell = dataRow.getCell(colIdx + 1);
+                cell.value = sanitizeExcelCellValue(val);
+                cell.font = { name: "Segoe UI", size: 10, color: { argb: "FF0F172A" } };
+                cell.fill = {
+                    type: "pattern",
+                    pattern: "solid",
+                    fgColor: { argb: bgArgb }
+                };
+                cell.border = {
+                    top: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+                    right: { style: "thin", color: { argb: "FFE2E8F0" } }
+                };
+
+                // Alignment & Formatting
+                if (colIdx === 0 || colIdx === 1 || colIdx === 2 || colIdx === 6 || colIdx === 15 || colIdx === 20) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                } else if (colIdx === 3) {
+                    // Status styling
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                    if (rawStatus === "OPEN") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FF1D4ED8" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
+                    } else if (rawStatus === "VENDOR_SELECTED") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFB45309" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFBEB" } };
+                    } else if (rawStatus === "CLOSED") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FF15803D" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0FDF4" } };
+                    } else if (rawStatus === "CANCELLED") {
+                        cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFB91C1C" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF2F2" } };
+                    }
+                } else if (colIdx === 14) {
+                    cell.alignment = { vertical: "middle", horizontal: "right" };
+                    cell.numFmt = "#,##0";
+                } else if (colIdx === 16 || colIdx === 17) {
+                    cell.alignment = { vertical: "middle", horizontal: "right" };
+                    cell.numFmt = "₹#,##0.00";
+                } else if (colIdx === 18) {
+                    cell.alignment = { vertical: "middle", horizontal: "right" };
+                    if (poRate !== null) cell.numFmt = "₹#,##0.00";
+                } else {
+                    cell.alignment = { vertical: "middle", horizontal: "left" };
+                }
+            });
+
+            currentRowIdx++;
+        });
+
+        // 5. Total Summary Row
+        const totalRow = sheet.getRow(currentRowIdx);
+        totalRow.height = 26;
+        sheet.mergeCells(`A${currentRowIdx}:N${currentRowIdx}`);
+        const totalLabelCell = totalRow.getCell(1);
+        totalLabelCell.value = "TOTAL SUMMARY";
+        totalLabelCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
+        totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
+        totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+
+        for (let c = 1; c <= 21; c++) {
+            const cell = totalRow.getCell(c);
+            cell.border = {
+                top: { style: "medium", color: { argb: "FF0F172A" } },
+                bottom: { style: "double", color: { argb: "FF0F172A" } },
+                left: { style: "thin", color: { argb: "FFE2E8F0" } },
+                right: { style: "thin", color: { argb: "FFE2E8F0" } }
+            };
+            if (c > 14) {
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+            }
+        }
+
+        const qtyTotalCell = totalRow.getCell(15);
+        qtyTotalCell.value = totalQty;
+        qtyTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
+        qtyTotalCell.alignment = { vertical: "middle", horizontal: "right" };
+        qtyTotalCell.numFmt = "#,##0";
+
+        const taxableTotalCell = totalRow.getCell(18);
+        taxableTotalCell.value = totalTaxableValue;
+        taxableTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
+        taxableTotalCell.alignment = { vertical: "middle", horizontal: "right" };
+        taxableTotalCell.numFmt = "₹#,##0.00";
+
+        // Auto filter on table headers
+        if (currentRowIdx > 5) {
+            sheet.autoFilter = `A4:U${currentRowIdx - 1}`;
+        }
+
+        const statusSuffix = (statusParam && statusParam !== "ALL") ? `_${statusParam}` : "";
+        const filename = `Purchase_Requests_Export${statusSuffix}_${dateTag}.xlsx`;
+
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+        await workbook.xlsx.write(res);
+        return res.end();
+    } catch (error) {
+        console.error(error);
+        log(`Purchase requests Excel export failed - ${error.message}`);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to export purchase requests Excel file"
+        });
     }
 });
 

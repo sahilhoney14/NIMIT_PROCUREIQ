@@ -9,7 +9,7 @@
     <script src="/shared/js/auth-guard.js" data-allowed-roles="PROCUREMENT,ADMIN"></script>
     <link rel="stylesheet" href="/shared/css/variables.css">
     <link rel="stylesheet" href="/shared/css/components.css">
-    <link rel="stylesheet" href="/procurement/style.css?v=3.6">
+    <link rel="stylesheet" href="/procurement/style.css?v=5.5">
     <link rel="stylesheet" href="/shared/css/workspace-dashboard.css?v=3.0">
 </head>
 <body>
@@ -377,11 +377,38 @@
                                     <option value="" disabled selected>Select Category</option>
                                 </select>
                             </div>
-                            <div class="form-group">
+                                                        <div class="form-group subcat-form-group">
                                 <label>Sub Product Category <span class="required-star">*</span></label>
-                                <select id="sub_product_category">
-                                    <option value="" disabled selected>Select Sub Product Category</option>
-                                </select>
+                                <div class="subcat-search-wrap" id="subCatSearchWrap">
+                                    <div class="subcat-search-input-box">
+                                        <svg class="subcat-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <circle cx="11" cy="11" r="8"></circle>
+                                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                        </svg>
+                                        <input
+                                            type="text"
+                                            id="sub_product_category"
+                                            class="subcat-search-input"
+                                            placeholder="Select or type to search subcategory..."
+                                            autocomplete="off"
+                                            spellcheck="false"
+                                        >
+                                        <button type="button" class="subcat-copy-btn" id="subCatCopyBtn" title="Copy Sub Product Category" style="display:none;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                            </svg>
+                                            <span class="subcat-copied-tooltip">Copied!</span>
+                                        </button>
+                                        <button type="button" class="subcat-search-clear-btn" id="subCatClearBtn" title="Clear selection" style="display:none;">✕</button>
+                                        <button type="button" class="subcat-search-toggle-btn" id="subCatToggleBtn" title="Toggle subcategories dropdown" aria-label="Toggle dropdown">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div class="subcat-search-dropdown hidden" id="subCatDropdown"></div>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -435,7 +462,7 @@
                 </section>
 
                 <section id="excelSection" class="entry-section hidden">
-                    <div class="excel-upload">
+                    <div class="excel-upload" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         <label for="excelFile" class="file-label">Choose Excel File</label>
                         <input type="file" id="excelFile" accept=".xlsx,.xls">
                         <div class="file-chosen-container">
@@ -443,6 +470,48 @@
                             <button type="button" id="clearExcelFileBtn" class="clear-file-btn hidden" title="Remove selected file" aria-label="Remove selected file">✕</button>
                         </div>
                         <button id="importButton" class="primary-button">Import Excel</button>
+                        <button type="button" id="downloadPrTemplateBtn" class="option-button" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;" title="Download standard Excel format template for bulk importing Purchase Requests">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Export Format / Template
+                        </button>
+                        <button type="button" id="exportAllPrsBtn" class="po-btn-export" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;" title="Bulk export all Purchase Requests to Excel (.xlsx)">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Bulk Export PRs (.xlsx)
+                        </button>
+                    </div>
+
+                    <!-- Bulk Guidelines Card -->
+                    <div class="pr-bulk-guide-card" style="margin-top: 16px; margin-bottom: 20px; padding: 16px 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; color: #334155; line-height: 1.5;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 700; color: #0b57a4;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                            <span>Bulk Excel Import &amp; Export Instructions</span>
+                        </div>
+                        <p style="margin: 0 0 10px 0; color: #475569;">
+                            Upload a standard Excel spreadsheet (<strong>.xlsx</strong> or <strong>.xls</strong>) with your purchase requests.
+                            Click <strong>Export Format / Template</strong> above to download the pre-styled format with column headers and sample rows.
+                            Click <strong>Bulk Export PRs (.xlsx)</strong> to export all recorded purchase requests from the system.
+                        </p>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+                            <div style="background: #ffffff; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                <strong style="color: #0f172a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Required Columns (*)</strong>
+                                <ul style="margin: 6px 0 0 16px; padding: 0; font-size: 12px; color: #64748b; line-height: 1.6;">
+                                    <li><code>Party Name *</code>, <code>Location *</code>, <code>Territory *</code></li>
+                                    <li><code>Product Category *</code>, <code>Item Name *</code></li>
+                                    <li><code>Make *</code>, <code>Model *</code>, <code>Quantity *</code></li>
+                                    <li><code>Unit *</code> (e.g. <em>Number, Set, Meter, Lot</em>)</li>
+                                    <li><code>Sales Rate *</code> (Numeric rate in ₹)</li>
+                                </ul>
+                            </div>
+                            <div style="background: #ffffff; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                                <strong style="color: #0f172a; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Optional Fields &amp; Hints</strong>
+                                <ul style="margin: 6px 0 0 16px; padding: 0; font-size: 12px; color: #64748b; line-height: 1.6;">
+                                    <li><code>PR Date</code> (Format: <em>YYYY-MM-DD</em> or <em>DD-MM-YYYY</em>. Blank defaults to today)</li>
+                                    <li><code>Sub Product Category</code> (Specific subcategory)</li>
+                                    <li><code>Product Remarks</code> (Specification notes or special requests)</li>
+                                    <li><code>Bulk Export PRs</code> (Directly download full system PR data)</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="excelPreview" class="preview-container hidden">
@@ -1419,7 +1488,7 @@
     <script src="/shared/js/utils.js"></script>
     <script src="/shared/js/api.js"></script>
     <script src="/shared/js/workspace-dashboard.js?v=3.0"></script>
-    <script src="/procurement/script.js?v=4.5"></script>
+    <script src="/procurement/script.js?v=5.6"></script>
 
 
 

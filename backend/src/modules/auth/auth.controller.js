@@ -67,11 +67,16 @@ async function login(req, res) {
 
         await authService.recordLoginAttempt(user.user_id, "SUCCESS");
 
+        // Single Active Device Enforcement: Increment token_version to invalidate any previous active sessions/devices
+        await authService.incrementTokenVersion(user.user_id);
+        const freshUser = await authService.findUserById(user.user_id);
+        const currentVersion = Number(freshUser?.token_version || ((user.token_version || 1) + 1));
+
         const tokenPayload = {
             user_id: user.user_id,
             username: user.username,
             role: user.role,
-            token_version: user.token_version || 1
+            token_version: currentVersion
         };
 
         const accessToken = generateAccessToken(tokenPayload);
@@ -145,13 +150,13 @@ async function refresh(req, res) {
 
         const user = await authService.findUserById(decoded.user_id);
         if (!user || !user.is_active || (user.token_version !== decoded.token_version)) {
-            res.clearCookie("jwt_token");
-            res.clearCookie("access_token");
-            res.clearCookie("refresh_token");
-            res.clearCookie("auth_token");
-            res.clearCookie("login_session");
+            res.clearCookie("jwt_token", { path: "/" });
+            res.clearCookie("access_token", { path: "/" });
+            res.clearCookie("refresh_token", { path: "/" });
+            res.clearCookie("auth_token", { path: "/" });
+            res.clearCookie("login_session", { path: "/" });
             if (req.session) req.session.destroy(() => {});
-            return res.status(403).json({ success: false, message: "Session revoked or account deactivated" });
+            return res.status(403).json({ success: false, reason: "logged_in_elsewhere", message: "Session revoked or account logged in from another device" });
         }
 
         const tokenPayload = {
@@ -208,21 +213,24 @@ async function refresh(req, res) {
 async function verify(req, res) {
     const user = await resolveAuthUser(req);
     if (!user) {
-        res.clearCookie("jwt_token");
-        res.clearCookie("access_token");
-        res.clearCookie("refresh_token");
-        res.clearCookie("auth_token");
-        res.clearCookie("login_session");
+        res.clearCookie("jwt_token", { path: "/" });
+        res.clearCookie("access_token", { path: "/" });
+        res.clearCookie("refresh_token", { path: "/" });
+        res.clearCookie("auth_token", { path: "/" });
+        res.clearCookie("login_session", { path: "/" });
         if (req.session) req.session.destroy(() => {});
-        return res.status(401).json({ success: false, authenticated: false, message: "Session revoked or expired" });
+        return res.status(401).json({ success: false, authenticated: false, reason: "logged_in_elsewhere", message: "Session revoked or expired" });
     }
+
+    const token = generateAccessToken(user);
 
     return res.json({
         success: true,
         authenticated: true,
         user_id: user.user_id,
         username: user.username,
-        role: user.role
+        role: user.role,
+        token
     });
 }
 
@@ -241,11 +249,11 @@ async function logout(req, res) {
         }
     }
 
-    res.clearCookie("jwt_token");
-    res.clearCookie("access_token");
-    res.clearCookie("refresh_token");
-    res.clearCookie("auth_token");
-    res.clearCookie("login_session");
+    res.clearCookie("jwt_token", { path: "/" });
+    res.clearCookie("access_token", { path: "/" });
+    res.clearCookie("refresh_token", { path: "/" });
+    res.clearCookie("auth_token", { path: "/" });
+    res.clearCookie("login_session", { path: "/" });
 
     const isHtml = req.headers.accept?.includes("text/html") || req.method === "GET";
 

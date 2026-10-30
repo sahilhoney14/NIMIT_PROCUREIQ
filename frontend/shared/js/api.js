@@ -3,6 +3,7 @@
  */
 
 let sharedRefreshPromise = null;
+let lastRefreshReason = "logged_in_elsewhere";
 
 async function silentRefreshToken() {
     if (!sharedRefreshPromise) {
@@ -23,6 +24,11 @@ async function silentRefreshToken() {
                             localStorage.setItem("refresh_token", data.refreshToken);
                         }
                         return data.token;
+                    }
+                } else {
+                    const errData = await res.json().catch(() => null);
+                    if (errData?.reason) {
+                        lastRefreshReason = errData.reason;
                     }
                 }
                 return null;
@@ -73,7 +79,7 @@ async function apiFetch(endpoint, options = {}) {
         localStorage.removeItem("auth_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("auth_user");
-        window.location.href = "/?reason=session_expired";
+        window.location.href = `/?reason=${encodeURIComponent(lastRefreshReason || "logged_in_elsewhere")}`;
         return null;
     }
 
@@ -81,7 +87,7 @@ async function apiFetch(endpoint, options = {}) {
         localStorage.removeItem("auth_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("auth_user");
-        window.location.href = "/?reason=session_expired";
+        window.location.href = `/?reason=${encodeURIComponent(lastRefreshReason || "logged_in_elsewhere")}`;
         return null;
     }
 

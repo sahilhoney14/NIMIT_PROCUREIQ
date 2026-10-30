@@ -491,6 +491,53 @@ window.WorkspaceDashboard = (function () {
             });
         }
 
+        // Export PRs from Dashboard
+        const wdPrExportBtn = document.getElementById("wdPrExportBtn");
+        if (wdPrExportBtn) {
+            wdPrExportBtn.addEventListener("click", async () => {
+                const originalContent = wdPrExportBtn.innerHTML;
+                try {
+                    wdPrExportBtn.disabled = true;
+                    wdPrExportBtn.innerHTML = `
+                        <svg class="spin-animation" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+                            <path d="M12 2a10 10 0 0 1 10 10" stroke-opacity="0.85"></path>
+                        </svg>
+                        <span>Exporting...</span>
+                    `;
+                    const params = new URLSearchParams();
+                    if (currentPrFilterStatus && currentPrFilterStatus !== "ALL") {
+                        params.set("status", currentPrFilterStatus);
+                    }
+                    const searchVal = prSearch ? prSearch.value.trim() : "";
+                    if (searchVal) {
+                        params.set("search", searchVal);
+                    }
+                    const queryStr = params.toString() ? `?${params.toString()}` : "";
+                    const response = await apiFetch(`/purchase-requests/export${queryStr}`);
+                    if (!response || !response.ok) {
+                        throw new Error("Export failed");
+                    }
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const dateTag = new Date().toISOString().slice(0, 10);
+                    const statusTag = currentPrFilterStatus && currentPrFilterStatus !== "ALL" ? `_${currentPrFilterStatus}` : "";
+                    a.download = `Purchase_Requests_Export${statusTag}_${dateTag}.xlsx`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                } catch (err) {
+                    alert("Failed to export Purchase Requests: " + (err.message || "Network error"));
+                } finally {
+                    wdPrExportBtn.disabled = false;
+                    wdPrExportBtn.innerHTML = originalContent;
+                }
+            });
+        }
+
         // Status filter pills
         document.querySelectorAll("#wdPrStatusFilter .wd-filter-pill").forEach(pill => {
             pill.addEventListener("click", () => {

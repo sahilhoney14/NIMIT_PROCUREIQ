@@ -42,7 +42,6 @@ NIMIT_PROCUREIQ/
 ├── frontend/                          # Client Dashboards (HTML, CSS, JS)
 │   ├── auth-service/                  # Login portal
 │   ├── admin/                         # Admin dashboard
-│   ├── procurement-manager/           # Manager dashboard
 │   └── procurement/                   # Procurement officer dashboard
 │
 ├── backend/                           # Unified Node + Express Backend

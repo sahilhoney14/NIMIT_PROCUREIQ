@@ -10,7 +10,6 @@ ProcureIQ uses cookie-backed secure sessions managed by `express-session` with b
    - Compares supplied password against `password_hash` using `bcrypt.compare`.
    - On success: Records `login_logs` entry with status `'SUCCESS'`, initializes session `req.session.user`, and returns appropriate redirect URL:
      - `ADMIN` -> `/admin`
-     - `PROCUREMENT_MANAGER` -> `/procurement-manager`
      - `PROCUREMENT` -> `/procurement`
 2. **Session Persistence**:
    - Transmitted via `httpOnly` secure cookie `login_session`.

@@ -153,7 +153,10 @@
         }
 
         if (!response.ok) {
-            throw new Error(`Auth verification failed with status: ${response.status}`);
+            const errJson = await response.json().catch(() => null);
+            const err = new Error(`Auth verification failed with status: ${response.status}`);
+            err.reason = errJson?.reason || "logged_in_elsewhere";
+            throw err;
         }
         return response.json();
     }
@@ -179,6 +182,9 @@
             username: data.username,
             role: data.role
         }));
+        if (data.token) {
+            localStorage.setItem("auth_token", data.token);
+        }
 
         window.currentUser = data;
 
@@ -193,7 +199,7 @@
         localStorage.removeItem("auth_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("auth_user");
-        redirectToLogin("session_expired");
+        redirectToLogin(err.reason || "logged_in_elsewhere");
     });
 
     // Expose global auth controller

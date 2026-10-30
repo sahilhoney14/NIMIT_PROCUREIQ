@@ -6,7 +6,6 @@ const rootDir = path.resolve(__dirname, "../..");
 // 1. Update HTML files
 const htmlFiles = [
     "frontend/admin/index.html",
-    "frontend/procurement-manager/index.html"
 ];
 
 const newModalFooterHtml = `            <div class="modal-footer" style="display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 16px 24px; border-top: 1px solid #e2e8f0; background: #f8fafc; border-bottom-left-radius: 16px; border-bottom-right-radius: 16px; box-sizing: border-box; width: 100%;">
@@ -134,8 +133,6 @@ const cssFooterBlock = `/* ─── Enterprise Modal Footer & Action Buttons �
 const cssFiles = [
     "frontend/admin/style.css",
     "frontend/admin/css/admin.css",
-    "frontend/procurement-manager/style.css",
-    "frontend/procurement-manager/css/manager.css"
 ];
 
 for (const rel of cssFiles) {
