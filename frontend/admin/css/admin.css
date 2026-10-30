@@ -641,9 +641,9 @@ label.required:not(:has(.required-star))::after {
 }
 
 .primary-button {
-    margin-top: 22px;
-    padding: 11px 22px;
-    border: none;
+    margin: 0;
+    padding: 10px 22px;
+    border: 1px solid #0B57A4;
     border-radius: 8px;
     background: #0B57A4;
     color: #ffffff;
@@ -652,6 +652,15 @@ label.required:not(:has(.required-star))::after {
     font-weight: 600;
     box-shadow: 0 2px 6px rgba(11, 87, 164, 0.25);
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    vertical-align: middle;
+}
+
+.entry-section .primary-button {
+    margin-top: 22px;
 }
 
 .primary-button:hover {
@@ -2297,8 +2306,15 @@ td input.taxable-input {
 }
 
 .goods-received-actions .primary-button,
-.goods-received-actions .secondary-button {
+.goods-received-actions .secondary-button,
+.goods-received-actions .danger-button {
     margin-top: 0;
+    padding: 8px 16px;
+    font-size: 13px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
 }
 
 .goods-inline-form {
@@ -5558,4 +5574,103 @@ td input.taxable-input {
 .po-btn-export svg {
     stroke: currentColor;
     flex-shrink: 0;
+}
+
+/* ── Universal Modal & Panel Button Alignment ─────────────────────── */
+.modal-footer,
+.subcat-panel-actions,
+#categoryModal .modal-footer {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 12px !important;
+}
+
+.modal-footer button,
+.modal-footer .primary-button,
+.modal-footer .option-button,
+.modal-footer .secondary-button,
+.subcat-panel-actions button,
+.subcat-panel-actions .primary-button,
+.subcat-panel-actions .option-button,
+#categoryModal button,
+#categoryModal .primary-button,
+#categoryModal .option-button,
+#subCategorySidePanel button,
+#subCategorySidePanel .primary-button,
+#subCategorySidePanel .option-button {
+    margin: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
+}
+
+.im-page-header .primary-button {
+    margin-top: 0 !important;
+}
+
+.im-actions-wrap {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+    vertical-align: middle !important;
+}
+
+.im-action-btn {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    flex-shrink: 0 !important;
+}
+
+.im-action-btn.edit {
+    border: 1px solid #bfdbfe !important;
+    background: #ffffff !important;
+    color: #2563eb !important;
+}
+
+.im-action-btn.edit:hover {
+    background: #eff6ff !important;
+    border-color: #93c5fd !important;
+}
+
+.im-action-btn.delete {
+    border: 1px solid #fecaca !important;
+    background: #ffffff !important;
+    color: #ef4444 !important;
+}
+
+.im-action-btn.delete:hover {
+    background: #fef2f2 !important;
+    border-color: #fca5a5 !important;
+}
+
+#productCategoriesTableBody td:last-child,
+#subCategoriesTableBody td:last-child {
+    white-space: nowrap !important;
+    text-align: center !important;
+    padding: 8px 12px !important;
+    width: 120px !important;
 }

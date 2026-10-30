@@ -55,6 +55,7 @@ async function createPurchaseRequest(req, res) {
         location,
         territory,
         product_category,
+        sub_product_category,
         item_name,
         product_remarks,
         make,
@@ -93,6 +94,34 @@ async function createPurchaseRequest(req, res) {
         return res.status(400).json({ success: false, message: "Sales rate must be greater than 0" });
     }
 
+    if (sub_product_category && String(sub_product_category).trim() !== "") {
+        const [matchingSub] = await db.query(
+            `SELECT spc.subcategory_id 
+             FROM sub_product_categories spc
+             JOIN product_categories pc ON spc.category_id = pc.category_id
+             WHERE LOWER(TRIM(pc.category_name)) = LOWER(TRIM(?))
+               AND LOWER(TRIM(spc.subcategory_name)) = LOWER(TRIM(?))
+             LIMIT 1`,
+            [product_category, sub_product_category]
+        );
+        if (matchingSub.length === 0) {
+            const [hasSubs] = await db.query(
+                `SELECT spc.subcategory_id
+                 FROM sub_product_categories spc
+                 JOIN product_categories pc ON spc.category_id = pc.category_id
+                 WHERE LOWER(TRIM(pc.category_name)) = LOWER(TRIM(?))
+                 LIMIT 1`,
+                [product_category]
+            );
+            if (hasSubs.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Sub Product Category "${sub_product_category}" does not belong to selected category "${product_category}"`
+                });
+            }
+        }
+    }
+
     const pr_date_final = pr_date && String(pr_date).trim() !== "" ? pr_date : new Date().toISOString().split("T")[0];
     const taxable_value = Number(qty) * Number(sales_rate);
 
@@ -105,10 +134,10 @@ async function createPurchaseRequest(req, res) {
             `INSERT INTO purchase_requests
             (
                 pr_number, pr_date, party_name, location, territory,
-                product_category, item_name, product_remarks, make, model,
+                product_category, sub_product_category, item_name, product_remarks, make, model,
                 qty, unit, sales_rate, taxable_value
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 pr_number,
                 pr_date_final,
@@ -116,6 +145,7 @@ async function createPurchaseRequest(req, res) {
                 location,
                 territory,
                 product_category,
+                sub_product_category,
                 item_name,
                 product_remarks || null,
                 make,

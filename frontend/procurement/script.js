@@ -7,7 +7,7 @@ const manualSection       = document.getElementById("manualSection");
 const excelSection        = document.getElementById("excelSection");
 const manualForm          = document.getElementById("manualForm");
 const productCategorySelect   = document.getElementById("product_category");
-const productCategoryOther    = document.getElementById("product_category_other");
+
 const qtyInput            = document.getElementById("qty");
 const salesRateInput      = document.getElementById("sales_rate");
 const taxableValueInput   = document.getElementById("taxable_value");
@@ -300,6 +300,7 @@ document.querySelectorAll(".submenu-item").forEach(button => {
 
         if (page === "purchase-requests") {
             document.getElementById("purchaseRequestsPage").classList.remove("hidden");
+            loadPrProductCategories();
         }
 
         if (page === "vendor-masters") {
@@ -342,6 +343,21 @@ document.querySelectorAll(".submenu-item").forEach(button => {
             document.getElementById("pastPriceReferencePage").classList.remove("hidden");
             initPastPriceReference();
         }
+
+        if (page === "product-categories") {
+            document.getElementById("productCategoriesPage").classList.remove("hidden");
+            loadProductCategories(1);
+        }
+
+        if (page === "sub-categories") {
+            document.getElementById("subCategoriesPage").classList.remove("hidden");
+            loadSubCategories(1);
+            loadCategoriesForSubCatFilter();
+            if (typeof loadPrProductCategories === "function") {
+                loadPrProductCategories();
+            }
+        }
+
     });
 });
 
@@ -363,48 +379,16 @@ excelButton.addEventListener("click", () => {
     showMessage("");
 });
 
-// ─── Product Category 'Other' Toggle ───────────────────────────────────────────
-
-productCategorySelect?.addEventListener("change", () => {
-    if (productCategorySelect.value === "Other") {
-        if (productCategoryOther) {
-            productCategoryOther.style.display = "block";
-            productCategoryOther.required = true;
-            productCategoryOther.focus();
-        }
-    } else {
-        if (productCategoryOther) {
-            productCategoryOther.style.display = "none";
-            productCategoryOther.required = false;
-            productCategoryOther.value = "";
-        }
-    }
-});
-
-manualForm?.addEventListener("reset", () => {
-    if (productCategoryOther) {
-        productCategoryOther.style.display = "none";
-        productCategoryOther.required = false;
-        productCategoryOther.value = "";
-    }
-});
-
 // ─── PR Manual Form Submit ─────────────────────────────────────────────────────
 
 manualForm.addEventListener("submit", async event => {
     event.preventDefault();
 
-    const selectedCategory = productCategorySelect?.value === "Other"
-        ? (productCategoryOther?.value || "").trim()
-        : (productCategorySelect?.value || "").trim();
+    const selectedCategory = (productCategorySelect?.value || "").trim();
 
     if (!selectedCategory) {
         showMessage("Please specify the product category");
-        if (productCategorySelect?.value === "Other" && productCategoryOther) {
-            productCategoryOther.focus();
-        } else if (productCategorySelect) {
-            productCategorySelect.focus();
-        }
+        if (productCategorySelect) productCategorySelect.focus();
         return;
     }
 
@@ -414,6 +398,7 @@ manualForm.addEventListener("submit", async event => {
         location:         document.getElementById("location").value,
         territory:        document.getElementById("territory").value,
         product_category: selectedCategory,
+        sub_product_category: (document.getElementById("sub_product_category")?.value || "").trim() || null,
         item_name:        document.getElementById("item_name").value,
         product_remarks:  document.getElementById("product_remarks").value,
         make:             document.getElementById("make").value,
@@ -587,6 +572,7 @@ function renderPreview() {
                 </select>
             </td>
             <td><input data-index="${index}" data-field="product_category" value="${escapeHtml(row.product_category || "")}"></td>
+            <td><input data-index="${index}" data-field="sub_product_category" value="${escapeHtml(row.sub_product_category || "")}"></td>
             <td><input data-index="${index}" data-field="item_name"        value="${escapeHtml(row.item_name || "")}"></td>
             <td><input data-index="${index}" data-field="product_remarks"  value="${escapeHtml(row.product_remarks || "")}"></td>
             <td><input data-index="${index}" data-field="make"             value="${escapeHtml(row.make || "")}"></td>
@@ -1532,7 +1518,13 @@ function renderVendorInquiries(inquiries) {
     }
 
     inquiries.forEach(inquiry => {
-        const id   = inquiry.inquiry_id;
+        const id          = inquiry.inquiry_id;
+        const isOpen      = inquiry.inquiry_status === "OPEN";
+        const statusLabel = isOpen ? "OPEN" : "VENDOR SELECTED";
+        const statusCls   = isOpen ? "" : "status-vendor_selected";
+        const hasDraftPO  = inquiry.po_id && inquiry.po_status === "DRAFT";
+
+
         const card = document.createElement("div");
         card.className = "inquiry-card";
 
@@ -1563,7 +1555,7 @@ function renderVendorInquiries(inquiries) {
                 </div>
                 <div class="inquiry-card-item">
                     <span class="inquiry-card-label">Product Category</span>
-                    <span class="inquiry-card-value">${escapeHtml(inquiry.product_category || "-")}</span>
+                    <span class="inquiry-card-value">${escapeHtml(inquiry.product_category || "-")}${inquiry.sub_product_category ? ' · ' + escapeHtml(inquiry.sub_product_category) : ''}</span>
                 </div>
                 <div class="inquiry-card-item">
                     <span class="inquiry-card-label">Item Name</span>
@@ -1603,7 +1595,7 @@ function renderVendorInquiries(inquiries) {
                     data-qty="${inquiry.qty ?? 0}">
                     + Add Vendor
                 </button>
-                <span class="inquiry-status">OPEN</span>
+                <span class="inquiry-status ${statusCls}">${statusLabel}</span>
             </div>
 
             <!-- Inline add-vendor form (hidden by default) -->
@@ -1802,6 +1794,7 @@ vendorInquiryList.addEventListener("click", async event => {
         await saveVendorForInquiry(saveBtn.dataset.inquiryId);
         return;
     }
+
 });
 
 
@@ -2410,7 +2403,7 @@ function renderQuotationComparisons(inquiries) {
                 </div>
                 <div class="inquiry-card-item">
                     <span class="inquiry-card-label">Product Category</span>
-                    <span class="inquiry-card-value">${escapeHtml(inquiry.product_category || "-")}</span>
+                    <span class="inquiry-card-value">${escapeHtml(inquiry.product_category || "-")}${inquiry.sub_product_category ? ' · ' + escapeHtml(inquiry.sub_product_category) : ''}</span>
                 </div>
                 <div class="inquiry-card-item">
                     <span class="inquiry-card-label">Item Name</span>
@@ -3886,7 +3879,7 @@ function renderPurchaseOrders(orders) {
                     </div>
                     <div class="inquiry-card-item">
                         <span class="inquiry-card-label">Product Category</span>
-                        <span class="inquiry-card-value">${escapeHtml(po.product_category || "-")}</span>
+                        <span class="inquiry-card-value">${escapeHtml(po.product_category || "-")}${po.sub_product_category ? ' · ' + escapeHtml(po.sub_product_category) : ''}</span>
                     </div>
                     <div class="inquiry-card-item">
                         <span class="inquiry-card-label">Item Name</span>
@@ -3920,8 +3913,14 @@ function renderPurchaseOrders(orders) {
                     </button>
 
                     ${po.status === "DRAFT" ? `
-                        <button type="button" class="primary-button issue-po-btn" data-po-id="${po.po_id}">
+                        <button type="button" class="primary-button issue-po-btn"
+                            data-po-id="${po.po_id}">
                             Issue PO
+                        </button>
+                        <button type="button" class="secondary-button reselect-po-btn"
+                            data-po-id="${po.po_id}"
+                            data-po-number="${escapeHtml(po.po_number || "")}">
+                            ↩ Change Vendor
                         </button>
                     ` : ""}
 
@@ -4054,6 +4053,53 @@ purchaseOrdersList.addEventListener("click", async event => {
         document.body.removeChild(link);
         return;
     }
+
+    // ── Change Vendor (delete DRAFT PO, re-open inquiry) ──
+    const reselectBtn = event.target.closest(".reselect-po-btn");
+    if (reselectBtn) {
+        const poId     = reselectBtn.dataset.poId;
+        const poNumber = reselectBtn.dataset.poNumber;
+
+        const reason = prompt(
+            `Change vendor for ${poNumber}?\n\n` +
+            `The draft PO will be removed and the inquiry re-opened.\n` +
+            `All existing vendor quotations are kept — go to Quotation Comparisons to pick a different vendor.\n\n` +
+            `Enter reason:`
+        );
+        if (reason === null) return;
+        if (!reason.trim()) { alert("A reason is required."); return; }
+
+        reselectBtn.disabled = true;
+
+        try {
+            const response = await apiFetch(`/purchase-orders/${poId}/reselect`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason: reason.trim() })
+            });
+            if (!response) return;
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                alert(result.message || "Failed to process re-selection");
+                reselectBtn.disabled = false;
+                return;
+            }
+
+            alert(
+                `Done. The draft PO has been removed.\n\n` +
+                `Go to Quotation Comparisons to select a different vendor for ${result.pr_number}.`
+            );
+            await loadPurchaseOrders();
+
+        } catch {
+            alert("Failed to connect to procurement service");
+            reselectBtn.disabled = false;
+        }
+        return;
+    }
+
 });
 
 // ─── Goods Received ───────────────────────────────────────────────────────────
@@ -4940,7 +4986,7 @@ function onPPRInput() {
             </div>
             <div class="ppr-dropdown-meta">
                 ${m.model ? `<span><strong>Model:</strong> ${escapeHtml(m.model)}</span>` : ""}
-                ${m.product_category ? `<span>· ${escapeHtml(m.product_category)}</span>` : ""}
+                ${m.product_category ? `<span>· ${escapeHtml(m.product_category)}${m.sub_product_category ? ` / ${escapeHtml(m.sub_product_category)}` : ""}</span>` : ""}
             </div>
         </div>
     `).join("");
@@ -5253,4 +5299,686 @@ if (window.WorkspaceDashboard) {
         }
     });
     window.WorkspaceDashboard.load();
+}
+
+// ─── Setup PR Dependent Subcategory Dropdown ──────────────────────────────────
+function setupPrDependentSubcategory() {
+    const catSelect = document.getElementById("product_category");
+    const subCatSelect = document.getElementById("sub_product_category");
+    if (!catSelect || !subCatSelect) return;
+
+    subCatSelect.required = false;
+
+    catSelect.addEventListener("change", async () => {
+        const selectedCategory = (catSelect.value || "").trim();
+        subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
+        subCatSelect.required = false;
+
+        if (!selectedCategory) {
+            return;
+        }
+
+        try {
+            const res = await apiFetch(`/sub-product-categories?category_name=${encodeURIComponent(selectedCategory)}&limit=all&status=Active`);
+            if (res && res.ok) {
+                const data = await res.json();
+                const subcategories = data.data || [];
+                subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
+                if (subcategories.length === 0) {
+                    const opt = document.createElement("option");
+                    opt.value = "";
+                    opt.disabled = true;
+                    opt.textContent = "No subcategories registered";
+                    subCatSelect.appendChild(opt);
+                    subCatSelect.required = false;
+                } else {
+                    subCatSelect.required = true;
+                    subcategories.forEach(sub => {
+                        const opt = document.createElement("option");
+                        opt.value = sub.subcategory_name;
+                        opt.textContent = sub.subcategory_name;
+                        opt.dataset.subcategoryId = sub.subcategory_id;
+                        opt.dataset.categoryId = sub.category_id;
+                        subCatSelect.appendChild(opt);
+                    });
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load subcategories for category:", selectedCategory, err);
+        }
+    });
+
+    const manualFormElem = document.getElementById("manualForm");
+    manualFormElem?.addEventListener("reset", () => {
+        subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
+        subCatSelect.required = false;
+    });
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupPrDependentSubcategory);
+} else {
+    loadPrProductCategories();
+    setupPrDependentSubcategory();
+}
+
+// ─── Dynamic PR Product Categories Loader ─────────────────────────────────────
+async function loadPrProductCategories() {
+    const catSelect = document.getElementById("product_category");
+    if (!catSelect) return;
+
+    try {
+        const res = await apiFetch("/product-categories?limit=all&status=Active");
+        if (!res || !res.ok) return;
+        const result = await res.json();
+        const categories = result.data || [];
+        const currentVal = (catSelect.value || "").trim();
+
+        catSelect.innerHTML = '<option value="" disabled selected>Select Category</option>';
+
+        categories.forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c.category_name;
+            opt.textContent = c.category_name;
+            opt.dataset.categoryId = c.category_id;
+            catSelect.appendChild(opt);
+        });
+
+        
+
+        if (currentVal && Array.from(catSelect.options).some(o => o.value === currentVal)) {
+            catSelect.value = currentVal;
+        } else {
+            catSelect.value = "";
+            const subCatSelect = document.getElementById("sub_product_category");
+            if (subCatSelect) {
+                subCatSelect.innerHTML = '<option value="" disabled selected>Select Sub Product Category</option>';
+            }
+        }
+    } catch (err) {
+        console.error("Failed to load PR product categories:", err);
+    }
+}
+window.loadPrProductCategories = loadPrProductCategories;
+
+
+
+// =============================================================================
+// ITEM MASTER: PRODUCT CATEGORIES & SUB CATEGORIES
+// =============================================================================
+
+let catCurrentPage = 1;
+let catTotalPages = 1;
+let catSearchTerm = "";
+
+let subCatCurrentPage = 1;
+let subCatTotalPages = 1;
+let subCatSearchTerm = "";
+let subCatFilterCatId = "";
+let subCatFilterStatusVal = "All";
+
+function formatDateIM(dateStr) {
+    if (!dateStr) return "-";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    const day = String(d.getDate()).padStart(2, "0");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[d.getMonth()];
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}`;
+}
+
+// ─── Product Categories Functions ─────────────────────────────────────────────
+
+async function loadProductCategories(page = 1) {
+    catCurrentPage = page;
+    const tbody = document.getElementById("productCategoriesTableBody");
+    const paginationInfo = document.getElementById("catPaginationInfo");
+    const paginationControls = document.getElementById("catPaginationControls");
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: #64748b;">Loading categories...</td></tr>`;
+
+    try {
+        const queryParams = new URLSearchParams({
+            page: catCurrentPage,
+            limit: 10
+        });
+        if (catSearchTerm.trim()) {
+            queryParams.append("search", catSearchTerm.trim());
+        }
+
+        const res = await apiFetch(`/product-categories?${queryParams.toString()}`);
+        if (!res || !res.ok) throw new Error("Failed to fetch product categories");
+
+        const result = await res.json();
+        const categories = result.data || [];
+        const pagination = result.pagination || { page: 1, limit: 10, total: categories.length, total_pages: 1 };
+        catTotalPages = pagination.total_pages || 1;
+
+        if (categories.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: #64748b;">No product categories found</td></tr>`;
+            if (paginationInfo) paginationInfo.textContent = "Showing 0 to 0 of 0 entries";
+            if (paginationControls) paginationControls.innerHTML = "";
+            return;
+        }
+
+        const startIndex = (catCurrentPage - 1) * 10;
+        tbody.innerHTML = categories.map((cat, idx) => {
+            const slNo = startIndex + idx + 1;
+            const createdOn = formatDateIM(cat.created_at);
+            const statusBadge = cat.status === "Active"
+                ? `<span class="im-badge-active">Active</span>`
+                : `<span class="im-badge-inactive">Inactive</span>`;
+
+            return `
+                <tr>
+                    <td style="color: #64748b; font-weight: 500;">${slNo}</td>
+                    <td style="color: #0f172a; font-weight: 600;">${escapeHtml(cat.category_name)}</td>
+                    <td style="color: #475569;">${createdOn}</td>
+                    <td>${statusBadge}</td>
+                    <td style="text-align: center; white-space: nowrap;">
+                        <div class="im-actions-wrap">
+                            <button type="button" class="im-action-btn edit btn-edit-category" data-id="${cat.category_id}" data-name="${escapeHtml(cat.category_name)}" data-status="${cat.status}" title="Edit Category">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 20h9"></path>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                </svg>
+                            </button>
+                            <button type="button" class="im-action-btn delete btn-delete-category" data-id="${cat.category_id}" data-name="${escapeHtml(cat.category_name)}" title="Delete Category">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+
+        const endItem = Math.min(catCurrentPage * 10, pagination.total);
+        const startItem = startIndex + 1;
+        if (paginationInfo) {
+            paginationInfo.textContent = `Showing ${startItem} to ${endItem} of ${pagination.total} entries`;
+        }
+
+        renderPaginationControls(paginationControls, catCurrentPage, catTotalPages, (newPage) => {
+            loadProductCategories(newPage);
+        });
+
+    } catch (err) {
+        console.error("Error loading product categories:", err);
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: #ef4444;">Failed to load product categories</td></tr>`;
+    }
+}
+
+// ─── Sub Categories Functions ─────────────────────────────────────────────────
+
+async function loadSubCategories(page = 1) {
+    subCatCurrentPage = page;
+    const tbody = document.getElementById("subCategoriesTableBody");
+    const paginationInfo = document.getElementById("subCatPaginationInfo");
+    const paginationControls = document.getElementById("subCatPaginationControls");
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: #64748b;">Loading subcategories...</td></tr>`;
+
+    try {
+        const queryParams = new URLSearchParams({
+            page: subCatCurrentPage,
+            limit: 10
+        });
+        if (subCatSearchTerm.trim()) {
+            queryParams.append("search", subCatSearchTerm.trim());
+        }
+        if (subCatFilterCatId) {
+            queryParams.append("category_id", subCatFilterCatId);
+        }
+        if (subCatFilterStatusVal && subCatFilterStatusVal !== "All") {
+            queryParams.append("status", subCatFilterStatusVal);
+        }
+
+        const res = await apiFetch(`/sub-product-categories?${queryParams.toString()}`);
+        if (!res || !res.ok) throw new Error("Failed to fetch subcategories");
+
+        const result = await res.json();
+        const subcategories = result.data || [];
+        const pagination = result.pagination || { page: 1, limit: 10, total: subcategories.length, total_pages: 1 };
+        subCatTotalPages = pagination.total_pages || 1;
+
+        if (subcategories.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: #64748b;">No sub product categories found</td></tr>`;
+            if (paginationInfo) paginationInfo.textContent = "Showing 0 to 0 of 0 entries";
+            if (paginationControls) paginationControls.innerHTML = "";
+            return;
+        }
+
+        const startIndex = (subCatCurrentPage - 1) * 10;
+        tbody.innerHTML = subcategories.map((sub, idx) => {
+            const slNo = startIndex + idx + 1;
+            const createdOn = formatDateIM(sub.created_at);
+            const statusBadge = sub.status === "Active"
+                ? `<span class="im-badge-active">Active</span>`
+                : `<span class="im-badge-inactive">Inactive</span>`;
+
+            return `
+                <tr>
+                    <td style="color: #64748b; font-weight: 500;">${slNo}</td>
+                    <td style="color: #0f172a; font-weight: 600;">${escapeHtml(sub.subcategory_name)}</td>
+                    <td style="color: #475569;">${escapeHtml(sub.parent_category || "-")}</td>
+                    <td>${statusBadge}</td>
+                    <td style="color: #475569;">${createdOn}</td>
+                    <td style="text-align: center; white-space: nowrap;">
+                        <div class="im-actions-wrap">
+                            <button type="button" class="im-action-btn edit btn-edit-subcategory" 
+                                data-id="${sub.subcategory_id}" 
+                                data-cat-id="${sub.category_id}" 
+                                data-name="${escapeHtml(sub.subcategory_name)}" 
+                                data-status="${sub.status}" 
+                                title="Edit Subcategory">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 20h9"></path>
+                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                </svg>
+                            </button>
+                            <button type="button" class="im-action-btn delete btn-delete-subcategory" 
+                                data-id="${sub.subcategory_id}" 
+                                data-name="${escapeHtml(sub.subcategory_name)}" 
+                                title="Delete Subcategory">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+
+        const endItem = Math.min(subCatCurrentPage * 10, pagination.total);
+        const startItem = startIndex + 1;
+        if (paginationInfo) {
+            paginationInfo.textContent = `Showing ${startItem} to ${endItem} of ${pagination.total} entries`;
+        }
+
+        renderPaginationControls(paginationControls, subCatCurrentPage, subCatTotalPages, (newPage) => {
+            loadSubCategories(newPage);
+        });
+
+    } catch (err) {
+        console.error("Error loading subcategories:", err);
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 24px; color: #ef4444;">Failed to load subcategories</td></tr>`;
+    }
+}
+
+function renderPaginationControls(container, currentPage, totalPages, onPageClick) {
+    if (!container) return;
+    if (totalPages <= 1) {
+        container.innerHTML = "";
+        return;
+    }
+
+    let html = "";
+    html += `<button type="button" class="im-page-btn" ${currentPage === 1 ? "disabled" : ""} data-target-page="${currentPage - 1}">&lt;</button>`;
+
+    let startP = Math.max(1, currentPage - 2);
+    let endP = Math.min(totalPages, startP + 4);
+    if (endP - startP < 4) {
+        startP = Math.max(1, endP - 4);
+    }
+
+    for (let p = startP; p <= endP; p++) {
+        html += `<button type="button" class="im-page-btn ${p === currentPage ? "active" : ""}" data-target-page="${p}">${p}</button>`;
+    }
+
+    html += `<button type="button" class="im-page-btn" ${currentPage === totalPages ? "disabled" : ""} data-target-page="${currentPage + 1}">&gt;</button>`;
+
+    container.innerHTML = html;
+
+    container.querySelectorAll(".im-page-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const target = parseInt(btn.dataset.targetPage, 10);
+            if (!isNaN(target) && target >= 1 && target <= totalPages && target !== currentPage) {
+                onPageClick(target);
+            }
+        });
+    });
+}
+
+async function loadCategoriesForSubCatFilter() {
+    const filterSelect = document.getElementById("subCatFilterCategory");
+    const formSelect = document.getElementById("subCatParentSelect");
+    if (!filterSelect && !formSelect) return;
+
+    try {
+        const res = await apiFetch("/product-categories?limit=all&status=Active");
+        if (!res || !res.ok) return;
+        const result = await res.json();
+        const categories = result.data || [];
+
+        if (filterSelect) {
+            filterSelect.innerHTML = `<option value="">Select Category</option>`;
+            categories.forEach(c => {
+                const opt = document.createElement("option");
+                opt.value = c.category_id;
+                opt.textContent = c.category_name;
+                filterSelect.appendChild(opt);
+            });
+        }
+
+        if (formSelect) {
+            formSelect.innerHTML = `<option value="" disabled selected>Select Category</option>`;
+            categories.forEach(c => {
+                const opt = document.createElement("option");
+                opt.value = c.category_id;
+                opt.textContent = c.category_name;
+                formSelect.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.error("Failed to populate categories dropdowns:", e);
+    }
+}
+
+// ─── Setup Item Master Event Listeners ─────────────────────────────────────────
+
+function setupItemMasterEvents() {
+    // 1. Category Search
+    const catSearch = document.getElementById("catSearchInput");
+    const catReset = document.getElementById("catResetBtn");
+    let catSearchTimer = null;
+
+    catSearch?.addEventListener("input", () => {
+        clearTimeout(catSearchTimer);
+        catSearchTimer = setTimeout(() => {
+            catSearchTerm = catSearch.value.trim();
+            loadProductCategories(1);
+        }, 300);
+    });
+
+    catReset?.addEventListener("click", () => {
+        if (catSearch) catSearch.value = "";
+        catSearchTerm = "";
+        loadProductCategories(1);
+    });
+
+    // 2. Category Modal Add / Edit
+    const categoryModal = document.getElementById("categoryModal");
+    const btnAddCategory = document.getElementById("btnAddProductCategory");
+    const closeCatModalBtn = document.getElementById("closeCategoryModalBtn");
+    const cancelCatModalBtn = document.getElementById("cancelCategoryModalBtn");
+    const categoryForm = document.getElementById("categoryForm");
+    const categoryEditId = document.getElementById("categoryEditId");
+    const categoryNameInput = document.getElementById("categoryNameInput");
+    const categoryStatusSelect = document.getElementById("categoryStatusSelect");
+    const categoryModalTitle = document.getElementById("categoryModalTitle");
+
+    btnAddCategory?.addEventListener("click", () => {
+        if (categoryEditId) categoryEditId.value = "";
+        if (categoryNameInput) categoryNameInput.value = "";
+        if (categoryStatusSelect) categoryStatusSelect.value = "Active";
+        if (categoryModalTitle) categoryModalTitle.textContent = "Add Product Category";
+        categoryModal?.classList.remove("hidden");
+        setTimeout(() => categoryNameInput?.focus(), 50);
+    });
+
+    function closeCategoryModal() {
+        categoryModal?.classList.add("hidden");
+    }
+
+    closeCatModalBtn?.addEventListener("click", closeCategoryModal);
+    cancelCatModalBtn?.addEventListener("click", closeCategoryModal);
+
+    categoryForm?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const editId = categoryEditId?.value;
+        const name = (categoryNameInput?.value || "").trim();
+        const status = categoryStatusSelect?.value || "Active";
+
+        if (!name) {
+            alert("Category name is required");
+            return;
+        }
+
+        try {
+            const url = editId ? `/product-categories/${editId}` : "/product-categories";
+            const method = editId ? "PUT" : "POST";
+            const res = await apiFetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category_name: name, status })
+            });
+
+            if (!res) return;
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(data.message || "Failed to save category");
+                return;
+            }
+
+            closeCategoryModal();
+            loadProductCategories(catCurrentPage);
+            loadCategoriesForSubCatFilter();
+            if (typeof loadPrProductCategories === "function") {
+                loadPrProductCategories();
+            }
+        } catch (err) {
+            console.error("Error saving category:", err);
+            alert("Network error occurred while saving category");
+        }
+    });
+
+    // Delegated edit & delete for categories table
+    document.getElementById("productCategoriesTableBody")?.addEventListener("click", async (e) => {
+        const editBtn = e.target.closest(".btn-edit-category");
+        if (editBtn) {
+            const id = editBtn.dataset.id;
+            const name = editBtn.dataset.name;
+            const status = editBtn.dataset.status;
+
+            if (categoryEditId) categoryEditId.value = id;
+            if (categoryNameInput) categoryNameInput.value = name;
+            if (categoryStatusSelect) categoryStatusSelect.value = status || "Active";
+            if (categoryModalTitle) categoryModalTitle.textContent = "Edit Product Category";
+            categoryModal?.classList.remove("hidden");
+            return;
+        }
+
+        const deleteBtn = e.target.closest(".btn-delete-category");
+        if (deleteBtn) {
+            const id = deleteBtn.dataset.id;
+            const name = deleteBtn.dataset.name;
+            if (!confirm(`Are you sure you want to delete category "${name}"?\n\nThis will also remove any linked subcategories.`)) {
+                return;
+            }
+
+            try {
+                const res = await apiFetch(`/product-categories/${id}`, { method: "DELETE" });
+                if (!res) return;
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.message || "Failed to delete category");
+                    return;
+                }
+                loadProductCategories(catCurrentPage);
+                loadCategoriesForSubCatFilter();
+                if (typeof loadPrProductCategories === "function") {
+                    loadPrProductCategories();
+                }
+            } catch (err) {
+                console.error("Error deleting category:", err);
+                alert("Failed to delete product category");
+            }
+        }
+    });
+
+    // 3. Sub Category Filter & Search
+    const subCatSearch = document.getElementById("subCatSearchInput");
+    const subCatFilterCat = document.getElementById("subCatFilterCategory");
+    const subCatFilterStatus = document.getElementById("subCatFilterStatus");
+    const subCatReset = document.getElementById("subCatResetBtn");
+    let subCatSearchTimer = null;
+
+    subCatSearch?.addEventListener("input", () => {
+        clearTimeout(subCatSearchTimer);
+        subCatSearchTimer = setTimeout(() => {
+            subCatSearchTerm = subCatSearch.value.trim();
+            loadSubCategories(1);
+        }, 300);
+    });
+
+    subCatFilterCat?.addEventListener("change", () => {
+        subCatFilterCatId = subCatFilterCat.value;
+        loadSubCategories(1);
+    });
+
+    subCatFilterStatus?.addEventListener("change", () => {
+        subCatFilterStatusVal = subCatFilterStatus.value;
+        loadSubCategories(1);
+    });
+
+    subCatReset?.addEventListener("click", () => {
+        if (subCatSearch) subCatSearch.value = "";
+        if (subCatFilterCat) subCatFilterCat.value = "";
+        if (subCatFilterStatus) subCatFilterStatus.value = "All";
+        subCatSearchTerm = "";
+        subCatFilterCatId = "";
+        subCatFilterStatusVal = "All";
+        loadSubCategories(1);
+    });
+
+    // 4. Sub Category Side Panel (Add / Edit)
+    const sidePanel = document.getElementById("subCategorySidePanel");
+    const btnAddSubCategory = document.getElementById("btnAddSubCategory");
+    const closeSidePanelBtn = document.getElementById("closeSubCatPanelBtn");
+    const cancelSidePanelBtn = document.getElementById("cancelSubCatBtn");
+    const subCategoryForm = document.getElementById("subCategoryForm");
+    const subCatEditId = document.getElementById("subCatEditId");
+    const subCatParentSelect = document.getElementById("subCatParentSelect");
+    const subCatNameInput = document.getElementById("subCatNameInput");
+    const subCatStatusSelect = document.getElementById("subCatStatusSelect");
+    const subCatPanelTitle = document.getElementById("subCatPanelTitle");
+
+    function openSubCatSidePanel(isEdit = false, data = {}) {
+        if (!sidePanel) return;
+        sidePanel.classList.remove("hidden");
+        loadCategoriesForSubCatFilter();
+        if (typeof loadPrProductCategories === "function") {
+            loadPrProductCategories();
+        }
+
+        if (isEdit) {
+            if (subCatPanelTitle) subCatPanelTitle.textContent = "Edit Sub Product Category";
+            if (subCatEditId) subCatEditId.value = data.id || "";
+            if (subCatParentSelect) subCatParentSelect.value = data.catId || "";
+            if (subCatNameInput) subCatNameInput.value = data.name || "";
+            if (subCatStatusSelect) subCatStatusSelect.value = data.status || "Active";
+        } else {
+            if (subCatPanelTitle) subCatPanelTitle.textContent = "Add Sub Product Category";
+            if (subCatEditId) subCatEditId.value = "";
+            if (subCatParentSelect) subCatParentSelect.value = "";
+            if (subCatNameInput) subCatNameInput.value = "";
+            if (subCatStatusSelect) subCatStatusSelect.value = "Active";
+        }
+        setTimeout(() => subCatNameInput?.focus(), 50);
+    }
+
+    function closeSubCatSidePanel() {
+        sidePanel?.classList.add("hidden");
+    }
+
+    btnAddSubCategory?.addEventListener("click", () => openSubCatSidePanel(false));
+    closeSidePanelBtn?.addEventListener("click", closeSubCatSidePanel);
+    cancelSidePanelBtn?.addEventListener("click", closeSubCatSidePanel);
+
+    subCategoryForm?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const editId = subCatEditId?.value;
+        const categoryId = subCatParentSelect?.value;
+        const subName = (subCatNameInput?.value || "").trim();
+        const status = subCatStatusSelect?.value || "Active";
+
+        if (!categoryId) {
+            alert("Please select a parent product category");
+            return;
+        }
+        if (!subName) {
+            alert("Sub category name is required");
+            return;
+        }
+
+        try {
+            const url = editId ? `/sub-product-categories/${editId}` : "/sub-product-categories";
+            const method = editId ? "PUT" : "POST";
+            const res = await apiFetch(url, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category_id: categoryId, subcategory_name: subName, status })
+            });
+
+            if (!res) return;
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.message || "Failed to save subcategory");
+                return;
+            }
+
+            closeSubCatSidePanel();
+            loadSubCategories(subCatCurrentPage);
+        } catch (err) {
+            console.error("Error saving subcategory:", err);
+            alert("Network error occurred while saving subcategory");
+        }
+    });
+
+    // Delegated edit & delete for subcategories table
+    document.getElementById("subCategoriesTableBody")?.addEventListener("click", async (e) => {
+        const editBtn = e.target.closest(".btn-edit-subcategory");
+        if (editBtn) {
+            openSubCatSidePanel(true, {
+                id: editBtn.dataset.id,
+                catId: editBtn.dataset.catId,
+                name: editBtn.dataset.name,
+                status: editBtn.dataset.status
+            });
+            return;
+        }
+
+        const deleteBtn = e.target.closest(".btn-delete-subcategory");
+        if (deleteBtn) {
+            const id = deleteBtn.dataset.id;
+            const name = deleteBtn.dataset.name;
+            if (!confirm(`Are you sure you want to delete subcategory "${name}"?`)) {
+                return;
+            }
+
+            try {
+                const res = await apiFetch(`/sub-product-categories/${id}`, { method: "DELETE" });
+                if (!res) return;
+                const data = await res.json();
+                if (!res.ok) {
+                    alert(data.message || "Failed to delete subcategory");
+                    return;
+                }
+                loadSubCategories(subCatCurrentPage);
+            } catch (err) {
+                console.error("Error deleting subcategory:", err);
+                alert("Failed to delete subcategory");
+            }
+        }
+    });
+}
+
+// Auto-init on load
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", setupItemMasterEvents);
+} else {
+    setupItemMasterEvents();
 }

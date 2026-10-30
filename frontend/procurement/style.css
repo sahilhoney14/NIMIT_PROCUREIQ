@@ -3567,6 +3567,9 @@ td input.taxable-input {
 }
 
 .insights-section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-size: 15px;
     font-weight: 750;
     color: #0f172a;
@@ -3575,17 +3578,22 @@ td input.taxable-input {
     line-height: 1.25;
 }
 
+.insights-section-title::before {
+    content: "";
+    display: inline-block;
+    width: 3.5px;
+    height: 16px;
+    background: #0B57A4;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
 .insights-section-subtitle {
     font-size: 11.5px;
     color: #64748b;
     font-weight: 500;
     display: block;
-    margin-top: 1px;
-}
-
-.section-emoji-icon {
-    font-size: 16px;
-    line-height: 1;
+    margin-top: 3px;
 }
 
 /* ── 1. Financial Performance Grid (4 Columns) ── */
@@ -6080,4 +6088,332 @@ td input.taxable-input {
     font-size: 13px;
     color: #94a3b8;
     text-align: center;
+}
+
+/* =============================================================================
+   ITEM MASTER: PRODUCT CATEGORIES & SUB CATEGORIES
+   ============================================================================= */
+
+.im-breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 12px;
+}
+
+.im-breadcrumbs .breadcrumb-sep {
+    color: #cbd5e1;
+    font-size: 11px;
+}
+
+.im-breadcrumbs .breadcrumb-current {
+    color: #0B57A4;
+    font-weight: 500;
+}
+
+.im-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.im-page-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.2;
+}
+
+.im-page-subtitle {
+    font-size: 13.5px;
+    color: #64748b;
+    margin-top: 4px;
+}
+
+.im-toolbar-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.im-search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 380px;
+}
+
+.im-search-wrap svg {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+.im-search-input {
+    width: 100%;
+    height: 38px;
+    padding: 0 12px 0 36px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: #0f172a;
+    background: #ffffff;
+    transition: all 0.15s ease;
+}
+
+.im-search-input:focus {
+    outline: none;
+    border-color: #0B57A4;
+    box-shadow: 0 0 0 3px rgba(11, 87, 164, 0.1);
+}
+
+.im-filters-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.im-filter-select {
+    height: 38px;
+    padding: 0 32px 0 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #334155;
+    background: #ffffff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat calc(100% - 10px) center;
+    appearance: none;
+    cursor: pointer;
+    min-width: 160px;
+}
+
+.im-filter-select:focus {
+    outline: none;
+    border-color: #0B57A4;
+}
+
+.im-table-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.im-table-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 20px;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
+    font-size: 13px;
+    color: #64748b;
+}
+
+.im-pagination {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.im-page-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    transition: all 0.15s ease;
+}
+
+.im-page-btn:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.im-page-btn.active {
+    background: #0B57A4;
+    color: #ffffff;
+    border-color: #0B57A4;
+    font-weight: 600;
+}
+
+.im-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.im-badge-active {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.im-badge-inactive {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.im-action-btn {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin: 0 2px;
+}
+
+.im-action-btn.edit {
+    border: 1px solid #bfdbfe;
+    background: #ffffff;
+    color: #2563eb;
+}
+
+.im-action-btn.edit:hover {
+    background: #eff6ff;
+    border-color: #93c5fd;
+}
+
+.im-action-btn.delete {
+    border: 1px solid #fecaca;
+    background: #ffffff;
+    color: #ef4444;
+}
+
+.im-action-btn.delete:hover {
+    background: #fef2f2;
+    border-color: #fca5a5;
+}
+
+/* Subcategory layout with side panel */
+.subcat-layout-container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.subcat-table-pane {
+    flex: 1;
+    min-width: 0;
+    transition: all 0.2s ease;
+}
+
+.subcat-side-panel {
+    width: 360px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 22px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.subcat-side-panel.hidden {
+    display: none;
+}
+
+.subcat-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.subcat-panel-header h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+}
+
+.subcat-panel-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    line-height: 1;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.15s;
+}
+
+.subcat-panel-close:hover {
+    color: #0f172a;
+}
+
+
+
+/* ── Universal Modal & Panel Button Alignment ─────────────────────── */
+.modal-footer,
+.subcat-panel-actions,
+#categoryModal .modal-footer {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 12px !important;
+}
+
+.modal-footer button,
+.modal-footer .primary-button,
+.modal-footer .option-button,
+.modal-footer .secondary-button,
+.subcat-panel-actions button,
+.subcat-panel-actions .primary-button,
+.subcat-panel-actions .option-button,
+#categoryModal button,
+#categoryModal .primary-button,
+#categoryModal .option-button,
+#subCategorySidePanel button,
+#subCategorySidePanel .primary-button,
+#subCategorySidePanel .option-button {
+    margin: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    vertical-align: middle !important;
+    box-sizing: border-box !important;
+    line-height: 1 !important;
 }

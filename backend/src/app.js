@@ -1528,6 +1528,7 @@ app.get(["/workspace/dashboard", "/api/workspace/dashboard"], verifyProcurement,
                 pr.location,
                 pr.territory,
                 pr.product_category,
+                pr.sub_product_category,
                 pr.item_name,
                 pr.make,
                 pr.model,
@@ -1653,6 +1654,470 @@ app.get(["/workspace/dashboard", "/api/workspace/dashboard"], verifyProcurement,
 });
 
 /* ==========================================================================
+   ITEM MASTER: PRODUCT CATEGORIES & SUB PRODUCT CATEGORIES
+   ========================================================================== */
+
+// GET /product-categories
+app.get("/product-categories", verifyProcurement, async (req, res) => {
+    try {
+        const { search, status, page, limit } = req.query;
+        let query = "SELECT category_id, category_name, status, created_at, updated_at FROM product_categories WHERE 1=1";
+        const params = [];
+
+        if (search && String(search).trim()) {
+            query += " AND category_name LIKE ?";
+            params.push(`%${String(search).trim()}%`);
+        }
+        if (status && status !== "All") {
+            query += " AND status = ?";
+            params.push(status);
+        }
+
+        query += " ORDER BY category_id ASC";
+
+        if (limit && limit !== "all" && Number(limit) > 0) {
+            const pageNum = Math.max(1, parseInt(page, 10) || 1);
+            const limitNum = Math.max(1, parseInt(limit, 10));
+            const offset = (pageNum - 1) * limitNum;
+
+            let countQuery = "SELECT COUNT(*) as total FROM product_categories WHERE 1=1";
+            const countParams = [];
+            if (search && String(search).trim()) {
+                countQuery += " AND category_name LIKE ?";
+                countParams.push(`%${String(search).trim()}%`);
+            }
+            if (status && status !== "All") {
+                countQuery += " AND status = ?";
+                countParams.push(status);
+            }
+            const [countRows] = await db.query(countQuery, countParams);
+            const total = countRows[0]?.total || 0;
+
+            query += " LIMIT ? OFFSET ?";
+            params.push(limitNum, offset);
+
+            const [rows] = await db.query(query, params);
+            return res.json({
+                success: true,
+                data: rows,
+                pagination: {
+                    page: pageNum,
+                    limit: limitNum,
+                    total,
+                    total_pages: Math.ceil(total / limitNum)
+                }
+            });
+        }
+
+        const [rows] = await db.query(query, params);
+        return res.json({
+            success: true,
+            data: rows
+        });
+    } catch (err) {
+        log(`GET /product-categories error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to fetch product categories" });
+    }
+});
+
+// POST /product-categories
+app.post("/product-categories", verifyProcurement, async (req, res) => {
+    try {
+        const { category_name, status = "Active" } = req.body;
+        if (!category_name || !String(category_name).trim()) {
+            return res.status(400).json({ success: false, message: "Category name is required" });
+        }
+        const trimmedName = String(category_name).trim();
+
+        const [existing] = await db.query(
+            "SELECT category_id FROM product_categories WHERE LOWER(TRIM(category_name)) = LOWER(TRIM(?)) LIMIT 1",
+            [trimmedName]
+        );
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: "Product category already exists" });
+        }
+
+        const [result] = await db.query(
+            "INSERT INTO product_categories (category_name, status) VALUES (?, ?)",
+            [trimmedName, status === "Inactive" ? "Inactive" : "Active"]
+        );
+
+        await writeReportLog(req, "CREATE_PRODUCT_CATEGORY", `Created category: ${trimmedName}`);
+        return res.json({
+            success: true,
+            message: "Product category created successfully",
+            data: { category_id: result.insertId, category_name: trimmedName, status }
+        });
+    } catch (err) {
+        log(`POST /product-categories error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to create product category" });
+    }
+});
+
+// PUT /product-categories/:id
+app.put("/product-categories/:id", verifyProcurement, async (req, res) => {
+    try {
+        const categoryId = parseInt(req.params.id, 10);
+        if (isNaN(categoryId)) {
+            return res.status(400).json({ success: false, message: "Invalid category ID" });
+        }
+        const { category_name, status } = req.body;
+
+        const [existing] = await db.query(
+            "SELECT category_id, category_name FROM product_categories WHERE category_id = ?",
+            [categoryId]
+        );
+        if (existing.length === 0) {
+            return res.status(404).json({ success: false, message: "Product category not found" });
+        }
+
+        if (category_name && String(category_name).trim()) {
+            const trimmedName = String(category_name).trim();
+            const [duplicate] = await db.query(
+                "SELECT category_id FROM product_categories WHERE LOWER(TRIM(category_name)) = LOWER(TRIM(?)) AND category_id != ?",
+                [trimmedName, categoryId]
+            );
+            if (duplicate.length > 0) {
+                return res.status(400).json({ success: false, message: "A category with this name already exists" });
+            }
+        }
+
+        const updates = [];
+        const params = [];
+        if (category_name && String(category_name).trim()) {
+            updates.push("category_name = ?");
+            params.push(String(category_name).trim());
+        }
+        if (status && ["Active", "Inactive"].includes(status)) {
+            updates.push("status = ?");
+            params.push(status);
+        }
+
+        if (updates.length > 0) {
+            params.push(categoryId);
+            await db.query(`UPDATE product_categories SET ${updates.join(", ")} WHERE category_id = ?`, params);
+        }
+
+        await writeReportLog(req, "UPDATE_PRODUCT_CATEGORY", `Updated category ID: ${categoryId}`);
+        return res.json({ success: true, message: "Product category updated successfully" });
+    } catch (err) {
+        log(`PUT /product-categories/:id error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to update product category" });
+    }
+});
+
+// DELETE /product-categories/:id
+app.delete("/product-categories/:id", verifyProcurement, async (req, res) => {
+    try {
+        const categoryId = parseInt(req.params.id, 10);
+        if (isNaN(categoryId)) {
+            return res.status(400).json({ success: false, message: "Invalid category ID" });
+        }
+
+        const [existing] = await db.query(
+            "SELECT category_name FROM product_categories WHERE category_id = ?",
+            [categoryId]
+        );
+        if (existing.length === 0) {
+            return res.status(404).json({ success: false, message: "Product category not found" });
+        }
+
+        await db.query("DELETE FROM product_categories WHERE category_id = ?", [categoryId]);
+        await writeReportLog(req, "DELETE_PRODUCT_CATEGORY", `Deleted category: ${existing[0].category_name}`);
+        return res.json({ success: true, message: "Product category deleted successfully" });
+    } catch (err) {
+        log(`DELETE /product-categories/:id error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to delete product category" });
+    }
+});
+
+// GET /sub-product-categories
+app.get("/sub-product-categories", verifyProcurement, async (req, res) => {
+    try {
+        const { category_id, product_category_id, ProductCategoryId, category_name, parent_category, search, status, page, limit } = req.query;
+        const targetCatId = category_id || product_category_id || ProductCategoryId;
+        const targetCatName = category_name || parent_category;
+
+        let query = `
+            SELECT 
+                spc.subcategory_id,
+                spc.category_id,
+                spc.category_id AS product_category_id,
+                spc.category_id AS ProductCategoryId,
+                spc.subcategory_name,
+                pc.category_name AS parent_category,
+                pc.category_name,
+                spc.status,
+                spc.created_at,
+                spc.updated_at
+            FROM sub_product_categories spc
+            JOIN product_categories pc ON spc.category_id = pc.category_id
+            WHERE 1=1
+        `;
+        const params = [];
+
+        if (targetCatId && !isNaN(Number(targetCatId))) {
+            query += " AND spc.category_id = ?";
+            params.push(Number(targetCatId));
+        } else if (targetCatName && String(targetCatName).trim()) {
+            query += " AND LOWER(TRIM(pc.category_name)) = LOWER(TRIM(?))";
+            params.push(String(targetCatName).trim());
+        }
+
+        if (search && String(search).trim()) {
+            query += " AND (spc.subcategory_name LIKE ? OR pc.category_name LIKE ?)";
+            params.push(`%${String(search).trim()}%`, `%${String(search).trim()}%`);
+        }
+
+        if (status && status !== "All") {
+            query += " AND spc.status = ?";
+            params.push(status);
+        }
+
+        query += " ORDER BY spc.subcategory_id ASC";
+
+        if (limit && limit !== "all" && Number(limit) > 0) {
+            const pageNum = Math.max(1, parseInt(page, 10) || 1);
+            const limitNum = Math.max(1, parseInt(limit, 10));
+            const offset = (pageNum - 1) * limitNum;
+
+            let countQuery = `
+                SELECT COUNT(*) as total
+                FROM sub_product_categories spc
+                JOIN product_categories pc ON spc.category_id = pc.category_id
+                WHERE 1=1
+            `;
+            const countParams = [];
+            if (targetCatId && !isNaN(Number(targetCatId))) {
+                countQuery += " AND spc.category_id = ?";
+                countParams.push(Number(targetCatId));
+            } else if (targetCatName && String(targetCatName).trim()) {
+                countQuery += " AND LOWER(TRIM(pc.category_name)) = LOWER(TRIM(?))";
+                countParams.push(String(targetCatName).trim());
+            }
+            if (search && String(search).trim()) {
+                countQuery += " AND (spc.subcategory_name LIKE ? OR pc.category_name LIKE ?)";
+                countParams.push(`%${String(search).trim()}%`, `%${String(search).trim()}%`);
+            }
+            if (status && status !== "All") {
+                countQuery += " AND spc.status = ?";
+                countParams.push(status);
+            }
+
+            const [countRows] = await db.query(countQuery, countParams);
+            const total = countRows[0]?.total || 0;
+
+            query += " LIMIT ? OFFSET ?";
+            params.push(limitNum, offset);
+
+            const [rows] = await db.query(query, params);
+            return res.json({
+                success: true,
+                data: rows,
+                pagination: {
+                    page: pageNum,
+                    limit: limitNum,
+                    total,
+                    total_pages: Math.ceil(total / limitNum)
+                }
+            });
+        }
+
+        const [rows] = await db.query(query, params);
+        return res.json({
+            success: true,
+            data: rows
+        });
+    } catch (err) {
+        log(`GET /sub-product-categories error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to fetch sub product categories" });
+    }
+});
+
+// GET /product-categories/:category_id/subcategories
+app.get("/product-categories/:category_id/subcategories", verifyProcurement, async (req, res) => {
+    try {
+        const categoryId = parseInt(req.params.category_id, 10);
+        if (isNaN(categoryId)) {
+            return res.status(400).json({ success: false, message: "Invalid category ID" });
+        }
+        const [rows] = await db.query(
+            `SELECT 
+                spc.subcategory_id,
+                spc.category_id,
+                spc.category_id AS product_category_id,
+                spc.category_id AS ProductCategoryId,
+                spc.subcategory_name,
+                pc.category_name AS parent_category,
+                spc.status,
+                spc.created_at
+            FROM sub_product_categories spc
+            JOIN product_categories pc ON spc.category_id = pc.category_id
+            WHERE spc.category_id = ? AND spc.status = 'Active'
+            ORDER BY spc.subcategory_name ASC`,
+            [categoryId]
+        );
+        return res.json({ success: true, data: rows });
+    } catch (err) {
+        log(`GET /product-categories/:category_id/subcategories error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to fetch subcategories" });
+    }
+});
+
+// POST /sub-product-categories
+app.post("/sub-product-categories", verifyProcurement, async (req, res) => {
+    try {
+        let { category_id, product_category_id, ProductCategoryId, category_name, parent_category, subcategory_name, status = "Active" } = req.body;
+        let catId = category_id || product_category_id || ProductCategoryId;
+
+        if (!catId && (category_name || parent_category)) {
+            const targetName = String(category_name || parent_category).trim();
+            const [catRows] = await db.query(
+                "SELECT category_id FROM product_categories WHERE LOWER(TRIM(category_name)) = LOWER(TRIM(?)) LIMIT 1",
+                [targetName]
+            );
+            if (catRows.length > 0) catId = catRows[0].category_id;
+        }
+
+        if (!catId || isNaN(Number(catId))) {
+            return res.status(400).json({ success: false, message: "Parent product category is required" });
+        }
+        if (!subcategory_name || !String(subcategory_name).trim()) {
+            return res.status(400).json({ success: false, message: "Subcategory name is required" });
+        }
+
+        const trimmedSubName = String(subcategory_name).trim();
+
+        // Verify parent category exists
+        const [parentExists] = await db.query(
+            "SELECT category_id, category_name FROM product_categories WHERE category_id = ?",
+            [Number(catId)]
+        );
+        if (parentExists.length === 0) {
+            return res.status(404).json({ success: false, message: "Parent product category not found" });
+        }
+
+        // Check duplicate within this category
+        const [existing] = await db.query(
+            "SELECT subcategory_id FROM sub_product_categories WHERE category_id = ? AND LOWER(TRIM(subcategory_name)) = LOWER(TRIM(?)) LIMIT 1",
+            [Number(catId), trimmedSubName]
+        );
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: "Subcategory already exists under this product category" });
+        }
+
+        const [result] = await db.query(
+            "INSERT INTO sub_product_categories (category_id, subcategory_name, status) VALUES (?, ?, ?)",
+            [Number(catId), trimmedSubName, status === "Inactive" ? "Inactive" : "Active"]
+        );
+
+        await writeReportLog(req, "CREATE_SUB_PRODUCT_CATEGORY", `Created subcategory: ${trimmedSubName} under ${parentExists[0].category_name}`);
+        return res.json({
+            success: true,
+            message: "Sub product category created successfully",
+            data: {
+                subcategory_id: result.insertId,
+                category_id: Number(catId),
+                product_category_id: Number(catId),
+                ProductCategoryId: Number(catId),
+                subcategory_name: trimmedSubName,
+                parent_category: parentExists[0].category_name,
+                status
+            }
+        });
+    } catch (err) {
+        log(`POST /sub-product-categories error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to create sub product category" });
+    }
+});
+
+// PUT /sub-product-categories/:id
+app.put("/sub-product-categories/:id", verifyProcurement, async (req, res) => {
+    try {
+        const subcategoryId = parseInt(req.params.id, 10);
+        if (isNaN(subcategoryId)) {
+            return res.status(400).json({ success: false, message: "Invalid subcategory ID" });
+        }
+        let { category_id, product_category_id, ProductCategoryId, category_name, parent_category, subcategory_name, status } = req.body;
+        let catId = category_id || product_category_id || ProductCategoryId;
+
+        const [existing] = await db.query(
+            "SELECT subcategory_id, category_id, subcategory_name FROM sub_product_categories WHERE subcategory_id = ?",
+            [subcategoryId]
+        );
+        if (existing.length === 0) {
+            return res.status(404).json({ success: false, message: "Sub product category not found" });
+        }
+
+        const currentRecord = existing[0];
+        let targetCatId = currentRecord.category_id;
+
+        if (catId && !isNaN(Number(catId))) {
+            targetCatId = Number(catId);
+        } else if (category_name || parent_category) {
+            const targetName = String(category_name || parent_category).trim();
+            const [catRows] = await db.query(
+                "SELECT category_id FROM product_categories WHERE LOWER(TRIM(category_name)) = LOWER(TRIM(?)) LIMIT 1",
+                [targetName]
+            );
+            if (catRows.length > 0) targetCatId = catRows[0].category_id;
+        }
+
+        const targetSubName = (subcategory_name && String(subcategory_name).trim()) ? String(subcategory_name).trim() : currentRecord.subcategory_name;
+
+        // Check duplicate
+        const [duplicate] = await db.query(
+            "SELECT subcategory_id FROM sub_product_categories WHERE category_id = ? AND LOWER(TRIM(subcategory_name)) = LOWER(TRIM(?)) AND subcategory_id != ?",
+            [targetCatId, targetSubName, subcategoryId]
+        );
+        if (duplicate.length > 0) {
+            return res.status(400).json({ success: false, message: "A subcategory with this name already exists under the selected category" });
+        }
+
+        const updates = ["category_id = ?", "subcategory_name = ?"];
+        const params = [targetCatId, targetSubName];
+        if (status && ["Active", "Inactive"].includes(status)) {
+            updates.push("status = ?");
+            params.push(status);
+        }
+        params.push(subcategoryId);
+
+        await db.query(`UPDATE sub_product_categories SET ${updates.join(", ")} WHERE subcategory_id = ?`, params);
+        await writeReportLog(req, "UPDATE_SUB_PRODUCT_CATEGORY", `Updated subcategory ID: ${subcategoryId}`);
+
+        return res.json({ success: true, message: "Sub product category updated successfully" });
+    } catch (err) {
+        log(`PUT /sub-product-categories/:id error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to update sub product category" });
+    }
+});
+
+// DELETE /sub-product-categories/:id
+app.delete("/sub-product-categories/:id", verifyProcurement, async (req, res) => {
+    try {
+        const subcategoryId = parseInt(req.params.id, 10);
+        if (isNaN(subcategoryId)) {
+            return res.status(400).json({ success: false, message: "Invalid subcategory ID" });
+        }
+
+        const [existing] = await db.query(
+            "SELECT subcategory_name FROM sub_product_categories WHERE subcategory_id = ?",
+            [subcategoryId]
+        );
+        if (existing.length === 0) {
+            return res.status(404).json({ success: false, message: "Sub product category not found" });
+        }
+
+        await db.query("DELETE FROM sub_product_categories WHERE subcategory_id = ?", [subcategoryId]);
+        await writeReportLog(req, "DELETE_SUB_PRODUCT_CATEGORY", `Deleted subcategory: ${existing[0].subcategory_name}`);
+        return res.json({ success: true, message: "Sub product category deleted successfully" });
+    } catch (err) {
+        log(`DELETE /sub-product-categories/:id error: ${err.message}`);
+        return res.status(500).json({ success: false, message: "Failed to delete sub product category" });
+    }
+});
+
+/* ==========================================================================
    TAB: PURCHASE REQUESTS
    ========================================================================== */
 
@@ -1664,6 +2129,7 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
         location,
         territory,
         product_category,
+        sub_product_category,
         item_name,
         product_remarks,
         make,
@@ -1704,6 +2170,35 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
             message: "Sales rate must be greater than 0"
         });
     }
+
+    if (sub_product_category && String(sub_product_category).trim() !== "") {
+        const [matchingSub] = await db.query(
+            `SELECT spc.subcategory_id 
+             FROM sub_product_categories spc
+             JOIN product_categories pc ON spc.category_id = pc.category_id
+             WHERE LOWER(TRIM(pc.category_name)) = LOWER(TRIM(?))
+               AND LOWER(TRIM(spc.subcategory_name)) = LOWER(TRIM(?))
+             LIMIT 1`,
+            [product_category, sub_product_category]
+        );
+        if (matchingSub.length === 0) {
+            const [hasSubs] = await db.query(
+                `SELECT spc.subcategory_id
+                 FROM sub_product_categories spc
+                 JOIN product_categories pc ON spc.category_id = pc.category_id
+                 WHERE LOWER(TRIM(pc.category_name)) = LOWER(TRIM(?))
+                 LIMIT 1`,
+                [product_category]
+            );
+            if (hasSubs.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Sub Product Category "${sub_product_category}" does not belong to selected category "${product_category}"`
+                });
+            }
+        }
+    }
+
     const pr_date_final = pr_date && String(pr_date).trim() !== "" ? pr_date : new Date().toISOString().split("T")[0];
     const taxable_value = Number(qty) * Number(sales_rate);
     const connection = await db.getConnection();
@@ -1720,6 +2215,7 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
                 location,
                 territory,
                 product_category,
+                sub_product_category,
                 item_name,
                 product_remarks,
                 make,
@@ -1730,7 +2226,7 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
                 taxable_value,
                 created_by
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 pr_number,
                 pr_date_final,
@@ -1738,6 +2234,7 @@ app.post("/purchase-requests", verifyProcurement, async (req, res) => {
                 location,
                 territory,
                 product_category,
+                (sub_product_category && String(sub_product_category).trim()) || null,
                 item_name,
                 product_remarks || null,
                 make,
@@ -1827,6 +2324,7 @@ app.post("/purchase-requests/import-preview", verifyProcurement, excelUpload.sin
                 location: getCell(row, "location"),
                 territory: getCell(row, "territory"),
                 product_category: getCell(row, "product_category"),
+                sub_product_category: getCell(row, "sub_product_category") || getCell(row, "sub_category") || null,
                 item_name: getCell(row, "item_name"),
                 product_remarks: getCell(row, "product_remarks"),
                 make: getCell(row, "make"),
@@ -1888,9 +2386,9 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
             const [result] = await connection.execute(
                 `INSERT INTO purchase_requests
                 (pr_number, pr_date, party_name, location, territory,
-                 product_category, item_name, product_remarks, make, model,
+                 product_category, sub_product_category, item_name, product_remarks, make, model,
                  qty, unit, sales_rate, taxable_value, created_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     pr_number,
                     row.pr_date || null,
@@ -1898,6 +2396,7 @@ app.post("/purchase-requests/import", verifyProcurement, async (req, res) => {
                     row.location || null,
                     row.territory || null,
                     row.product_category || null,
+                    row.sub_product_category || null,
                     row.item_name || null,
                     row.product_remarks || null,
                     row.make || null,
@@ -2039,6 +2538,7 @@ app.get("/order-tracking", verifyProcurement, async (req, res) => {
                     pr.location,
                     pr.territory,
                     pr.product_category,
+                    pr.sub_product_category,
                     pr.item_name,
                     pr.make,
                     pr.model,
@@ -2227,6 +2727,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
                     pr.location,
                     pr.territory,
                     pr.product_category,
+                    pr.sub_product_category,
                     pr.item_name,
                     pr.make,
                     pr.model,
@@ -2278,7 +2779,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         });
 
         // 1. Title Banner
-        sheet.mergeCells("A1:R1");
+        sheet.mergeCells("A1:S1");
         const titleCell = sheet.getCell("A1");
         titleCell.value = "NIMIT — PROCUREIQ ORDER TRACKING SUMMARY";
         titleCell.font = { name: "Segoe UI", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
@@ -2291,7 +2792,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         sheet.getRow(1).height = 36;
 
         // 2. Metadata / Filter Bar Subtitle
-        sheet.mergeCells("A2:R2");
+        sheet.mergeCells("A2:S2");
         const metaCell = sheet.getCell("A2");
         const now = new Date();
         const dateTag = now.toISOString().slice(0, 10);
@@ -2323,6 +2824,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
             { header: "Location", key: "location", width: 18 },
             { header: "Territory", key: "territory", width: 14 },
             { header: "Product Category", key: "product_category", width: 24 },
+            { header: "Sub Product Category", key: "sub_product_category", width: 22 },
             { header: "Item Name", key: "item_name", width: 36 },
             { header: "Make", key: "make", width: 18 },
             { header: "Model", key: "model", width: 20 },
@@ -2399,6 +2901,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
                 row.location || "—",
                 row.territory || "—",
                 row.product_category || "—",
+                row.sub_product_category || "—",
                 row.item_name || "—",
                 row.make || "—",
                 row.model || "—",
@@ -2444,15 +2947,15 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
                         cell.font = { name: "Segoe UI", size: 9.5, bold: true, color: { argb: "FFB91C1C" } };
                         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF2F2" } };
                     }
-                } else if (colIdx === 13) {
+                } else if (colIdx === 14) {
                     cell.alignment = { vertical: "middle", horizontal: "right" };
                     cell.numFmt = "#,##0";
-                } else if (colIdx === 14) {
-                    cell.alignment = { vertical: "middle", horizontal: "center" };
                 } else if (colIdx === 15) {
+                    cell.alignment = { vertical: "middle", horizontal: "center" };
+                } else if (colIdx === 16) {
                     cell.alignment = { vertical: "middle", horizontal: "right" };
                     cell.numFmt = "₹#,##0.00";
-                } else if (colIdx === 16) {
+                } else if (colIdx === 17) {
                     cell.alignment = { vertical: "middle", horizontal: "right" };
                     cell.numFmt = "₹#,##0.00";
                 } else {
@@ -2466,14 +2969,14 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
         // 5. Total Row
         const totalRow = sheet.getRow(currentRowIdx);
         totalRow.height = 26;
-        sheet.mergeCells(`A${currentRowIdx}:M${currentRowIdx}`);
+        sheet.mergeCells(`A${currentRowIdx}:N${currentRowIdx}`);
         const totalLabelCell = totalRow.getCell(1);
         totalLabelCell.value = "TOTAL SUMMARY";
         totalLabelCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         totalLabelCell.alignment = { vertical: "middle", horizontal: "right" };
         totalLabelCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
 
-        for (let c = 1; c <= 18; c++) {
+        for (let c = 1; c <= 19; c++) {
             const cell = totalRow.getCell(c);
             cell.border = {
                 top: { style: "medium", color: { argb: "FF0F172A" } },
@@ -2481,18 +2984,18 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
                 left: { style: "thin", color: { argb: "FFE2E8F0" } },
                 right: { style: "thin", color: { argb: "FFE2E8F0" } }
             };
-            if (c > 13) {
+            if (c > 14) {
                 cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
             }
         }
 
-        const qtyTotalCell = totalRow.getCell(14);
+        const qtyTotalCell = totalRow.getCell(15);
         qtyTotalCell.value = totalQty;
         qtyTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         qtyTotalCell.alignment = { vertical: "middle", horizontal: "right" };
         qtyTotalCell.numFmt = "#,##0";
 
-        const taxableTotalCell = totalRow.getCell(17);
+        const taxableTotalCell = totalRow.getCell(18);
         taxableTotalCell.value = totalTaxableValue;
         taxableTotalCell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FF0F172A" } };
         taxableTotalCell.alignment = { vertical: "middle", horizontal: "right" };
@@ -2500,7 +3003,7 @@ app.get("/order-tracking/export", verifyProcurement, async (req, res) => {
 
         // Auto filter on table headers
         if (currentRowIdx > 5) {
-            sheet.autoFilter = `A4:R${currentRowIdx - 1}`;
+            sheet.autoFilter = `A4:S${currentRowIdx - 1}`;
         }
 
         const statusSuffix = (statusParam && statusParam !== "ALL") ? `_${statusParam}` : "";
@@ -3469,6 +3972,7 @@ app.get("/vendor-inquiries", verifyProcurement, async (req, res) => {
                 pr.location,
                 pr.territory,
                 pr.product_category,
+                pr.sub_product_category,
                 pr.item_name,
                 pr.make,
                 pr.model,
@@ -3490,6 +3994,7 @@ app.get("/vendor-inquiries", verifyProcurement, async (req, res) => {
             GROUP BY
                 vi.inquiry_id, vi.status, pr.id, pr.pr_number, pr.pr_date,
                 pr.party_name, pr.location, pr.territory, pr.product_category,
+                pr.sub_product_category,
                 pr.item_name, pr.make, pr.model, pr.qty, pr.unit, pr.sales_rate,
                 pr.taxable_value, pr.product_remarks, po.po_id, po.po_number, po.status
             ORDER BY pr.id DESC
@@ -3530,6 +4035,7 @@ app.put("/vendor-inquiries/:inquiry_id/purchase-request", verifyProcurement, asy
                 pr.location,
                 pr.territory,
                 pr.product_category,
+                pr.sub_product_category,
                 pr.item_name,
                 pr.make,
                 pr.model,
@@ -3586,6 +4092,7 @@ app.put("/vendor-inquiries/:inquiry_id/purchase-request", verifyProcurement, asy
             location:         row.location,
             territory:        row.territory,
             product_category: row.product_category,
+            sub_product_category: row.sub_product_category,
             item_name:        row.item_name,
             make:             row.make,
             model:            row.model,
@@ -3633,6 +4140,7 @@ app.put("/vendor-inquiries/:inquiry_id/purchase-request", verifyProcurement, asy
         // Financial fields (only when OPEN)
         if (isOpen) {
             if (product_category !== undefined) { updates.push("product_category = ?"); params.push(cleanValue(product_category)); }
+            if (req.body.sub_product_category !== undefined) { updates.push("sub_product_category = ?"); params.push(cleanValue(req.body.sub_product_category)); }
             if (item_name !== undefined)        { updates.push("item_name = ?");        params.push(cleanValue(item_name)); }
             if (make !== undefined)             { updates.push("make = ?");             params.push(cleanValue(make)); }
             if (model !== undefined)            { updates.push("model = ?");            params.push(cleanValue(model)); }
@@ -3718,6 +4226,7 @@ app.put("/vendor-inquiries/:inquiry_id/purchase-request", verifyProcurement, asy
                 location:         newPr.location,
                 territory:        newPr.territory,
                 product_category: newPr.product_category,
+                sub_product_category: newPr.sub_product_category,
                 item_name:        newPr.item_name,
                 make:             newPr.make,
                 model:            newPr.model,
@@ -4212,6 +4721,7 @@ app.get("/quotation-comparisons", verifyProcurement, async (req, res) => {
                 pr.location,
                 pr.territory,
                 pr.product_category,
+                pr.sub_product_category,
                 pr.item_name,
                 pr.make,
                 pr.model,
@@ -4372,6 +4882,7 @@ app.post("/vendor-inquiries/:inquiry_id/select-vendor", verifyProcurement, async
                 location,
                 territory,
                 product_category,
+                sub_product_category,
                 item_name,
                 product_remarks,
                 make,
@@ -4392,7 +4903,7 @@ app.post("/vendor-inquiries/:inquiry_id/select-vendor", verifyProcurement, async
                 balance_due_days,
                 payment_terms_remarks,
                 status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT')
         `, [
             poNumber,
             poDate,
@@ -4406,6 +4917,7 @@ app.post("/vendor-inquiries/:inquiry_id/select-vendor", verifyProcurement, async
             pr.location,
             pr.territory,
             pr.product_category,
+            pr.sub_product_category || null,
             pr.item_name,
             pr.product_remarks,
             pr.make,
@@ -4480,6 +4992,7 @@ app.get("/purchase-orders", verifyProcurement, async (req, res) => {
                 po.location,
                 po.territory,
                 po.product_category,
+                po.sub_product_category,
                 po.item_name,
                 po.product_remarks,
                 po.make,
@@ -4679,6 +5192,7 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
                 po.location,
                 po.territory,
                 po.product_category,
+                po.sub_product_category,
                 po.item_name,
                 po.product_remarks,
                 po.make,
@@ -4731,7 +5245,7 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
         });
 
         // 1. Title Banner
-        sheet.mergeCells("A1:AI1");
+        sheet.mergeCells("A1:AJ1");
         const titleCell = sheet.getCell("A1");
         titleCell.value = "NIMIT — PROCUREIQ PURCHASE ORDERS & PR FULFILLMENT REPORT";
         titleCell.font = { name: "Segoe UI", size: 15, bold: true, color: { argb: "FFFFFFFF" } };
@@ -4744,7 +5258,7 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
         sheet.getRow(1).height = 36;
 
         // 2. Subtitle / Metadata Banner
-        sheet.mergeCells("A2:AI2");
+        sheet.mergeCells("A2:AJ2");
         const metaCell = sheet.getCell("A2");
         const now = new Date();
         const dateTag = now.toISOString().slice(0, 10);
@@ -4776,6 +5290,7 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
             { header: "Location", key: "location", width: 18, align: "left" },
             { header: "Territory", key: "territory", width: 16, align: "left" },
             { header: "Product Category", key: "product_category", width: 22, align: "left" },
+            { header: "Sub Product Category", key: "sub_product_category", width: 22, align: "left" },
             { header: "Item Name", key: "item_name", width: 32, align: "left" },
             { header: "Make", key: "make", width: 16, align: "left" },
             { header: "Model", key: "model", width: 18, align: "left" },
@@ -4877,6 +5392,7 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
                 row.location || "—",
                 row.territory || "—",
                 row.product_category || "—",
+                row.sub_product_category || "—",
                 row.item_name || "—",
                 row.make || "—",
                 row.model || "—",
@@ -4927,7 +5443,7 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
                 cell.alignment = { vertical: "middle", horizontal: align };
 
                 // Currency formatting
-                if ([15, 16, 23, 24, 25].includes(cIdx)) {
+                if ([16, 17, 24, 25, 26].includes(cIdx)) {
                     cell.numFmt = "₹#,##0.00";
                 }
 
@@ -4971,20 +5487,20 @@ app.get(["/purchase-orders/export", "/api/purchase-orders/export"], verifyProcur
         sumRow.getCell(1).value = "";
         sumRow.getCell(7).value = "TOTAL SUMMARY";
         sumRow.getCell(7).font = { name: "Segoe UI", size: 11, bold: true, color: { argb: "FF0B57A4" } };
-        sumRow.getCell(14).value = totalQty;
-        sumRow.getCell(17).value = totalPrValue;
-        sumRow.getCell(17).numFmt = "₹#,##0.00";
-        sumRow.getCell(25).value = totalPoAmount;
-        sumRow.getCell(25).numFmt = "₹#,##0.00";
-        sumRow.getCell(26).value = totalSavings;
+        sumRow.getCell(15).value = totalQty;
+        sumRow.getCell(18).value = totalPrValue;
+        sumRow.getCell(18).numFmt = "₹#,##0.00";
+        sumRow.getCell(26).value = totalPoAmount;
         sumRow.getCell(26).numFmt = "₹#,##0.00";
+        sumRow.getCell(27).value = totalSavings;
+        sumRow.getCell(27).numFmt = "₹#,##0.00";
         if (totalPrValue > 0) {
-            sumRow.getCell(27).value = ((totalSavings / totalPrValue) * 100).toFixed(2) + "%";
+            sumRow.getCell(28).value = ((totalSavings / totalPrValue) * 100).toFixed(2) + "%";
         }
 
         // Enable auto filter
         if (rows.length > 0) {
-            sheet.autoFilter = `A4:AI${summaryRowIndex - 1}`;
+            sheet.autoFilter = `A4:AJ${summaryRowIndex - 1}`;
         }
 
         const statusSuffix = (statusParam && statusParam !== "ALL") ? `_${statusParam}` : "";
@@ -5180,7 +5696,7 @@ app.post("/purchase-orders/:po_id/complete", verifyProcurement, async (req, res)
 // Deletes a DRAFT PO row entirely and re-opens the inquiry for vendor re-selection.
 // The PO number is freed so it can be assigned to the next vendor selected.
 // Use this when the wrong vendor was selected.
-app.post("/purchase-orders/:po_id/reselect", verifyManager, async (req, res) => {
+app.post("/purchase-orders/:po_id/reselect", verifyProcurement, async (req, res) => {
     const poId = Number(req.params.po_id);
     const { reason } = req.body;
 
@@ -5327,11 +5843,26 @@ app.post("/purchase-orders/:po_id/cancel", verifyManager, async (req, res) => {
 
         const po = rows[0];
 
-        if (po.status !== "DRAFT") {
+        if (po.status !== "DRAFT" && po.status !== "ISSUED") {
             await connection.rollback();
             return res.status(409).json({
                 success: false,
-                message: "Only DRAFT purchase orders can be cancelled. Once issued, cancellation must be handled manually."
+                message: "Only DRAFT or ISSUED purchase orders can be cancelled."
+            });
+        }
+
+        // If PO is ISSUED, verify no goods remain received in inventory
+        const [grRows] = await connection.execute(`
+            SELECT 
+                GREATEST(0, COALESCE((SELECT SUM(received_quantity) FROM goods_received WHERE po_id = ?), 0) - COALESCE((SELECT SUM(return_quantity) FROM goods_returns WHERE po_id = ?), 0)) AS net_received
+        `, [poId, poId]);
+        const netReceived = Number(grRows[0]?.net_received || 0);
+
+        if (po.status === "ISSUED" && netReceived > 0) {
+            await connection.rollback();
+            return res.status(409).json({
+                success: false,
+                message: `Cannot cancel Purchase Order ${po.po_number}: ${netReceived} ${po.unit || "units"} have already been received into inventory. Please return all received goods first.`
             });
         }
 
@@ -5353,7 +5884,7 @@ app.post("/purchase-orders/:po_id/cancel", verifyManager, async (req, res) => {
 
         await writeReportLog(req, "REQUIREMENT_CANCELLED",
             `Client requirement cancelled. Full chain closed: ` +
-            `PR ${po.pr_number}, inquiry ${po.inquiry_id}, draft PO ${po.po_number}. ` +
+            `PR ${po.pr_number}, inquiry ${po.inquiry_id}, ${po.status.toLowerCase()} PO ${po.po_number}. ` +
             `Vendor: "${orDash(po.vendor_name)}" (${orDash(po.vendor_code)}). ` +
             `Item: ${orDash(po.item_name)}, make: ${orDash(po.make)}, model: ${orDash(po.model)}, ` +
             `quantity: ${Number(po.qty)} ${orDash(po.unit)}, PO value: ${money(po.total_price)}. ` +
@@ -5397,6 +5928,7 @@ app.get("/goods-received", verifyProcurement, async (req, res) => {
                 po.location,
                 po.territory,
                 po.product_category,
+                po.sub_product_category,
                 po.item_name,
                 po.product_remarks,
                 po.make,

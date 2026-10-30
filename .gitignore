@@ -44,6 +44,9 @@ ehthumbs.db
 *.log
 logs/
 
+# Scratch & development scripts
+scratch/
+
 # Legacy backup services
 legacy_services/
 database/backups/

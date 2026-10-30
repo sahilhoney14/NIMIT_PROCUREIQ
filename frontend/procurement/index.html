@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Procurement</title>
+    
+
     <script src="/shared/js/auth-guard.js" data-allowed-roles="PROCUREMENT,ADMIN"></script>
     <link rel="stylesheet" href="/shared/css/variables.css">
     <link rel="stylesheet" href="/shared/css/components.css">
@@ -127,6 +129,32 @@
                     <button type="button" class="nav-submenu-item submenu-item" data-page="past-price-reference">
                         <span class="submenu-dot"></span>
                         <span>Past Price Reference</span>
+                    </button>
+                </div>
+            </div>
+
+            
+            <!-- Item Master Dropdown -->
+            <div class="nav-dropdown-group" id="group-item-master">
+                <button type="button" class="nav-dropdown-toggle" data-dropdown="item-master">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                    </svg>
+                    <span class="nav-label">Item Master</span>
+                    <svg class="nav-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+                <div class="nav-submenu" id="submenu-item-master">
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="product-categories">
+                        <span class="submenu-dot"></span>
+                        <span>Product Categories</span>
+                    </button>
+                    <button type="button" class="nav-submenu-item submenu-item" data-page="sub-categories">
+                        <span class="submenu-dot"></span>
+                        <span>Sub Categories</span>
                     </button>
                 </div>
             </div>
@@ -347,44 +375,13 @@
                                 <label>Product Category <span class="required-star">*</span></label>
                                 <select id="product_category" required>
                                     <option value="" disabled selected>Select Category</option>
-                                    <option value="Cable">Cable</option>
-                                    <option value="Accessories">Accessories</option>
-                                    <option value="Networking">Networking</option>
-                                    <option value="Rack">Rack</option>
-                                    <option value="Access Control System">Access Control System</option>
-                                    <option value="Surveillance System">Surveillance System</option>
-                                    <option value="Fire Alarm System">Fire Alarm System</option>
-                                    <option value="Pole">Pole</option>
-                                    <option value="Conference System">Conference System</option>
-                                    <option value="PA System">PA System</option>
-                                    <option value="Card">Card</option>
-                                    <option value="Attendance System">Attendance System</option>
-                                    <option value="License">License</option>
-                                    <option value="Software">Software</option>
-                                    <option value="Boom Barrier">Boom Barrier</option>
-                                    <option value="AMC">AMC</option>
-                                    <option value="Power Fence">Power Fence</option>
-                                    <option value="PPEs">PPEs</option>
-                                    <option value="Nurse Calling System">Nurse Calling System</option>
-                                    <option value="EPABX System">EPABX System</option>
-                                    <option value="Gate">Gate</option>
-                                    <option value="Services">Services</option>
-                                    <option value="Fire Hydrant System">Fire Hydrant System</option>
-                                    <option value="Security System">Security System</option>
-                                    <option value="CCC">CCC</option>
-                                    <option value="Gate Frisking System">Gate Frisking System</option>
-                                    <option value="MSV">MSV</option>
-                                    <option value="Bell">Bell</option>
-                                    <option value="Display">Display</option>
-                                    <option value="Tracking">Tracking</option>
-                                    <option value="BMS">BMS</option>
-                                    <option value="UPS">UPS</option>
-                                    <option value="Projector">Projector</option>
-                                    <option value="Sensor">Sensor</option>
-                                    <option value="Tower">Tower</option>
-                                    <option value="Other">Other</option>
                                 </select>
-                                <input type="text" id="product_category_other" placeholder="Please specify product category" style="display: none; margin-top: 6px;">
+                            </div>
+                            <div class="form-group">
+                                <label>Sub Product Category <span class="required-star">*</span></label>
+                                <select id="sub_product_category">
+                                    <option value="" disabled selected>Select Sub Product Category</option>
+                                </select>
                             </div>
 
                             <div class="form-group">
@@ -463,6 +460,7 @@
                                         <th>Location</th>
                                         <th>Territory</th>
                                         <th>Product Category</th>
+                                        <th>Sub Product Category</th>
                                         <th>Item Name</th>
                                         <th>Product Remarks</th>
                                         <th>Make</th>
@@ -1192,6 +1190,164 @@
                     <div id="pprResults" class="ppr-results"></div>
                 </section>
             </div>
+        
+            <!-- ── ITEM MASTER: Product Categories ────────────────── -->
+            <div id="productCategoriesPage" class="page hidden">
+                <div class="im-breadcrumbs">
+                    <span>Item Master</span>
+                    <span class="breadcrumb-sep">&gt;</span>
+                    <span class="breadcrumb-current">Product Categories</span>
+                </div>
+
+                <div class="im-page-header">
+                    <div>
+                        <h1>Product Categories</h1>
+                        <p class="im-page-subtitle">Manage product categories used across procurement requests.</p>
+                    </div>
+                    <button type="button" id="btnAddProductCategory" class="primary-button" style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Add Category</span>
+                    </button>
+                </div>
+
+                <div class="im-toolbar-card">
+                    <div class="im-search-wrap">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="catSearchInput" placeholder="Search category name..." class="im-search-input">
+                    </div>
+                    <button type="button" id="catResetBtn" class="option-button">Reset</button>
+                </div>
+
+                <div class="im-table-card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 80px;">Sl. No.</th>
+                                    <th>Category Name</th>
+                                    <th style="width: 160px;">Created On</th>
+                                    <th style="width: 120px;">Status</th>
+                                    <th style="width: 120px; min-width: 120px; text-align: center; white-space: nowrap;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productCategoriesTableBody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="im-table-footer">
+                        <span id="catPaginationInfo">Showing 0 to 0 of 0 entries</span>
+                        <div class="im-pagination" id="catPaginationControls"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── ITEM MASTER: Sub Product Categories ─────────────── -->
+            <div id="subCategoriesPage" class="page hidden">
+                <div class="im-breadcrumbs">
+                    <span>Item Master</span>
+                    <span class="breadcrumb-sep">&gt;</span>
+                    <span class="breadcrumb-current">Sub Product Categories</span>
+                </div>
+
+                <div class="im-page-header">
+                    <div>
+                        <h1>Sub Product Categories</h1>
+                        <p class="im-page-subtitle">Manage sub categories under each product category.</p>
+                    </div>
+                    <button type="button" id="btnAddSubCategory" class="primary-button" style="display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        <span>Add Sub Category</span>
+                    </button>
+                </div>
+
+                <div class="im-toolbar-card">
+                    <div class="im-search-wrap">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="subCatSearchInput" placeholder="Search sub category name..." class="im-search-input">
+                    </div>
+                    <div class="im-filters-group">
+                        <div style="display: flex; flex-direction: column; gap: 3px;">
+                            <label style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em;">Product Category</label>
+                            <select id="subCatFilterCategory" class="im-filter-select">
+                                <option value="">Select Category</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 3px;">
+                            <label style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em;">Status</label>
+                            <select id="subCatFilterStatus" class="im-filter-select" style="min-width: 110px;">
+                                <option value="All">All</option>
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: flex-end; height: 100%; padding-top: 18px;">
+                            <button type="button" id="subCatResetBtn" class="option-button">Reset</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subcat-layout-container">
+                    <div class="subcat-table-pane" id="subCatTablePane">
+                        <div class="im-table-card">
+                            <div class="table-container">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 70px;">Sl. No.</th>
+                                            <th>Sub Category Name</th>
+                                            <th>Parent Category</th>
+                                            <th style="width: 100px;">Status</th>
+                                            <th style="width: 130px;">Created On</th>
+                                            <th style="width: 120px; min-width: 120px; text-align: center; white-space: nowrap;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="subCategoriesTableBody">
+                                        <!-- Populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="im-table-footer">
+                                <span id="subCatPaginationInfo">Showing 0 to 0 of 0 entries</span>
+                                <div class="im-pagination" id="subCatPaginationControls"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Side Drawer Card -->
+                    <div class="subcat-side-panel hidden" id="subCategorySidePanel">
+                        <div class="subcat-panel-header">
+                            <h3 id="subCatPanelTitle">Add Sub Product Category</h3>
+                            <button type="button" id="closeSubCatPanelBtn" class="subcat-panel-close" title="Close">&times;</button>
+                        </div>
+                        <form id="subCategoryForm">
+                            <input type="hidden" id="subCatEditId" value="">
+                            <div class="form-group" style="margin-bottom: 16px;">
+                                <label style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; display: block;">Product Category <span class="required-star">*</span></label>
+                                <select id="subCatParentSelect" required class="im-filter-select" style="width: 100%;">
+                                    <option value="" disabled selected>Select Category</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; display: block;">Sub Category Name <span class="required-star">*</span></label>
+                                <input type="text" id="subCatNameInput" required placeholder="Enter sub category name" class="im-search-input" style="padding-left: 12px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 24px;">
+                                <label style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; display: block;">Status</label>
+                                <select id="subCatStatusSelect" class="im-filter-select" style="width: 100%;">
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="subcat-panel-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+                                <button type="button" id="cancelSubCatBtn" class="option-button" style="min-width: 90px; height: 38px;">Cancel</button>
+                                <button type="submit" id="saveSubCatBtn" class="primary-button" style="min-width: 90px; height: 38px;">Save</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -1232,9 +1388,40 @@
         </div>
     </div>
 
+    <!-- ── Category Add/Edit Modal ─────────────────────────────────── -->
+    <div id="categoryModal" class="modal hidden" role="dialog" aria-modal="true">
+        <div class="modal-card" style="max-width: 480px; width: 100%; border-radius: 12px; overflow: hidden; background: #ffffff;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; border-bottom: 1px solid #e2e8f0;">
+                <h2 id="categoryModalTitle" style="margin: 0; font-size: 18px; font-weight: 700; color: #0f172a;">Add Product Category</h2>
+                <button type="button" id="closeCategoryModalBtn" class="subcat-panel-close" style="font-size: 22px;">&times;</button>
+            </div>
+            <form id="categoryForm" style="padding: 24px;">
+                <input type="hidden" id="categoryEditId" value="">
+                <div class="form-group" style="margin-bottom: 18px;">
+                    <label style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; display: block;">Category Name <span class="required-star">*</span></label>
+                    <input type="text" id="categoryNameInput" required placeholder="Enter category name" class="im-search-input" style="padding-left: 12px; width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 24px;">
+                    <label style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 6px; display: block;">Status</label>
+                    <select id="categoryStatusSelect" class="im-filter-select" style="width: 100%;">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+                <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; align-items: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9;">
+                    <button type="button" id="cancelCategoryModalBtn" class="option-button" style="min-width: 90px; height: 38px; margin: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 13.5px; font-weight: 600; border-radius: 8px;">Cancel</button>
+                    <button type="submit" id="saveCategoryModalBtn" class="primary-button" style="min-width: 90px; height: 38px; margin: 0; margin-top: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; font-size: 13.5px; font-weight: 600; border-radius: 8px;">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="/shared/js/utils.js"></script>
     <script src="/shared/js/api.js"></script>
     <script src="/shared/js/workspace-dashboard.js?v=3.0"></script>
-    <script src="/procurement/script.js?v=3.9"></script>
+    <script src="/procurement/script.js?v=4.5"></script>
+
+
+
 </body>
 </html>

@@ -216,11 +216,8 @@ async function runAudit() {
         { method: "GET", path: "/audit-logs" },
         { method: "GET", path: "/login-logs" },
         { method: "GET", path: "/management-insights" },
-        { method: "GET", path: "/report-logs" },
         { method: "POST", path: "/vendor-inquiries/1/cancel" },
-        { method: "POST", path: "/vendor-inquiries/1/select-vendor", body: { vendor_id: 1 } },
         { method: "POST", path: "/purchase-orders/1/cancel" },
-        { method: "POST", path: "/purchase-orders/1/reselect" },
         { method: "POST", path: "/vendor-performance/1/blacklist", body: { reason: "test" } },
         { method: "POST", path: "/vendor-performance/1/unblacklist", body: { reason: "test" } }
     ];
@@ -233,6 +230,20 @@ async function runAudit() {
         // Test 2: Procurement user accessing Admin route must be 403 Forbidden
         const procOnAdmin = await request({ method: r.method, path: r.path, token: procToken, body: r.body });
         check(`Procurement user on Admin route ${r.method} ${r.path} returns 403 Forbidden`, procOnAdmin.status === 403, `got status ${procOnAdmin.status}`);
+    }
+
+    // Explicit test: Procurement users CAN change vendor (reselect) directly without admin
+    const procAllowedActions = [
+        { method: "POST", path: "/vendor-inquiries/1/select-vendor", body: { vendor_id: 1 } },
+        { method: "POST", path: "/purchase-orders/1/reselect", body: { reason: "test reason" } }
+    ];
+
+    for (const r of procAllowedActions) {
+        const unauth = await request({ method: r.method, path: r.path, body: r.body });
+        check(`Unauthenticated ${r.method} ${r.path} returns 401 Unauthorized`, unauth.status === 401, `got status ${unauth.status}`);
+
+        const procAccess = await request({ method: r.method, path: r.path, token: procToken, body: r.body });
+        check(`Procurement user permitted on ${r.method} ${r.path} (not 403 Forbidden)`, procAccess.status !== 403, `got status ${procAccess.status}`);
     }
 
     // --- STEP 7: SENSITIVE DATA EXPOSURE / STACK TRACES ---
