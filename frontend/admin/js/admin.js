@@ -178,8 +178,6 @@ function currentUser() {
     return window.currentUsername || "";
 }
 
-// apiFetch: used by the Proforma Invoice calls. Only defined here if another
-// script has not already provided it. On a 401 it redirects to the login page.
 // apiFetch: used by all dashboard calls. Automatically refreshes access tokens silently on 401.
 let adminRefreshPromise = null;
 

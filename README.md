@@ -57,7 +57,6 @@ NIMIT_PROCUREIQ/
 │   │
 │   ├── fonts/                         # Custom TTF fonts for Purchase Order PDFs
 │   ├── purchase-orders/               # Generated Purchase Order PDFs (Git-ignored)
-│   ├── proforma-invoice/              # Supplier invoices (Git-ignored)
 │   ├── vendor/                        # Uploaded vendor compliance records (Git-ignored)
 │   ├── .env                           # Backend environment variables
 │   ├── package.json                   # Single unified backend package.json

@@ -27,4 +27,4 @@ graph TD
 - `backend/src/modules/`: Domain-driven feature packages grouping controllers, services, repositories, routes, and validation schemas.
 - `backend/src/middleware/`: Authentication (`auth.middleware.js`), Role-Based Access Control (`rbac.middleware.js`), Validation, Upload, and Error handling.
 - `backend/src/services/`: Cross-cutting technical services (PDF generation, Sequence generation, Audit logging, Email).
-- `backend/storage/`: Structured persistent storage for PO documents, vendor attachments, and proforma invoices.
+- `backend/storage/`: Structured persistent storage for PO documents, vendor attachments.
