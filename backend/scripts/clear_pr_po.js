@@ -1,4 +1,5 @@
 const path = require("path");
+const fs = require("fs");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const { db, logDb } = require("../src/config/db");
 
@@ -31,12 +32,26 @@ async function clearPrPoDatabase() {
         await mainConn.query("SET FOREIGN_KEY_CHECKS = 1");
         console.log("-> Main DB PR & PO tables cleared successfully.");
 
+        // Clean generated PO PDF files from disk
+        console.log("6. Cleaning generated PO PDF files from disk...");
+        const poDir = path.resolve(__dirname, "../purchase-orders");
+        if (fs.existsSync(poDir)) {
+            const files = fs.readdirSync(poDir);
+            for (const f of files) {
+                if (f.endsWith(".pdf")) {
+                    fs.unlinkSync(path.join(poDir, f));
+                    console.log(`   Deleted PDF: ${f}`);
+                }
+            }
+        }
+
         // Clear PR/PO related activity logs from report_logs
-        console.log("6. Clearing PR/PO historical report logs in ProcureIQ_Logs...");
+        console.log("7. Clearing PR/PO historical report logs in ProcureIQ_Logs...");
         const [delResult] = await logDb.query(`
             DELETE FROM report_logs 
             WHERE action IN (
                 'PR_CREATED', 
+                'PR_UPDATED',
                 'VENDOR_INQUIRY_CREATED', 
                 'VENDOR_QUOTATION_ADDED', 
                 'VENDOR_SELECTED', 
@@ -96,4 +111,3 @@ async function clearPrPoDatabase() {
 }
 
 clearPrPoDatabase();
-

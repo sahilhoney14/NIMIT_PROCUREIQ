@@ -56,7 +56,7 @@ const logDb = mysql.createPool({
 
 const authServiceUrl = process.env.AUTH_SERVICE_URL;
 
-const { securityHeaders, loginRateLimiter } = require("./middleware/security.middleware");
+const { securityHeaders, loginRateLimiter, generalRateLimiter } = require("./middleware/security.middleware");
 const { memoryUpload: upload, excelUpload } = require("./middleware/upload.middleware");
 
 const vendorFolder = path.resolve(__dirname, "../vendor");
@@ -86,7 +86,7 @@ app.use(session({
 
 // Mount Modular API Router
 const apiRouter = require("./routes");
-app.use("/api", apiRouter);
+app.use("/api", generalRateLimiter, apiRouter);
 
 /* ==========================================================================
    AUTHENTICATION (JWT & Session verification middleware)
@@ -4738,10 +4738,6 @@ app.put("/vendor-inquiries/:inquiry_id/purchase-request", verifyProcurement, asy
             await connection.rollback();
             return res.status(400).json({ success: false, message: "No fields to update" });
         }
-
-        const actor = await getActor(req);
-        updates.push("updated_by = ?");
-        params.push(actor);
 
         params.push(row.pr_id);
         await connection.execute(
